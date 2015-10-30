@@ -1,0 +1,5 @@
+libyang (0.3.4-1) unstable; urgency=low
+
+  * Initial release (based on 952489bbc94c83e23afdd4a396114996efdc5c9a)
+
+ -- Luka Perkov <luka.perkov@sartura.hr>  Fri, 30 Oct 2015 09:00:00 +0000

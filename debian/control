@@ -1,0 +1,12 @@
+Source: libyang
+Section: devel
+Priority: optional
+Maintainer: Luka Perkov <luka.perkov@sartura.hr>
+Build-Depends: debhelper (>= 8.0.0), cmake, 
+Standards-Version: 3.9.4
+Homepage: https://github.com/CESNET/libyang
+
+Package: libyang-dev
+Architecture: amd64 i386 armhf
+Depends: libpcre3-dev
+Description: YANG data modeling language library
