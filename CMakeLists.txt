@@ -17,11 +17,11 @@ if(NOT UNIX)
 endif()
 
 if(NOT LIB_INSTALL_DIR)
-	set(LIB_INSTALL_DIR lib)
+	set(LIB_INSTALL_DIR usr/lib)
 endif()
 
 if(NOT INCLUDE_INSTALL_DIR)
-	set(INCLUDE_INSTALL_DIR include/libyang)
+	set(INCLUDE_INSTALL_DIR usr/include/libyang)
 endif()
 
 # set default build type if not specified by user
