@@ -1,0 +1,18 @@
+build:
+  image: "sysrepo/sysrepo-netopeer2"
+  volumes:
+    - /var/lib/drone/scripts:/scripts
+  commands:
+    - apt-get update
+    - apt-get install nodejs npm expect-dev
+    - ln -sf /usr/bin/nodejs /usr/bin/node
+    - mkdir build; cd build
+    - cmake -DJAVASCRIPT_BINDING=ON -DCMAKE_BUILD_TYPE=Debug ..
+    - make
+    - git clone https://github.com/freenetconf/libyang-npm.git
+    - cd libyang-npm
+    - cp ../javascript/* . -r
+    - expect -f /scripts/npm_login_expect
+    - sed "s/'libraries':\ \['-lpcre',\],/'dependencies':\ \['deps\/libpcre\/pcre.gyp:libpcre',\],/g" binding.gyp > tmp.gyp
+    - sed -e "/'include_dirs':\ \['/ { N; d; }" tmp.gyp > binding.gyp
+    - npm publish
