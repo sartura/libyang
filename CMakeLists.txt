@@ -60,6 +60,13 @@ configure_file(${PROJECT_SOURCE_DIR}/src/extensions_config.h.in ${PROJECT_SOURCE
 # include custom Modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules/")
 
+# setup bindings
+set(GEN_LANGUAGE_BINDINGS 1 CACHE BOOL "Enable language bindings generation.")
+set(GEN_CPP_BINDINGS 1 CACHE BOOL "Enable C++ bindings.")
+set(GEN_PYTHON_BINDINGS 1 CACHE BOOL "Enable Python bindings.")
+set(GEN_PYTHON_VERSION "3" CACHE STRING "Python version")
+set(GEN_JAVASCRIPT_BINDINGS 1 CACHE BOOL "Enable JavaScript bindings.")
+
 find_package(FLEX)
 find_package(BISON)
 find_program (DEB_BUILDER NAMES debuild)
@@ -284,6 +291,10 @@ if(ENABLE_BUILD_TESTS)
         add_subdirectory(tests)
     endif(CMOCKA_FOUND)
 endif(ENABLE_BUILD_TESTS)
+
+if(GEN_LANGUAGE_BINDINGS AND GEN_CPP_BINDINGS)
+    add_subdirectory(swig)
+endif()
 
 if(JAVASCRIPT_BINDING)
     include(swig/javascript/CMakeLists.txt)
