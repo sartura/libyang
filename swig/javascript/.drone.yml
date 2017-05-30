@@ -1,0 +1,17 @@
+build:
+  image: "sysrepo/sysrepo-netopeer2"
+  volumes:
+    - /var/lib/drone/scripts:/scripts
+  commands:
+    - apt-get update
+    - apt-get install nodejs npm expect-dev
+    - ln -sf /usr/bin/nodejs /usr/bin/node
+    - mkdir build; cd build
+    - cmake -DJAVASCRIPT_BINDING=ON -DCMAKE_BUILD_TYPE=Release ..
+    - make
+    - git clone https://github.com/freenetconf/libyang-npm.git
+    - cd libyang-npm
+    - rm -rf src
+    - cp ../javascript/* . -r
+    - expect -f /scripts/npm_login_expect
+    - npm publish
