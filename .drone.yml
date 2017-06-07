@@ -1,0 +1,18 @@
+build:
+  image: "sysrepo/sysrepo-netopeer2:libyang"
+  volumes:
+    - /var/lib/drone/scripts:/scripts
+  commands:
+    - pacman -Syu
+    - pacman -S --noconfirm expect
+    - mkdir build; cd build
+    - cmake -DJAVASCRIPT_BINDING=ON -DCMAKE_BUILD_TYPE=Release ..
+    - make
+    - make install
+    - git clone https://github.com/freenetconf/libyang-npm.git
+    - cd libyang-npm
+    - rm -rf src models files
+    - cp ../javascript/* . -rf
+    - sed -i -- 's/lys_ext_instance_complex()/lys_ext_instance_complex/g' src/libyang_javascript_wrap.cxx
+    - expect -f /scripts/npm_login_expect
+    - npm publish
