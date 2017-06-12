@@ -52,19 +52,6 @@ ENDFUNCTION(PREPEND)
 
 PREPEND(abs_libsrc ${CMAKE_SOURCE_DIR} ${libsrc})
 
-# create static libyang C++ library
-if(STATIC)
-	add_library(libyang_cpp_static STATIC ${LIBYANG_CPP_SOURCES} ${abs_libsrc})
-    set_target_properties(libyang_cpp_static PROPERTIES OUTPUT_NAME libyang_cpp)
-	set_target_properties(libyang_cpp_static PROPERTIES PREFIX "")
-	set_target_properties(libyang_cpp_static PROPERTIES COMPILE_FLAGS "-fvisibility=hidden")
-    target_link_libraries(libyang_cpp_static m)
-    target_link_libraries(libyang_cpp_static ${CMAKE_DL_LIBS})
-    target_link_libraries(libyang_cpp_static ${CMAKE_THREAD_LIBS_INIT})
-    target_link_libraries(libyang_cpp_static ${PCRE_LIBRARIES})
-    install(TARGETS libyang_cpp_static DESTINATION ${CMAKE_INSTALL_LIBDIR})
-endif(STATIC)
-
 add_library(libyang_cpp SHARED ${LIBYANG_CPP_SOURCES})
 SET_TARGET_PROPERTIES(libyang_cpp PROPERTIES
               VERSION ${LIBYANG_VERSION} SOVERSION ${LIBYANG_SOVERSION})
