@@ -1,6 +1,8 @@
 set(CMAKE_CXX_FLAGS         "${CMAKE_CXX_FLAGS} -Wall -Wextra -std=c++11")
 set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG   "-g -O0")
+# temporary bugfix
+add_compile_options(-std=c++11)
 
 # find SWIG package
 if(GEN_LANGUAGE_BINDINGS)
@@ -70,12 +72,8 @@ install(TARGETS libyang_cpp DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cpp/src/" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libyang
     FILES_MATCHING PATTERN "*.h")
 
-# Examples
-if(GEN_CPP_BINDINGS)
-endif()
-
 if(PYTHONLIBS_FOUND AND PYTHONINTERP_FOUND AND ${GEN_PYTHON_VERSION} STREQUAL "2")
-	#add_subdirectory(python2)
+	add_subdirectory(python2)
 endif()
 
 if(PYTHONLIBS_FOUND AND PYTHONINTERP_FOUND AND ${GEN_PYTHON_VERSION} STREQUAL "3")
