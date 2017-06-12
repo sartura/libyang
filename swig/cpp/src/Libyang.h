@@ -2,6 +2,7 @@
 #define LIBYANG_H
 
 #include <iostream>
+#include <memory>
 
 #include "Internal.h"
 
