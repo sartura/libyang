@@ -12,37 +12,37 @@ using namespace std;
 Context::Context(const char *search_dir) {
 	_ctx = ly_ctx_new(search_dir);
 	if (NULL == _ctx) {
-        goto cleanup;
+		goto cleanup;
 	}
 	return;
 cleanup:
-    throw "Can not create new context";
-    return;
+	throw "Can not create new context";
+	return;
 }
 Context::Context(const char *search_dir, const char *path, LYD_FORMAT format) {
 	_ctx = ly_ctx_new_ylpath(search_dir, path, format);
 	if (NULL == _ctx) {
-        goto cleanup;
+		goto cleanup;
 	}
 	return;
 cleanup:
-    throw "Can not create new context";
-    return;
+	throw "Can not create new context";
+	return;
 }
 Context::Context(const char *search_dir, LYD_FORMAT format, const char *data) {
 	_ctx = ly_ctx_new_ylmem(search_dir, data, format);
 	if (NULL == _ctx) {
-        goto cleanup;
+		goto cleanup;
 	}
 	return;
 cleanup:
-    throw "Can not create new context";
-    return;
+	throw "Can not create new context";
+	return;
 }
 Context::~Context() {
-    if (NULL != _ctx) {
-        ly_ctx_destroy(_ctx, NULL);
-    }
+	if (NULL != _ctx) {
+		ly_ctx_destroy(_ctx, NULL);
+	}
 }
 void Context::set_searchdir(const char *search_dir) {
 	return ly_ctx_set_searchdir(_ctx, search_dir);
