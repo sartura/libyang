@@ -19,19 +19,20 @@
  * limitations under the License.
  */
 
-#include "Internal.h"
-#include "Libyang.h"
-#include "Tree_Data.h"
 #include <iostream>
 
+#include "Internal.hpp"
+#include "Libyang.hpp"
+#include "Tree_Data.hpp"
+
 extern "C" {
-#include "libyang/libyang.h"
+#include <libyang/libyang.h>
 }
 
 using namespace std;
 
 Deleter::Deleter(ly_ctx *ctx) {
-    _ctx = ctx;
+	_ctx = ctx;
 }
 Deleter::~Deleter() {
 	ly_ctx_destroy(_ctx, NULL);

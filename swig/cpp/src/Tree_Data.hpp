@@ -5,7 +5,7 @@
 #include <memory>
 #include <exception>
 
-#include "Internal.h"
+#include "Internal.hpp"
 
 extern "C" {
 #include <libyang/libyang.h>

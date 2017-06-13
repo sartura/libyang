@@ -8,7 +8,7 @@
 #define S_Module    std::shared_ptr<Module>
 
 extern "C" {
-#include "libyang/libyang.h"
+#include <libyang/libyang.h>
 }
 
 class Deleter

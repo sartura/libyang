@@ -17,13 +17,13 @@
 
 %{
 /* Includes the header in the wrapper code */
-#include "Internal.h"
-#include "Libyang.h"
-#include "Tree_Data.h"
-#include "Tree_Schema.h"
+#include "Internal.hpp"
+#include "Libyang.hpp"
+#include "Tree_Data.hpp"
+#include "Tree_Schema.hpp"
 %}
 
-%include "Internal.h"
-%include "Libyang.h"
-%include "Tree_Data.h"
-%include "Tree_Schema.h"
+%include "Internal.hpp"
+%include "Libyang.hpp"
+%include "Tree_Data.hpp"
+%include "Tree_Schema.hpp"
