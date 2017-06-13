@@ -1,7 +1,7 @@
 /**
  * @file Internal.cpp
  * @author Mislav Novakovic <mislav.novakovic@sartura.hr>
- * @brief Sysrepo class header implementation for internal C++ classes
+ * @brief Implementation of header internal helper classes.
  *
  * @copyright
  * Copyright 2016 Deutsche Telekom AG.
