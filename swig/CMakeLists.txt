@@ -44,10 +44,10 @@ set(LIBYANG_CPP_SOURCES
 	${CMAKE_SOURCE_DIR}/swig/cpp/src/Internal.cpp)
 
 set(LIBYANG_H_SOURCES
-	${CMAKE_SOURCE_DIR}/swig/cpp/src/Libyang.h
-	${CMAKE_SOURCE_DIR}/swig/cpp/src/Tree_Data.h
-	${CMAKE_SOURCE_DIR}/swig/cpp/src/Tree_Schema.h
-	${CMAKE_SOURCE_DIR}/swig/cpp/src/Internal.h)
+	${CMAKE_SOURCE_DIR}/swig/cpp/src/Libyang.hpp
+	${CMAKE_SOURCE_DIR}/swig/cpp/src/Tree_Data.hpp
+	${CMAKE_SOURCE_DIR}/swig/cpp/src/Tree_Schema.hpp
+	${CMAKE_SOURCE_DIR}/swig/cpp/src/Internal.hpp)
 
 FUNCTION(PREPEND var prefix)
 	SET(listVar "")
@@ -75,7 +75,7 @@ target_link_libraries(libyang_cpp yang)
 # install binary
 install(TARGETS libyang_cpp DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cpp/src/" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libyang
-    FILES_MATCHING PATTERN "*.h")
+    FILES_MATCHING PATTERN "*.hpp")
 
 if(PYTHONLIBS_FOUND AND PYTHONINTERP_FOUND AND ${GEN_PYTHON_VERSION} STREQUAL "2")
 	add_subdirectory(python2)

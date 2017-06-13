@@ -2,15 +2,15 @@
 #include <memory>
 #include <stdexcept>
 
-#include "Internal.h"
-#include "Libyang.h"
-#include "Tree_Data.h"
-#include "Tree_Schema.h"
+#include "Internal.hpp"
+#include "Libyang.hpp"
+#include "Tree_Data.hpp"
+#include "Tree_Schema.hpp"
 
 extern "C" {
-#include "libyang/libyang.h"
-#include "libyang/tree_data.h"
-#include "libyang/tree_schema.h"
+#include <libyang/libyang.h>
+#include <libyang/tree_data.h>
+#include <libyang/tree_schema.h>
 }
 
 using namespace std;
@@ -20,7 +20,7 @@ Context::Context(const char *search_dir) {
 	if (NULL == _ctx) {
 		goto cleanup;
 	}
-    _deleter = S_Deleter(new Deleter(_ctx));
+	_deleter = S_Deleter(new Deleter(_ctx));
 	return;
 cleanup:
 	throw runtime_error("can not create new context");
@@ -31,7 +31,7 @@ Context::Context(const char *search_dir, const char *path, LYD_FORMAT format) {
 	if (NULL == _ctx) {
 		goto cleanup;
 	}
-    _deleter = S_Deleter(new Deleter(_ctx));
+	_deleter = S_Deleter(new Deleter(_ctx));
 	return;
 cleanup:
 	throw runtime_error("can not create new context");
@@ -42,7 +42,7 @@ Context::Context(const char *search_dir, LYD_FORMAT format, const char *data) {
 	if (NULL == _ctx) {
 		goto cleanup;
 	}
-    _deleter = S_Deleter(new Deleter(_ctx));
+	_deleter = S_Deleter(new Deleter(_ctx));
 	return;
 cleanup:
 	throw runtime_error("can not create new context");

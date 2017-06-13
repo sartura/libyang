@@ -2,8 +2,8 @@
 #include <memory>
 #include <stdexcept>
 
-#include "Libyang.h"
-#include "Tree_Data.h"
+#include "Libyang.hpp"
+#include "Tree_Data.hpp"
 
 extern "C" {
 #include <libyang/libyang.h>

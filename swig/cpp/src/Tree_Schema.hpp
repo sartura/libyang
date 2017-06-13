@@ -5,8 +5,8 @@
 #include <memory>
 #include <exception>
 
-#include "Internal.h"
-#include "Libyang.h"
+#include "Internal.hpp"
+#include "Libyang.hpp"
 
 extern "C" {
 #include <libyang/libyang.h>

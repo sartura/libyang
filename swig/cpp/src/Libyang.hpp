@@ -5,9 +5,9 @@
 #include <memory>
 #include <exception>
 
-#include "Internal.h"
-#include "Tree_Data.h"
-#include "Tree_Schema.h"
+#include "Internal.hpp"
+#include "Tree_Data.hpp"
+#include "Tree_Schema.hpp"
 
 extern "C" {
 #include <libyang/libyang.h>

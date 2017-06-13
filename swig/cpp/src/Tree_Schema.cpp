@@ -2,9 +2,9 @@
 #include <memory>
 #include <stdexcept>
 
-#include "Internal.h"
-#include "Libyang.h"
-#include "Tree_Schema.h"
+#include "Internal.hpp"
+#include "Libyang.hpp"
+#include "Tree_Schema.hpp"
 
 extern "C" {
 #include <libyang/libyang.h>
