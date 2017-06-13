@@ -71,4 +71,20 @@ private:
 	S_Deleter _deleter;
 };
 
+class Modules
+{
+public:
+	Modules(ly_ctx *ctx, uint32_t idx, S_Deleter deleter, bool iter);
+	~Modules();
+	S_Module next();
+	uint32_t idx() {return _idx;};
+
+private:
+	S_Deleter _deleter;
+	ly_ctx *_ctx;
+	uint32_t _idx;
+	bool _iter;
+};
+
+
 #endif
