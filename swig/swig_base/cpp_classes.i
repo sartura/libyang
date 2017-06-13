@@ -15,7 +15,11 @@
 
 %{
 /* Includes the header in the wrapper code */
+#include "Internal.h"
 #include "Libyang.h"
+#include "Tree_Data.h"
 %}
 
+%include "Internal.h"
 %include "Libyang.h"
+%include "Tree_Data.h"

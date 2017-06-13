@@ -6,6 +6,7 @@
 #include <exception>
 
 #include "Internal.h"
+#include "Tree_Data.h"
 
 extern "C" {
 #include <libyang/libyang.h>
@@ -38,7 +39,6 @@ private:
 	const char *_errapptag;
 };
 
-
 class Context
 {
 public:
@@ -51,10 +51,12 @@ public:
 	const char *get_searchdir();
 	void set_allimplemented();
 	void unset_allimplemented();
+	S_Tree_Data info();
 	void clean();
 
 private:
 	struct ly_ctx *_ctx;
+	S_Deleter _deleter;
 };
 
 #endif
