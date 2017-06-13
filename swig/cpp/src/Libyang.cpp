@@ -2,10 +2,15 @@
 #include <memory>
 #include <stdexcept>
 
+#include "Internal.h"
 #include "Libyang.h"
+#include "Tree_Data.h"
+#include "Tree_Schema.h"
 
 extern "C" {
 #include "libyang/libyang.h"
+#include "libyang/tree_data.h"
+#include "libyang/tree_schema.h"
 }
 
 using namespace std;
@@ -61,10 +66,23 @@ void Context::unset_allimplemented() {
 }
 S_Tree_Data Context::info() {
 	struct lyd_node *node = ly_ctx_info(_ctx);
-	if (NULL != node) {
-		throw runtime_error("can not create new context");
-	}
-	return S_Tree_Data(new Tree_Data(node, _deleter));
+	return node ? S_Tree_Data(new Tree_Data(node, _deleter)) : NULL;
+}
+S_Module Context::get_module(const char *name, const char *revision) {
+	const struct lys_module *module = ly_ctx_get_module(_ctx, name, revision);
+	return module ? S_Module(new Module((lys_module *) module, _deleter)) : NULL;
+}
+S_Module Context::get_module_older(S_Module module) {
+	const struct lys_module *new_module = ly_ctx_get_module_older(_ctx, module->_module);
+	return new_module ? S_Module(new Module((lys_module *) new_module, _deleter)) : NULL;
+}
+S_Module Context::load_module(const char *name, const char *revision) {
+	const struct lys_module *module = ly_ctx_load_module(_ctx, name, revision);
+	return module ? S_Module(new Module((lys_module *) module, _deleter)) : NULL;
+}
+S_Module Context::get_module_by_ns(const char *ns, const char *revision) {
+	const struct lys_module *module = ly_ctx_get_module_by_ns(_ctx, ns, revision);
+	return module ? S_Module(new Module((lys_module *) module, _deleter)) : NULL;
 }
 void Context::clean() {
 	return ly_ctx_clean(_ctx, NULL);

@@ -11,6 +11,8 @@
 %ignore throw_exception;
 
 %shared_ptr(Context);
+%shared_ptr(Tree_Data);
+%shared_ptr(Module);
 %shared_ptr(Error);
 
 %{
@@ -18,8 +20,10 @@
 #include "Internal.h"
 #include "Libyang.h"
 #include "Tree_Data.h"
+#include "Tree_Schema.h"
 %}
 
 %include "Internal.h"
 %include "Libyang.h"
 %include "Tree_Data.h"
+%include "Tree_Schema.h"
