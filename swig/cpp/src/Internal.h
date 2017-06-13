@@ -3,6 +3,7 @@
 
 #define S_String  std::string
 #define S_Deleter std::shared_ptr<Deleter>
+#define S_Context std::shared_ptr<Context>
 
 extern "C" {
 #include "libyang/libyang.h"

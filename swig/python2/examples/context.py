@@ -7,5 +7,17 @@ __license__ = "Apache 2.0"
 import libyang_python2 as ly
 import sys
 
-ctx = ly.Context("/etc/sysrepo/yang")
+try:
+	ctx = ly.Context("/etc/sysrepo2/yang")
+except Exception as e:
+	print(e)
+	err = ly.Error()
+	print("err: %d" % err.err())
+	print("vecode: %d" % err.vecode())
+	print("errmsg: "+err.errmsg())
+	print("errpath:"+err.errpath())
+	print("errapptag:"+err.errapptag())
+	sys.exit()
+
+
 print("searchdir: " + ctx.get_searchdir())

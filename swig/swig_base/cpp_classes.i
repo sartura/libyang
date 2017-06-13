@@ -11,6 +11,7 @@
 %ignore throw_exception;
 
 %shared_ptr(Context);
+%shared_ptr(Error);
 
 %{
 /* Includes the header in the wrapper code */
