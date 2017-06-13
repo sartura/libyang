@@ -17,7 +17,7 @@ Context::Context(const char *search_dir) {
 	}
 	return;
 cleanup:
-	throw "Can not create new context";
+	throw runtime_error("can not create new context");
 	return;
 }
 Context::Context(const char *search_dir, const char *path, LYD_FORMAT format) {
@@ -27,7 +27,7 @@ Context::Context(const char *search_dir, const char *path, LYD_FORMAT format) {
 	}
 	return;
 cleanup:
-	throw "Can not create new context";
+	throw runtime_error("can not create new context");
 	return;
 }
 Context::Context(const char *search_dir, LYD_FORMAT format, const char *data) {
@@ -37,7 +37,7 @@ Context::Context(const char *search_dir, LYD_FORMAT format, const char *data) {
 	}
 	return;
 cleanup:
-	throw "Can not create new context";
+	throw runtime_error("can not create new context");
 	return;
 }
 Context::~Context() {

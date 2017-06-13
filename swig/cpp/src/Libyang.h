@@ -3,12 +3,41 @@
 
 #include <iostream>
 #include <memory>
+#include <exception>
 
 #include "Internal.h"
 
 extern "C" {
-#include "libyang/libyang.h"
+#include <libyang/libyang.h>
 }
+
+using namespace std;
+
+class Error
+{
+/* add custom deleter for Context class */
+public:
+	Error() {
+		_err = *ly_errno_location();
+		_vecode = *ly_vecode_location();
+		_errmsg = ly_errmsg();
+		_errpath = ly_errpath();
+		_errapptag = ly_errapptag();
+	};
+	~Error() {};
+	LY_ERR err() throw() {return _err;};
+	LY_VECODE vecode() throw() {return _vecode;};
+	const char *errmsg() const throw() {return _errmsg;};
+	const char *errpath() const throw() {return _errpath;};
+	const char *errapptag() const throw() {return _errapptag;};
+private:
+	LY_ERR _err;
+	LY_VECODE _vecode;
+	const char *_errmsg;
+	const char *_errpath;
+	const char *_errapptag;
+};
+
 
 class Context
 {
