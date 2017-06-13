@@ -38,10 +38,13 @@ endif()
 
 project(libyang_cpp)
 set(LIBYANG_CPP_SOURCES
-	${CMAKE_SOURCE_DIR}/swig/cpp/src/Libyang.cpp)
+	${CMAKE_SOURCE_DIR}/swig/cpp/src/Libyang.cpp
+	${CMAKE_SOURCE_DIR}/swig/cpp/src/Tree_Data.cpp
+	${CMAKE_SOURCE_DIR}/swig/cpp/src/Internal.cpp)
 
 set(LIBYANG_H_SOURCES
 	${CMAKE_SOURCE_DIR}/swig/cpp/src/Libyang.h
+	${CMAKE_SOURCE_DIR}/swig/cpp/src/Tree_Data.h
 	${CMAKE_SOURCE_DIR}/swig/cpp/src/Internal.h)
 
 FUNCTION(PREPEND var prefix)

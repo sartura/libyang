@@ -15,6 +15,7 @@ Context::Context(const char *search_dir) {
 	if (NULL == _ctx) {
 		goto cleanup;
 	}
+    _deleter = S_Deleter(new Deleter(_ctx));
 	return;
 cleanup:
 	throw runtime_error("can not create new context");
@@ -25,6 +26,7 @@ Context::Context(const char *search_dir, const char *path, LYD_FORMAT format) {
 	if (NULL == _ctx) {
 		goto cleanup;
 	}
+    _deleter = S_Deleter(new Deleter(_ctx));
 	return;
 cleanup:
 	throw runtime_error("can not create new context");
@@ -35,16 +37,13 @@ Context::Context(const char *search_dir, LYD_FORMAT format, const char *data) {
 	if (NULL == _ctx) {
 		goto cleanup;
 	}
+    _deleter = S_Deleter(new Deleter(_ctx));
 	return;
 cleanup:
 	throw runtime_error("can not create new context");
 	return;
 }
-Context::~Context() {
-	if (NULL != _ctx) {
-		ly_ctx_destroy(_ctx, NULL);
-	}
-}
+Context::~Context() {}
 void Context::set_searchdir(const char *search_dir) {
 	return ly_ctx_set_searchdir(_ctx, search_dir);
 }
@@ -59,6 +58,13 @@ void Context::set_allimplemented() {
 }
 void Context::unset_allimplemented() {
 	return ly_ctx_unset_allimplemented(_ctx);
+}
+S_Tree_Data Context::info() {
+	struct lyd_node *node = ly_ctx_info(_ctx);
+	if (NULL != node) {
+		throw runtime_error("can not create new context");
+	}
+	return S_Tree_Data(new Tree_Data(node, _deleter));
 }
 void Context::clean() {
 	return ly_ctx_clean(_ctx, NULL);
