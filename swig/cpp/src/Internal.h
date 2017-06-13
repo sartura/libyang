@@ -5,6 +5,7 @@
 #define S_Deleter   std::shared_ptr<Deleter>
 #define S_Context   std::shared_ptr<Context>
 #define S_Tree_Data std::shared_ptr<Tree_Data>
+#define S_Module    std::shared_ptr<Module>
 
 extern "C" {
 #include "libyang/libyang.h"

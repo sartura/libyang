@@ -7,6 +7,7 @@
 
 #include "Internal.h"
 #include "Tree_Data.h"
+#include "Tree_Schema.h"
 
 extern "C" {
 #include <libyang/libyang.h>
@@ -52,6 +53,10 @@ public:
 	void set_allimplemented();
 	void unset_allimplemented();
 	S_Tree_Data info();
+	S_Module get_module(const char *name, const char *revision);
+	S_Module get_module_older(S_Module module);
+	S_Module load_module(const char *name, const char *revision);
+	S_Module get_module_by_ns(const char *ns, const char *revision);
 	void clean();
 
 private:
