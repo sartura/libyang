@@ -33,8 +33,8 @@ extern "C" {
 
 using namespace std;
 
-Tree_Data::Tree_Data(struct lyd_node *node, S_Deleter deleter) {
+Data_Node::Data_Node(struct lyd_node *node, S_Deleter deleter) {
 	_node = node;
 	_deleter = deleter;
 };
-Tree_Data::~Tree_Data() {};
+Data_Node::~Data_Node() {};

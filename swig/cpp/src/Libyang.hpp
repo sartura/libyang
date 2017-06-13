@@ -73,7 +73,7 @@ public:
 	const char *get_searchdir();
 	void set_allimplemented();
 	void unset_allimplemented();
-	S_Tree_Data info();
+	S_Data_Node info();
 	S_Module get_module(const char *name, const char *revision);
 	S_Module get_module_older(S_Module module);
 	S_Module load_module(const char *name, const char *revision);
