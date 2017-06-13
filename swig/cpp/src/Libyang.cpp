@@ -85,9 +85,9 @@ void Context::set_allimplemented() {
 void Context::unset_allimplemented() {
 	return ly_ctx_unset_allimplemented(_ctx);
 }
-S_Tree_Data Context::info() {
+S_Data_Node Context::info() {
 	struct lyd_node *node = ly_ctx_info(_ctx);
-	return node ? S_Tree_Data(new Tree_Data(node, _deleter)) : NULL;
+	return node ? S_Data_Node(new Data_Node(node, _deleter)) : NULL;
 }
 S_Module Context::get_module(const char *name, const char *revision) {
 	const struct lys_module *module = ly_ctx_get_module(_ctx, name, revision);

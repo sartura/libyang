@@ -11,7 +11,7 @@
 %ignore throw_exception;
 
 %shared_ptr(Context);
-%shared_ptr(Tree_Data);
+%shared_ptr(Data_Node);
 %shared_ptr(Module);
 %shared_ptr(Error);
 

@@ -26,7 +26,7 @@
 #define S_String    std::string
 #define S_Deleter   std::shared_ptr<Deleter>
 #define S_Context   std::shared_ptr<Context>
-#define S_Tree_Data std::shared_ptr<Tree_Data>
+#define S_Data_Node std::shared_ptr<Data_Node>
 #define S_Module    std::shared_ptr<Module>
 
 extern "C" {
