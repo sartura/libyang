@@ -28,6 +28,7 @@
 #define S_Context   std::shared_ptr<Context>
 #define S_Data_Node std::shared_ptr<Data_Node>
 #define S_Module    std::shared_ptr<Module>
+#define S_Modules   std::shared_ptr<Modules>
 
 extern "C" {
 #include <libyang/libyang.h>

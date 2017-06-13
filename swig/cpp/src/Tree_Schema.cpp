@@ -39,3 +39,20 @@ Module::Module(struct lys_module *module, S_Deleter deleter) {
 	_deleter = deleter;
 };
 Module::~Module() {};
+
+Modules::Modules(ly_ctx *ctx, uint32_t idx, S_Deleter deleter, bool iter) {
+	_idx = idx;
+	_ctx = ctx;
+	_deleter = deleter;
+	_iter = iter;
+};
+Modules::~Modules() {};
+S_Module Modules::next() {
+	const struct lys_module *module = NULL;
+	if (_iter) {
+		module = ly_ctx_get_module_iter(_ctx, &_idx);
+	} else {
+		module = ly_ctx_get_disabled_module_iter(_ctx, &_idx);
+	}
+	return module ? S_Module(new Module((lys_module *) module, _deleter)) : NULL;
+}

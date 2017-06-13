@@ -74,6 +74,8 @@ public:
 	void set_allimplemented() {return ly_ctx_set_allimplemented(_ctx);};
 	void unset_allimplemented() {return ly_ctx_unset_allimplemented(_ctx);};
 	S_Data_Node info();
+	S_Modules get_module_iter(uint32_t idx) {return S_Modules(new Modules(_ctx, idx, _deleter, true));};
+	S_Modules ly_ctx_get_disabled_module_iter(uint32_t idx) {return S_Modules(new Modules(_ctx, idx, _deleter, false));};
 	S_Module get_module(const char *name, const char *revision);
 	S_Module get_module_older(S_Module module);
 	S_Module load_module(const char *name, const char *revision);

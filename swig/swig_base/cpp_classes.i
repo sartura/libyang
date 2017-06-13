@@ -13,6 +13,7 @@
 %shared_ptr(Context);
 %shared_ptr(Data_Node);
 %shared_ptr(Module);
+%shared_ptr(Modules);
 %shared_ptr(Error);
 
 %{
