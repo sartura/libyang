@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 __author__ = "Mislav Novakovic <mislav.novakovic@sartura.hr>"
 __copyright__ = "Copyright 2017, Deutsche Telekom AG"
@@ -17,7 +17,18 @@ except Exception as e:
 	print("errmsg: "+err.errmsg())
 	print("errpath:"+err.errpath())
 	print("errapptag:"+err.errapptag())
-	sys.exit()
 
+try:
+	ctx = ly.Context("/etc/sysrepo/yang")
+except Exception as e:
+	print(e)
 
 print("searchdir: " + ctx.get_searchdir())
+
+module = ctx.get_module("ietf-interfaces", None)
+if module is not None:
+	print(module.name())
+else:
+	module = ctx.load_module("ietf-interfaces", None)
+	if module is not None:
+		print(module.name())
