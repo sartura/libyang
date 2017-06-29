@@ -63,8 +63,6 @@ add_library(libyang_cpp SHARED ${LIBYANG_CPP_SOURCES})
 SET_TARGET_PROPERTIES(libyang_cpp PROPERTIES
               VERSION ${LIBYANG_VERSION} SOVERSION ${LIBYANG_SOVERSION})
 
-set_target_properties(libyang_cpp PROPERTIES PREFIX "")
-
 # include custom Modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules/")
 
@@ -82,7 +80,7 @@ if(PYTHONLIBS_FOUND AND PYTHONINTERP_FOUND AND ${GEN_PYTHON_VERSION} STREQUAL "2
 endif()
 
 if(PYTHONLIBS_FOUND AND PYTHONINTERP_FOUND AND ${GEN_PYTHON_VERSION} STREQUAL "3")
-	#add_subdirectory(python3)
+	add_subdirectory(python3)
 endif()
 
 if(GEN_JAVASCRIPT_BINDING)
