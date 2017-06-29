@@ -30,7 +30,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules/")
 set(GEN_LANGUAGE_BINDINGS 1 CACHE BOOL "Enable language bindings generation.")
 set(GEN_CPP_BINDINGS 1 CACHE BOOL "Enable C++ bindings.")
 set(GEN_PYTHON_BINDINGS 1 CACHE BOOL "Enable Python bindings.")
-set(GEN_PYTHON_VERSION "2" CACHE STRING "Python version")
+set(GEN_PYTHON_VERSION "3" CACHE STRING "Python version")
 set(GEN_JAVASCRIPT_BINDINGS 1 CACHE BOOL "Enable JavaScript bindings.")
 
 find_package(FLEX)
