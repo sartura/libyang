@@ -17,6 +17,8 @@ set_source_files_properties(${PYTHON_SWIG_BINDING_3}.i PROPERTIES CPLUSPLUS ON)
 swig_add_module(${PYTHON_SWIG_BINDING_3} python ${PYTHON_SWIG_BINDING_3}.i)
 swig_link_libraries(${PYTHON_SWIG_BINDING_3} ${PYTHON_LIBRARIES} libyang_cpp)
 
+file(COPY "examples" DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
 execute_process(COMMAND
     ${PYTHON_EXECUTABLE} -c
     "from distutils.sysconfig import get_python_lib; print(get_python_lib())"
