@@ -69,8 +69,8 @@ public:
 	Context(const char *search_dir, LYD_FORMAT format, const char *data);
 	~Context();
 	void set_searchdir(const char *search_dir) {return ly_ctx_set_searchdir(_ctx, search_dir);};
-	void unset_searchdirs() {return ly_ctx_unset_searchdirs(_ctx);};
-	const char *get_searchdir() {return ly_ctx_get_searchdir(_ctx);};
+	void unset_searchdirs(int idx) {return ly_ctx_unset_searchdirs(_ctx, idx);};
+	const char *get_searchdirs() {return ly_ctx_get_searchdirs(_ctx);};
 	void set_allimplemented() {return ly_ctx_set_allimplemented(_ctx);};
 	void unset_allimplemented() {return ly_ctx_unset_allimplemented(_ctx);};
 	S_Data_Node info();
