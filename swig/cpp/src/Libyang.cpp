@@ -81,3 +81,11 @@ S_Module Context::get_module_by_ns(const char *ns, const char *revision) {
 void Context::clean() {
 	return ly_ctx_clean(_ctx, NULL);
 }
+const char *Context::get_searchdirs() {
+	char *data = ly_ctx_get_searchdirs(_ctx);
+	if (NULL == data) {
+		return NULL;
+	}
+
+	return S_Array(data);
+};

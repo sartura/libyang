@@ -44,4 +44,15 @@ private:
     ly_ctx *_ctx;
 };
 
+class Array
+{
+public:
+	Array(const char * const * data);
+	~Array();
+	char *Item(int idx);
+
+private:
+	const char * const * _data;
+};
+
 #endif
