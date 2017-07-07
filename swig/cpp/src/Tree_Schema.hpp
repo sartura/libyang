@@ -70,21 +70,16 @@ private:
 	struct lys_module *_module;
 	S_Deleter _deleter;
 };
-
-class Modules
+/*
+class Schema_Node
 {
 public:
-	Modules(ly_ctx *ctx, uint32_t idx, S_Deleter deleter, bool iter);
-	~Modules();
-	S_Module next();
-	uint32_t idx() {return _idx;};
-
+	Schema_Node(lys_node *node, S_Deleter deleter);
+	~Schema_Node();
+	const char *name() {return _node->name;};
 private:
+	struct lys_node *_node;
 	S_Deleter _deleter;
-	ly_ctx *_ctx;
-	uint32_t _idx;
-	bool _iter;
 };
-
-
+*/
 #endif

@@ -22,6 +22,7 @@
 #include <iostream>
 #include <memory>
 #include <stdexcept>
+#include <vector>
 
 #include "Internal.hpp"
 #include "Libyang.hpp"
@@ -78,14 +79,65 @@ S_Module Context::get_module_by_ns(const char *ns, const char *revision) {
 	const struct lys_module *module = ly_ctx_get_module_by_ns(_ctx, ns, revision);
 	return module ? S_Module(new Module((lys_module *) module, _deleter)) : NULL;
 }
+vector<S_Module> *Context::get_module_iter() {
+	const struct lys_module *mod = NULL;
+	uint32_t i = 0;
+
+	auto s_vector = new vector<S_Module>;
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+    while ((mod = ly_ctx_get_module_iter(_ctx, &i))) {
+		if (mod == NULL) {
+			break;
+		}
+		s_vector->push_back(S_Module(new Module((lys_module *) mod, _deleter)));
+	}
+
+	return s_vector;
+}
+vector<S_Module> *Context::get_disabled_module_iter() {
+	const struct lys_module *mod = NULL;
+	uint32_t i = 0;
+
+	auto s_vector = new vector<S_Module>;
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+    while ((mod = ly_ctx_get_disabled_module_iter(_ctx, &i))) {
+		if (mod == NULL) {
+			break;
+		}
+		s_vector->push_back(S_Module(new Module((lys_module *) mod, _deleter)));
+	}
+
+	return s_vector;
+}
 void Context::clean() {
 	return ly_ctx_clean(_ctx, NULL);
 }
-const char *Context::get_searchdirs() {
-	char *data = ly_ctx_get_searchdirs(_ctx);
+vector<string> *Context::get_searchdirs() {
+	const char * const *data = ly_ctx_get_searchdirs(_ctx);
 	if (NULL == data) {
 		return NULL;
 	}
 
-	return S_Array(data);
+	//std::shared_ptr<std::vector<string> > s_vector( new std::vector<string>);
+	auto s_vector = new vector<string>;
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	int size = 0;
+	while (true) {
+		if (data[size] == NULL) {
+			break;
+		}
+		s_vector->push_back(std::string(data[size]));
+		size++;
+	}
+
+	return s_vector;
 };

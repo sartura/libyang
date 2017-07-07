@@ -25,6 +25,7 @@
 #include <iostream>
 #include <memory>
 #include <exception>
+#include <vector>
 
 #include "Internal.hpp"
 #include "Tree_Data.hpp"
@@ -70,12 +71,12 @@ public:
 	~Context();
 	void set_searchdir(const char *search_dir) {return ly_ctx_set_searchdir(_ctx, search_dir);};
 	void unset_searchdirs(int idx) {return ly_ctx_unset_searchdirs(_ctx, idx);};
-	const char *get_searchdirs() {return ly_ctx_get_searchdirs(_ctx);};
+	vector<string> *get_searchdirs();
 	void set_allimplemented() {return ly_ctx_set_allimplemented(_ctx);};
 	void unset_allimplemented() {return ly_ctx_unset_allimplemented(_ctx);};
 	S_Data_Node info();
-	S_Modules get_module_iter(uint32_t idx) {return S_Modules(new Modules(_ctx, idx, _deleter, true));};
-	S_Modules ly_ctx_get_disabled_module_iter(uint32_t idx) {return S_Modules(new Modules(_ctx, idx, _deleter, false));};
+	vector<S_Module> *get_module_iter();
+	vector<S_Module> *get_disabled_module_iter();
 	S_Module get_module(const char *name, const char *revision);
 	S_Module get_module_older(S_Module module);
 	S_Module load_module(const char *name, const char *revision);

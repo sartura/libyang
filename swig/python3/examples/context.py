@@ -23,7 +23,11 @@ try:
 except Exception as e:
 	print(e)
 
-print("searchdir: " + ctx.get_searchdir())
+folders = ctx.get_searchdirs()
+print("\n",*folders, sep='\n')
+ctx.set_searchdir("/tmp")
+folders = ctx.get_searchdirs()
+print("\n",*folders, sep='\n')
 
 module = ctx.get_module("ietf-interfaces", None)
 if module is not None:
@@ -32,3 +36,12 @@ else:
 	module = ctx.load_module("ietf-interfaces", None)
 	if module is not None:
 		print(module.name())
+
+
+modules = ctx.get_module_iter()
+if modules is None:
+    print("empty")
+else:
+    print(len(modules))
+    print(*modules, sep='\n')
+    print(modules[0].name)
