@@ -37,19 +37,3 @@ Deleter::Deleter(ly_ctx *ctx) {
 Deleter::~Deleter() {
 	ly_ctx_destroy(_ctx, NULL);
 }
-
-Array::Array(const char * const * data) {
-	_data = data;
-}
-
-Array::~Array() {}
-
-char *Array::Item(int idx) {
-	if (NULL == _data) {
-		return NULL;
-	} else if (NULL == _data[idx]) {
-		return NULL;
-	} else {
-		return _data[idx];
-	}
-}

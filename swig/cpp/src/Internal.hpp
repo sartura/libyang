@@ -23,12 +23,12 @@
 #ifndef INTERNAL_H
 #define INTERNAL_H
 
-#define S_String    std::string
-#define S_Deleter   std::shared_ptr<Deleter>
-#define S_Context   std::shared_ptr<Context>
-#define S_Data_Node std::shared_ptr<Data_Node>
-#define S_Module    std::shared_ptr<Module>
-#define S_Modules   std::shared_ptr<Modules>
+#define S_String      std::string
+#define S_Deleter     std::shared_ptr<Deleter>
+#define S_Context     std::shared_ptr<Context>
+#define S_Data_Node   std::shared_ptr<Data_Node>
+//#define S_Schema_Node std::shared_ptr<Schema_Node>
+#define S_Module      std::shared_ptr<Module>
 
 extern "C" {
 #include <libyang/libyang.h>
@@ -42,17 +42,6 @@ public:
 
 private:
     ly_ctx *_ctx;
-};
-
-class Array
-{
-public:
-	Array(const char * const * data);
-	~Array();
-	char *Item(int idx);
-
-private:
-	const char * const * _data;
 };
 
 #endif
