@@ -78,3 +78,10 @@ Schema_Node::Schema_Node(struct lys_node *node, S_Deleter deleter) {
 	_deleter = deleter;
 };
 Schema_Node::~Schema_Node() {};
+
+Substmt::Substmt(struct lyext_substmt *substmt, S_Deleter deleter) {
+	_substmt = substmt;
+	_deleter = deleter;
+}
+Substmt::~Substmt() {};
+

@@ -41,6 +41,7 @@ class Subodule;
 class Ext_Instance;
 class Revision;
 class Schema_Node;
+class Substmt;
 
 class Module
 {
@@ -164,4 +165,16 @@ private:
 	S_Deleter _deleter;
 };
 
+class Substmt
+{
+public:
+	Substmt(struct lyext_substmt *substmt, S_Deleter deleter);
+	~Substmt();
+	LY_STMT stmt() {return _substmt->stmt;};
+	size_t offest() {return _substmt->offset;};
+	LY_STMT_CARD cardinality() {return _substmt->cardinality;};
+private:
+	struct lyext_substmt *_substmt;
+	S_Deleter _deleter;
+};
 #endif
