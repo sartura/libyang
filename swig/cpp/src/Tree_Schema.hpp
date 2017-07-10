@@ -26,7 +26,6 @@
 #include <memory>
 #include <exception>
 
-#include "Internal.hpp"
 #include "Libyang.hpp"
 
 extern "C" {
@@ -68,6 +67,43 @@ public:
 
 private:
 	struct lys_module *_module;
+	S_Deleter _deleter;
+};
+
+class Submodule
+{
+public:
+	Submodule(struct lys_submodule *submodule, S_Deleter deleter);
+	~Submodule();
+	S_Context ctx() {return _submodule->ctx ? S_Context(new Context(_submodule->ctx, _deleter)) : NULL;};
+	const char *name() {return _submodule->name;};
+	const char *prefix() {return _submodule->prefix;};
+	const char *dsc() {return _submodule->dsc;};
+	const char *ref() {return _submodule->ref;};
+	const char *org() {return _submodule->org;};
+	const char *contact() {return _submodule->contact;};
+	const char *filepath() {return _submodule->filepath;};
+	uint8_t type() {return _submodule->type;};
+	uint8_t version() {return _submodule->version;};
+	uint8_t deviated() {return _submodule->deviated;};
+	uint8_t disabled() {return _submodule->disabled;};
+	uint8_t implemented() {return _submodule->implemented;};
+	uint8_t rev_size() {return _submodule->rev_size;};
+	uint8_t imp_size() {return _submodule->imp_size;};
+	uint8_t inc_size() {return _submodule->inc_size;};
+	uint8_t ident_size() {return _submodule->ident_size;};
+	uint8_t tpdf_size() {return _submodule->tpdf_size;};
+	uint8_t features_size() {return _submodule->features_size;};
+	uint8_t augment_size() {return _submodule->augment_size;};
+	uint8_t devaiation_size() {return _submodule->deviation_size;};
+	uint8_t extensions_size() {return _submodule->extensions_size;};
+	uint8_t ext_size() {return _submodule->ext_size;};
+
+	S_Module belongsto() {return _submodule->belongsto ? S_Module(new Module(_submodule->belongsto, _deleter)) : NULL;};
+	friend class Context;
+
+private:
+	struct lys_submodule *_submodule;
 	S_Deleter _deleter;
 };
 

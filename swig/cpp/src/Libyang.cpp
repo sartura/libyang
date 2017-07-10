@@ -37,6 +37,10 @@ extern "C" {
 
 using namespace std;
 
+Context::Context(ly_ctx *ctx, S_Deleter deleter) {
+	_ctx = ctx;
+	_deleter = deleter;
+}
 Context::Context(const char *search_dir) {
 	_ctx = ly_ctx_new(search_dir);
 	if (NULL == _ctx) {
