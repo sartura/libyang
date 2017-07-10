@@ -17,6 +17,7 @@
 %shared_ptr(Schema_Node);
 %shared_ptr(Module);
 %shared_ptr(Submodule);
+%shared_ptr(Revision);
 %shared_ptr(Error);
 
 %{

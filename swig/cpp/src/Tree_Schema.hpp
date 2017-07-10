@@ -100,13 +100,26 @@ public:
 	uint8_t ext_size() {return _submodule->ext_size;};
 
 	S_Module belongsto() {return _submodule->belongsto ? S_Module(new Module(_submodule->belongsto, _deleter)) : NULL;};
-	friend class Context;
 
 private:
 	struct lys_submodule *_submodule;
 	S_Deleter _deleter;
 };
 
+class Revision
+{
+public:
+	Revision(lys_revision *revision, S_Deleter deleter);
+	~Revision();
+	char *date() {return &_revisinon->date[0];};
+	uint8_t ext_size() {return _revisinon->ext_size;};
+	const char *dsc() {return _revisinon->dsc;};
+	const char *ref() {return _revisinon->ref;};
+
+private:
+	struct lys_revision *_revisinon;
+	S_Deleter _deleter;
+};
 class Schema_Node
 {
 public:
