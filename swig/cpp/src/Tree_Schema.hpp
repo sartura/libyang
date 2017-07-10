@@ -70,7 +70,7 @@ private:
 	struct lys_module *_module;
 	S_Deleter _deleter;
 };
-/*
+
 class Schema_Node
 {
 public:
@@ -81,5 +81,5 @@ private:
 	struct lys_node *_node;
 	S_Deleter _deleter;
 };
-*/
+
 #endif
