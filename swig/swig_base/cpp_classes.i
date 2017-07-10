@@ -12,15 +12,20 @@
 
 %ignore throw_exception;
 
+/* Libyang.hpp */
 %shared_ptr(Context);
+
+/* Tree_Data.hpp */
 %shared_ptr(Data_Node);
 
+/* Tree_Schema.hpp */
 %shared_ptr(Module);
 %shared_ptr(Submodule);
 %shared_ptr(Ext_Instance);
 %shared_ptr(Revision);
 %shared_ptr(Schema_Node);
 %shared_ptr(Substmt);
+%shared_ptr(Ext);
 
 %shared_ptr(Error);
 

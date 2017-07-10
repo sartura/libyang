@@ -35,6 +35,8 @@ extern "C" {
 
 using namespace std;
 
+class Data_Node;
+
 class Data_Node
 {
 public:
