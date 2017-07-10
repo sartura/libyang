@@ -14,10 +14,13 @@
 
 %shared_ptr(Context);
 %shared_ptr(Data_Node);
-%shared_ptr(Schema_Node);
+
 %shared_ptr(Module);
 %shared_ptr(Submodule);
+%shared_ptr(Ext_Instance);
 %shared_ptr(Revision);
+%shared_ptr(Schema_Node);
+
 %shared_ptr(Error);
 
 %{
@@ -36,4 +39,5 @@
 
 %template(vectorString) std::vector<string>;
 %template(vectorModules) std::vector<S_Module>;
+%template(vectorExt_Instance) std::vector<S_Ext_Instance>;
 
