@@ -42,6 +42,7 @@ class Ext_Instance;
 class Revision;
 class Schema_Node;
 class Substmt;
+class Ext;
 
 class Module
 {
@@ -175,6 +176,26 @@ public:
 	LY_STMT_CARD cardinality() {return _substmt->cardinality;};
 private:
 	struct lyext_substmt *_substmt;
+	S_Deleter _deleter;
+};
+
+class Ext
+{
+public:
+	Ext(struct lys_ext *ext, S_Deleter deleter);
+	~Ext();
+	const char *name() {return _ext->name;};
+	const char *dsc() {return _ext->dsc;};
+	const char *ref() {return _ext->ref;};
+	uint16_t flags() {return _ext->flags;};
+	uint8_t ext_size() {return _ext->ext_size;};
+	//uint8_t padding() {return _ext->padding;};
+	std::vector<S_Ext_Instance> *ext();
+	const char *argument() {return _ext->argument;};
+	S_Module module();
+	//struct lyext_plugin *plugin;
+private:
+	struct lys_ext *_ext;
 	S_Deleter _deleter;
 };
 #endif

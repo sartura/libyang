@@ -35,6 +35,9 @@ extern "C" {
 
 using namespace std;
 
+class Context;
+class Error;
+
 class Module;
 class Data_Node;
 

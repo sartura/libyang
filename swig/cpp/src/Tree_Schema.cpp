@@ -85,3 +85,22 @@ Substmt::Substmt(struct lyext_substmt *substmt, S_Deleter deleter) {
 }
 Substmt::~Substmt() {};
 
+Ext::Ext(struct lys_ext *ext, S_Deleter deleter) {
+	_ext = ext;
+	_deleter = deleter;
+}
+Ext::~Ext() {};
+std::vector<S_Ext_Instance> *Ext::ext() {
+	auto s_vector = new vector<S_Ext_Instance>;
+
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	for(uint8_t i = 0; i < _ext->ext_size; i++) {
+		s_vector->push_back(S_Ext_Instance(new Ext_Instance(_ext->ext[i], _deleter)));
+	}
+
+	return s_vector;
+}
+S_Module Ext::module() {return _ext->module ? S_Module(new Module(_ext->module, _deleter)) : NULL;};
