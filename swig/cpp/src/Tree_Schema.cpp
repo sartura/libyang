@@ -47,6 +47,12 @@ Submodule::Submodule(struct lys_submodule *submodule, S_Deleter deleter) {
 Submodule::~Submodule() {};
 
 
+Revision::Revision(lys_revision *revision, S_Deleter deleter) {
+	_revisinon = revision;
+	_deleter = deleter;
+};
+Revision::~Revision() {};
+
 Schema_Node::Schema_Node(struct lys_node *node, S_Deleter deleter) {
 	_node = node;
 	_deleter = deleter;
