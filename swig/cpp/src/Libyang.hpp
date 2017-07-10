@@ -28,14 +28,15 @@
 #include <vector>
 
 #include "Internal.hpp"
-#include "Tree_Data.hpp"
-#include "Tree_Schema.hpp"
 
 extern "C" {
 #include <libyang/libyang.h>
 }
 
 using namespace std;
+
+class Module;
+class Data_Node;
 
 class Error
 {
@@ -65,6 +66,7 @@ private:
 class Context
 {
 public:
+	Context(ly_ctx *ctx, S_Deleter deleter);
 	Context(const char *search_dir = NULL);
 	Context(const char *search_dir, const char *path, LYD_FORMAT format);
 	Context(const char *search_dir, LYD_FORMAT format, const char *data);

@@ -2,7 +2,7 @@ set(PYTHON_SWIG_BINDING_3 libyang_python3)
 include_directories(${PYTHON_INCLUDE_PATH})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-set(CMAKE_SWIG_FLAGS "-c++ -py3 -extranative")
+set(CMAKE_SWIG_FLAGS "-c++")
 set(CMAKE_SWIG_FLAGS "-I${PROJECT_SOURCE_DIR}")
 set(CMAKE_SWIG_OUTDIR ${CMAKE_CURRENT_BINARY_DIR})
 set(PYTHON3_SWIG_MIN_VERSION "3.0.5")

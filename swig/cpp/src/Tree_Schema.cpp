@@ -40,8 +40,15 @@ Module::Module(struct lys_module *module, S_Deleter deleter) {
 };
 Module::~Module() {};
 
+Submodule::Submodule(struct lys_submodule *submodule, S_Deleter deleter) {
+	_submodule = submodule;
+	_deleter = deleter;
+};
+Submodule::~Submodule() {};
+
+
 Schema_Node::Schema_Node(struct lys_node *node, S_Deleter deleter) {
 	_node = node;
 	_deleter = deleter;
-}
+};
 Schema_Node::~Schema_Node() {};
