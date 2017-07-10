@@ -30,6 +30,7 @@
 #define S_Schema_Node   std::shared_ptr<Schema_Node>
 #define S_Revision      std::shared_ptr<Revision>
 #define S_Ext_Instance  std::shared_ptr<Ext_Instance>
+#define S_Substmt       std::shared_ptr<Substmt>
 #define S_Module        std::shared_ptr<Module>
 #define S_Submodule     std::shared_ptr<Submodule>
 
