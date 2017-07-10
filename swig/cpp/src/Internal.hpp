@@ -23,12 +23,15 @@
 #ifndef INTERNAL_H
 #define INTERNAL_H
 
-#define S_String      std::string
-#define S_Deleter     std::shared_ptr<Deleter>
-#define S_Context     std::shared_ptr<Context>
-#define S_Data_Node   std::shared_ptr<Data_Node>
-#define S_Schema_Node std::shared_ptr<Schema_Node>
-#define S_Module      std::shared_ptr<Module>
+#define S_String        std::string
+#define S_Deleter       std::shared_ptr<Deleter>
+#define S_Context       std::shared_ptr<Context>
+#define S_Data_Node     std::shared_ptr<Data_Node>
+#define S_Schema_Node   std::shared_ptr<Schema_Node>
+#define S_Revision      std::shared_ptr<Revision>
+#define S_Ext_Instance  std::shared_ptr<Ext_Instance>
+#define S_Module        std::shared_ptr<Module>
+#define S_Submodule     std::shared_ptr<Submodule>
 
 extern "C" {
 #include <libyang/libyang.h>

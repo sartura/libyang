@@ -26,6 +26,7 @@
 #include <memory>
 #include <exception>
 
+#include "Internal.hpp"
 #include "Libyang.hpp"
 
 extern "C" {
@@ -34,6 +35,12 @@ extern "C" {
 }
 
 using namespace std;
+
+class Module;
+class Subodule;
+class Ext_Instance;
+class Revision;
+class Schema_Node;
 
 class Module
 {
@@ -62,6 +69,7 @@ public:
 	uint8_t extensions_size() {return _module->extensions_size;};
 	uint8_t ext_size() {return _module->ext_size;};
 	const char *ns() {return _module->ns;};
+	S_Revision rev();
 
 	friend class Context;
 
@@ -98,11 +106,35 @@ public:
 	uint8_t devaiation_size() {return _submodule->deviation_size;};
 	uint8_t extensions_size() {return _submodule->extensions_size;};
 	uint8_t ext_size() {return _submodule->ext_size;};
+	S_Revision rev();
 
 	S_Module belongsto() {return _submodule->belongsto ? S_Module(new Module(_submodule->belongsto, _deleter)) : NULL;};
 
 private:
 	struct lys_submodule *_submodule;
+	S_Deleter _deleter;
+};
+
+class Ext_Instance
+{
+public:
+	Ext_Instance(lys_ext_instance *ext_instance, S_Deleter deleter);
+	~Ext_Instance();
+	//TODO void *parent();
+	const char *arg_value() {return _ext_instance->arg_value;};
+	uint16_t flags() {return _ext_instance->flags;};
+	uint8_t ext_size() {return _ext_instance->ext_size;};
+	uint8_t insubstmt_index() {return _ext_instance->insubstmt_index;};
+	uint8_t insubstmt() {return _ext_instance->insubstmt;};
+	uint8_t parent_type() {return _ext_instance->parent_type;};
+	uint8_t ext_type() {return _ext_instance->ext_type;};
+	uint8_t padding() {return _ext_instance->padding;};
+	std::vector<S_Ext_Instance> *ext();
+	void *priv() {return _ext_instance->priv;};
+	S_Module module() {return _ext_instance->module ? S_Module(new Module(_ext_instance->module, _deleter)) : NULL;};
+	LYS_NODE nodetype() {return _ext_instance->nodetype;};
+private:
+	struct lys_ext_instance *_ext_instance;
 	S_Deleter _deleter;
 };
 
@@ -120,6 +152,7 @@ private:
 	struct lys_revision *_revisinon;
 	S_Deleter _deleter;
 };
+
 class Schema_Node
 {
 public:
