@@ -36,6 +36,7 @@ extern "C" {
 
 using namespace std;
 
+/* defined */
 class Module;
 class Subodule;
 class Ext_Instance;
