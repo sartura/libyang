@@ -178,6 +178,9 @@ int Data_Node::validate(int options, S_Data_Node var_arg) {
 	return lyd_validate(&_node, options, (void *) var_arg->_node);
 }
 
+Data_Node_Leaf_List::Data_Node_Leaf_List(struct lyd_node *node, S_Deleter deleter) : Data_Node(node, deleter) {};
+Data_Node_Leaf_List::~Data_Node_Leaf_List() {};
+
 Attr::Attr(struct lyd_attr *attr, S_Deleter deleter) {
 	_attr = attr;
 	_deleter = deleter;
