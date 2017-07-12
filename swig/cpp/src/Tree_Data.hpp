@@ -51,11 +51,16 @@ public:
 	uint8_t validity() {return _node->validity;};
 	uint8_t dflt() {return _node->dflt;};
 	uint8_t when_status() {return _node->when_status;};
-	S_Attr attr() {return _node->attr ? S_Attr(new Attr(_node->attr, _deleter)) : NULL;}
-	S_Data_Node next() {return _node->next ? S_Data_Node(new Data_Node(_node->next, _deleter)) : NULL;}
-	S_Data_Node prev() {return _node->prev ? S_Data_Node(new Data_Node(_node->prev, _deleter)) : NULL;}
-	S_Data_Node parent() {return _node->parent ? S_Data_Node(new Data_Node(_node->parent, _deleter)) : NULL;}
-	S_Data_Node child() {return _node->child ? S_Data_Node(new Data_Node(_node->child, _deleter)) : NULL;}
+	S_Attr attr();
+	S_Data_Node next();
+	S_Data_Node prev();
+	S_Data_Node parent();
+	S_Data_Node child();
+
+	/* functions */
+	S_String path();
+	S_String qualified_path();
+
 private:
 	struct lyd_node *_node;
 	S_Deleter _deleter;
