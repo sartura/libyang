@@ -37,6 +37,7 @@ using namespace std;
 
 /* defined */
 class Data_Node;
+class Data_Node_Leaf_List;
 class Attr;
 
 /* used */
@@ -88,6 +89,19 @@ private:
 	S_Deleter _deleter;
 };
 
+class Data_Node_Leaf_List : public Data_Node
+{
+public:
+	Data_Node_Leaf_List(struct lyd_node *node, S_Deleter deleter = NULL);
+	~Data_Node_Leaf_List();
+    const char *value_str() {return ((struct lyd_node_leaf_list *) _node)->value_str;};
+    //lyd_val value;                   /**< node's value representation, always corresponds to schema->type.base */
+    uint16_t value_type() {return ((struct lyd_node_leaf_list *) _node)->value_type;};
+
+private:
+	struct lyd_node *_node;
+	S_Deleter _deleter;
+};
 class Attr
 {
 public:
