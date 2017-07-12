@@ -75,6 +75,7 @@ public:
 	S_Revision rev();
 
 	friend class Context;
+	friend class Data_Node;
 
 private:
 	struct lys_module *_module;
