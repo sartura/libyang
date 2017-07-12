@@ -46,6 +46,11 @@ class Data_Node
 {
 public:
 	Data_Node(struct lyd_node *node, S_Deleter deleter = NULL);
+	Data_Node(S_Data_Node parent, S_Module module, const char *name);
+	Data_Node(S_Data_Node parent, S_Module module, const char *name, const char *val_str);
+	Data_Node(S_Data_Node parent, S_Module module, const char *name, const char *value, LYD_ANYDATA_VALUETYPE value_type);
+	Data_Node(S_Data_Node parent, S_Module module, const char *name, S_Data_Node value, LYD_ANYDATA_VALUETYPE value_type);
+	//Data_Node(S_Data_Node parent, S_Module module, const char *name, lyxml_elem value, LYD_ANYDATA_VALUETYPE value_type);
 	~Data_Node();
 	S_Schema_Node schema();
 	uint8_t validity() {return _node->validity;};

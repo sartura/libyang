@@ -38,6 +38,66 @@ Data_Node::Data_Node(struct lyd_node *node, S_Deleter deleter) {
 	_node = node;
 	_deleter = deleter;
 };
+Data_Node::Data_Node(S_Data_Node parent, S_Module module, const char *name) {
+	lyd_node *node = NULL;
+
+	if (NULL == module) {
+		throw std::invalid_argument("Module can not be empty");
+	}
+
+	node = lyd_new(parent->_node, module->_module, name);
+	if (NULL == node) {
+		throw std::invalid_argument("libyang could not create new data node, invalid argument");
+	}
+
+	_node = node;
+	_deleter = NULL;
+};
+Data_Node::Data_Node(S_Data_Node parent, S_Module module, const char *name, const char *val_str) {
+	lyd_node *node = NULL;
+
+	if (NULL == module) {
+		throw std::invalid_argument("Module can not be empty");
+	}
+
+	node = lyd_new_leaf(parent->_node, module->_module, name, val_str);
+	if (NULL == node) {
+		throw std::invalid_argument("libyang could not create new data node, invalid argument");
+	}
+
+	_node = node;
+	_deleter = NULL;
+};
+Data_Node::Data_Node(S_Data_Node parent, S_Module module, const char *name, const char *value, LYD_ANYDATA_VALUETYPE value_type) {
+	lyd_node *node = NULL;
+
+	if (NULL == module) {
+		throw std::invalid_argument("Module can not be empty");
+	}
+
+	node = lyd_new_anydata(parent->_node, module->_module, name, (void *) value, value_type);
+	if (NULL == node) {
+		throw std::invalid_argument("libyang could not create new data node, invalid argument");
+	}
+
+	_node = node;
+	_deleter = NULL;
+};
+Data_Node::Data_Node(S_Data_Node parent, S_Module module, const char *name, S_Data_Node value, LYD_ANYDATA_VALUETYPE value_type) {
+	lyd_node *node = NULL;
+
+	if (NULL == module) {
+		throw std::invalid_argument("Module can not be empty");
+	}
+
+	node = lyd_new_anydata(parent->_node, module->_module, name, (void *) value->_node, value_type);
+	if (NULL == node) {
+		throw std::invalid_argument("libyang could not create new data node, invalid argument");
+	}
+
+	_node = node;
+	_deleter = NULL;
+};
 Data_Node::~Data_Node() {};
 S_Schema_Node Data_Node::schema() {return _node->schema ? S_Schema_Node(new Schema_Node(_node->schema, _deleter)) : NULL;};
 S_Attr Data_Node::attr() {return _node->attr ? S_Attr(new Attr(_node->attr, _deleter)) : NULL;}
