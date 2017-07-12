@@ -99,6 +99,11 @@ public:
     //lyd_val value;                   /**< node's value representation, always corresponds to schema->type.base */
     uint16_t value_type() {return ((struct lyd_node_leaf_list *) _node)->value_type;};
 
+	/* functions */
+	int change_leaf(const char *val_str);
+	int wd_default();
+	//const struct lys_type *lyd_leaf_type(const struct lyd_node_leaf_list *leaf);
+
 private:
 	struct lyd_node *_node;
 	S_Deleter _deleter;
