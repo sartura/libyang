@@ -25,6 +25,7 @@
 
 #include "Libyang.hpp"
 #include "Tree_Data.hpp"
+#include "Tree_Schema.hpp"
 
 extern "C" {
 #include <libyang/libyang.h>
@@ -38,3 +39,12 @@ Data_Node::Data_Node(struct lyd_node *node, S_Deleter deleter) {
 	_deleter = deleter;
 };
 Data_Node::~Data_Node() {};
+S_Schema_Node Data_Node::schema() {return _node->schema ? S_Schema_Node(new Schema_Node(_node->schema, _deleter)) : NULL;};
+
+Attr::Attr(struct lyd_attr *attr, S_Deleter deleter) {
+	_attr = attr;
+	_deleter = deleter;
+};
+Attr::~Attr() {};
+S_Data_Node Attr::parent() {return _attr->parent ? S_Data_Node(new Data_Node(_attr->parent, _deleter)) : NULL;};
+S_Attr Attr::next() {return _attr->next ? S_Attr(new Attr(_attr->next, _deleter)) : NULL;};

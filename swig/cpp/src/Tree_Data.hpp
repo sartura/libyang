@@ -35,22 +35,46 @@ extern "C" {
 
 using namespace std;
 
+/* defined */
 class Data_Node;
+class Attr;
+
+/* used */
+class Schema_Node;
 
 class Data_Node
 {
 public:
 	Data_Node(struct lyd_node *node, S_Deleter deleter = NULL);
 	~Data_Node();
+	S_Schema_Node schema();
 	uint8_t validity() {return _node->validity;};
 	uint8_t dflt() {return _node->dflt;};
 	uint8_t when_status() {return _node->when_status;};
+	S_Attr attr() {return _node->attr ? S_Attr(new Attr(_node->attr, _deleter)) : NULL;}
 	S_Data_Node next() {return _node->next ? S_Data_Node(new Data_Node(_node->next, _deleter)) : NULL;}
 	S_Data_Node prev() {return _node->prev ? S_Data_Node(new Data_Node(_node->prev, _deleter)) : NULL;}
 	S_Data_Node parent() {return _node->parent ? S_Data_Node(new Data_Node(_node->parent, _deleter)) : NULL;}
 	S_Data_Node child() {return _node->child ? S_Data_Node(new Data_Node(_node->child, _deleter)) : NULL;}
 private:
 	struct lyd_node *_node;
+	S_Deleter _deleter;
+};
+
+class Attr
+{
+public:
+	Attr(struct lyd_attr *attr, S_Deleter deleter = NULL);
+	~Attr();
+	S_Data_Node parent();
+	S_Attr next();
+	//struct lys_ext_instance_complex *annotation
+	const char *name() {return _attr->name;};
+	const char *value_str() {return _attr->value_str;};
+	//lyd_val value;
+	uint16_t value_type() {return _attr->value_type;};
+private:
+	struct lyd_attr *_attr;
 	S_Deleter _deleter;
 };
 
