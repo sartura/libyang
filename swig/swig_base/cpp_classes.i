@@ -18,6 +18,7 @@
 /* Tree_Data.hpp */
 %shared_ptr(Data_Node);
 %shared_ptr(Data_Node_Leaf_List);
+%shared_ptr(Data_Node_Anydata);
 %shared_ptr(Attr);
 
 /* Tree_Schema.hpp */
