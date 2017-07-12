@@ -51,6 +51,7 @@ public:
 	Data_Node(S_Data_Node parent, S_Module module, const char *name, const char *value, LYD_ANYDATA_VALUETYPE value_type);
 	Data_Node(S_Data_Node parent, S_Module module, const char *name, S_Data_Node value, LYD_ANYDATA_VALUETYPE value_type);
 	//Data_Node(S_Data_Node parent, S_Module module, const char *name, lyxml_elem value, LYD_ANYDATA_VALUETYPE value_type);
+	//struct lyd_node *lyd_new_output(struct lyd_node *parent, const struct lys_module *module, const char *name);
 	~Data_Node();
 	S_Schema_Node schema();
 	uint8_t validity() {return _node->validity;};
@@ -65,6 +66,22 @@ public:
 	/* functions */
 	S_String path();
 	S_String qualified_path();
+	S_Data_Node dup(int recursive);
+	S_Data_Node dup_to_ctx(int recursive, S_Context context);
+	int merge(S_Data_Node source, int options);
+	int merge_to_ctx(S_Data_Node source, int options, S_Context context);
+	int insert(S_Data_Node node);
+	int insert_sibling(S_Data_Node node);
+	int insert_before(S_Data_Node node);
+	int insert_after(S_Data_Node node);
+	int schema_sort(int recursive);
+	//struct ly_set *lyd_find_xpath(const struct lyd_node *ctx_node, const char *expr);
+	//struct ly_set *lyd_find_instance(const struct lyd_node *data, const struct lys_node *schema);
+	S_Data_Node first_sibling();
+	int validate(int options, S_Context var_arg);
+	int validate(int options, S_Data_Node var_arg);
+	//int lyd_wd_default(struct lyd_node_leaf_list *node);
+
 
 private:
 	struct lyd_node *_node;

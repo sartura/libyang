@@ -97,6 +97,8 @@ public:
 	S_Data_Node parse_path(struct ly_ctx *ctx, const char *path, LYD_FORMAT format, int options);
 	//lyd_parse_xml(struct ly_ctx *ctx, struct lyxml_elem **root, int options,...);
 
+	friend Data_Node;
+
 private:
 	struct ly_ctx *_ctx;
 	S_Deleter _deleter;

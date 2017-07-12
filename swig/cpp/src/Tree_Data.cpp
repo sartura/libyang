@@ -129,6 +129,54 @@ S_String Data_Node::qualified_path() {
     free(qualified_path);
     return s_qualified_path;
 }
+S_Data_Node Data_Node::dup(int recursive) {
+	struct lyd_node *node = NULL;
+
+	node = lyd_dup(_node, recursive);
+
+	return node ? S_Data_Node(new Data_Node(node, _deleter)) : NULL;
+}
+S_Data_Node Data_Node::dup_to_ctx(int recursive, S_Context context) {
+	struct lyd_node *node = NULL;
+
+	node = lyd_dup_to_ctx(_node, recursive, context->_ctx);
+
+	return node ? S_Data_Node(new Data_Node(node, _deleter)) : NULL;
+}
+int Data_Node::merge(S_Data_Node source, int options) {
+	return lyd_merge(_node, source->_node, options);
+}
+int Data_Node::merge_to_ctx(S_Data_Node source, int options, S_Context context) {
+	return lyd_merge_to_ctx(&_node, source->_node, options, context->_ctx);
+}
+int Data_Node::insert(S_Data_Node node) {
+	return lyd_insert(_node, node->_node);
+}
+int Data_Node::insert_sibling(S_Data_Node node) {
+	return lyd_insert_sibling(&_node, node->_node);
+}
+int Data_Node::insert_before(S_Data_Node node) {
+	return lyd_insert_before(_node, node->_node);
+}
+int Data_Node::insert_after(S_Data_Node node) {
+	return lyd_insert_after(_node, node->_node);
+}
+int Data_Node::schema_sort(int recursive) {
+	return lyd_schema_sort(_node, recursive);
+}
+S_Data_Node Data_Node::first_sibling() {
+	struct lyd_node *node = NULL;
+
+	node = lyd_first_sibling(_node);
+
+	return node ? S_Data_Node(new Data_Node(node, _deleter)) : NULL;
+}
+int Data_Node::validate(int options, S_Context var_arg) {
+	return lyd_validate(&_node, options, (void *) var_arg->_ctx);
+}
+int Data_Node::validate(int options, S_Data_Node var_arg) {
+	return lyd_validate(&_node, options, (void *) var_arg->_node);
+}
 
 Attr::Attr(struct lyd_attr *attr, S_Deleter deleter) {
 	_attr = attr;
