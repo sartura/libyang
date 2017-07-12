@@ -181,6 +181,9 @@ int Data_Node::validate(int options, S_Data_Node var_arg) {
 Data_Node_Leaf_List::Data_Node_Leaf_List(struct lyd_node *node, S_Deleter deleter) : Data_Node(node, deleter) {};
 Data_Node_Leaf_List::~Data_Node_Leaf_List() {};
 
+Data_Node_Anydata::Data_Node_Anydata(struct lyd_node *node, S_Deleter deleter) : Data_Node(node, deleter) {};
+Data_Node_Anydata::~Data_Node_Anydata() {};
+
 Attr::Attr(struct lyd_attr *attr, S_Deleter deleter) {
 	_attr = attr;
 	_deleter = deleter;

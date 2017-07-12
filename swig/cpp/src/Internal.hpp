@@ -32,6 +32,7 @@
 /* Tree_Data.hpp */
 #define S_Data_Node            std::shared_ptr<Data_Node>
 #define S_Data_Node_Leaf_List  std::shared_ptr<Data_Node_Leaf_List>
+#define S_Data_Node_Anydata    std::shared_ptr<Data_Node_Anydata>
 #define S_Attr                 std::shared_ptr<Attr>
 
 /* Tree_Schema.hpp */

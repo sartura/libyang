@@ -38,6 +38,7 @@ using namespace std;
 /* defined */
 class Data_Node;
 class Data_Node_Leaf_List;
+class Data_Node_Anydata;
 class Attr;
 
 /* used */
@@ -102,6 +103,20 @@ private:
 	struct lyd_node *_node;
 	S_Deleter _deleter;
 };
+
+class Data_Node_Anydata : public Data_Node
+{
+public:
+	Data_Node_Anydata(struct lyd_node *node, S_Deleter deleter = NULL);
+	~Data_Node_Anydata();
+    LYD_ANYDATA_VALUETYPE value_type() {return ((struct lyd_node_anydata *) _node)->value_type;};
+	//union value
+
+private:
+	struct lyd_node *_node;
+	S_Deleter _deleter;
+};
+
 class Attr
 {
 public:
