@@ -145,3 +145,35 @@ vector<string> *Context::get_searchdirs() {
 
 	return s_vector;
 };
+S_Data_Node Context::parse_mem(const char *data, LYD_FORMAT format, int options) {
+	struct lyd_node *node = NULL;
+
+	node = lyd_parse_mem(_ctx, data, format, options);
+	if (NULL == node) {
+		return NULL;
+	}
+
+	return S_Data_Node(new Data_Node(node, _deleter));
+}
+S_Data_Node Context::parse_fd(int fd, LYD_FORMAT format, int options) {
+	struct lyd_node *node = NULL;
+
+	node = lyd_parse_fd(_ctx, fd, format, options);
+	if (NULL == node) {
+		return NULL;
+	}
+
+	return S_Data_Node(new Data_Node(node, _deleter));
+
+}
+S_Data_Node Context::parse_path(struct ly_ctx *ctx, const char *path, LYD_FORMAT format, int options) {
+	struct lyd_node *node = NULL;
+
+	node = lyd_parse_mem(_ctx, path, format, options);
+	if (NULL == node) {
+		return NULL;
+	}
+
+	return S_Data_Node(new Data_Node(node, _deleter));
+
+}

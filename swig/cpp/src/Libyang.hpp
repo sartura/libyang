@@ -91,6 +91,12 @@ public:
 	S_Module get_module_by_ns(const char *ns, const char *revision);
 	void clean();
 
+	/* functions */
+	S_Data_Node parse_mem(const char *data, LYD_FORMAT format, int options);
+	S_Data_Node parse_fd(int fd, LYD_FORMAT format, int options);
+	S_Data_Node parse_path(struct ly_ctx *ctx, const char *path, LYD_FORMAT format, int options);
+	//lyd_parse_xml(struct ly_ctx *ctx, struct lyxml_elem **root, int options,...);
+
 private:
 	struct ly_ctx *_ctx;
 	S_Deleter _deleter;

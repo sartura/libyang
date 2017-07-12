@@ -40,6 +40,35 @@ Data_Node::Data_Node(struct lyd_node *node, S_Deleter deleter) {
 };
 Data_Node::~Data_Node() {};
 S_Schema_Node Data_Node::schema() {return _node->schema ? S_Schema_Node(new Schema_Node(_node->schema, _deleter)) : NULL;};
+S_Attr Data_Node::attr() {return _node->attr ? S_Attr(new Attr(_node->attr, _deleter)) : NULL;}
+S_Data_Node Data_Node::next() {return _node->next ? S_Data_Node(new Data_Node(_node->next, _deleter)) : NULL;}
+S_Data_Node Data_Node::prev() {return _node->prev ? S_Data_Node(new Data_Node(_node->prev, _deleter)) : NULL;}
+S_Data_Node Data_Node::parent() {return _node->parent ? S_Data_Node(new Data_Node(_node->parent, _deleter)) : NULL;}
+S_Data_Node Data_Node::child() {return _node->child ? S_Data_Node(new Data_Node(_node->child, _deleter)) : NULL;}
+S_String Data_Node::path() {
+	char *path = NULL;
+
+	path = lyd_path(_node);
+	if (NULL == path) {
+		return NULL;
+	}
+
+    S_String s_path = path;
+    free(path);
+    return s_path;
+}
+S_String Data_Node::qualified_path() {
+	char *qualified_path = NULL;
+
+	qualified_path = lyd_qualified_path(_node);
+	if (NULL == qualified_path) {
+		return NULL;
+	}
+
+    S_String s_qualified_path = qualified_path;
+    free(qualified_path);
+    return s_qualified_path;
+}
 
 Attr::Attr(struct lyd_attr *attr, S_Deleter deleter) {
 	_attr = attr;
