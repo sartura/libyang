@@ -46,6 +46,14 @@
 #define S_Schema_Node_Leaf       std::shared_ptr<Schema_Node_Leaf>
 #define S_Schema_Node_Leaflist   std::shared_ptr<Schema_Node_Leaflist>
 #define S_Schema_Node_List       std::shared_ptr<Schema_Node_List>
+#define S_Schema_Node_Anydata    std::shared_ptr<Schema_Node_Anydata>
+#define S_Schema_Node_Uses       std::shared_ptr<Schema_Node_Uses>
+#define S_Schema_Node_Grp        std::shared_ptr<Schema_Node_Grp>
+#define S_Schema_Node_Case       std::shared_ptr<Schema_Node_Case>
+#define S_Schema_Node_Inout      std::shared_ptr<Schema_Node_Inout>
+#define S_Schema_Node_Notif      std::shared_ptr<Schema_Node_Notif>
+#define S_Schema_Node_Action     std::shared_ptr<Schema_Node_Action>
+#define S_Schema_Node_Augment    std::shared_ptr<Schema_Node_Augment>
 #define S_Substmt                std::shared_ptr<Substmt>
 #define S_Ext                    std::shared_ptr<Ext>
 

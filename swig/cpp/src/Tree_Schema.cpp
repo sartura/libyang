@@ -128,6 +128,30 @@ Schema_Node_Leaflist::~Schema_Node_Leaflist() {};
 Schema_Node_List::Schema_Node_List(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {};
 Schema_Node_List::~Schema_Node_List() {};
 
+Schema_Node_Anydata::Schema_Node_Anydata(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {};
+Schema_Node_Anydata::~Schema_Node_Anydata() {};
+
+Schema_Node_Uses::Schema_Node_Uses(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {};
+Schema_Node_Uses::~Schema_Node_Uses() {};
+
+Schema_Node_Grp::Schema_Node_Grp(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {};
+Schema_Node_Grp::~Schema_Node_Grp() {};
+
+Schema_Node_Case::Schema_Node_Case(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {};
+Schema_Node_Case::~Schema_Node_Case() {};
+
+Schema_Node_Inout::Schema_Node_Inout(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {};
+Schema_Node_Inout::~Schema_Node_Inout() {};
+
+Schema_Node_Notif::Schema_Node_Notif(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {};
+Schema_Node_Notif::~Schema_Node_Notif() {};
+
+Schema_Node_Action::Schema_Node_Action(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {};
+Schema_Node_Action::~Schema_Node_Action() {};
+
+Schema_Node_Augment::Schema_Node_Augment(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {};
+Schema_Node_Augment::~Schema_Node_Augment() {};
+
 Substmt::Substmt(struct lyext_substmt *substmt, S_Deleter deleter) {
 	_substmt = substmt;
 	_deleter = deleter;

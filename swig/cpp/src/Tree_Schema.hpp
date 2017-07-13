@@ -46,6 +46,15 @@ class Schema_Node_Container;
 class Schema_Node_Choice;
 class Schema_Node_Leaf;
 class Schema_Node_Leaflist;
+class Schema_Node_List;
+class Schema_Node_Anydata;
+class Schema_Node_Uses;
+class Schema_Node_Grp;
+class Schema_Node_Case;
+class Schema_Node_Inout;
+class Schema_Node_Notif;
+class Schema_Node_Action;
+class Schema_Node_Augment;
 class Substmt;
 class Ext;
 
@@ -267,6 +276,109 @@ public:
     uint32_t min() {return ((struct lys_node_list *)_node)->min;};
     uint32_t max() {return ((struct lys_node_list *)_node)->max;};
     const char *keys_str() {return ((struct lys_node_list *)_node)->keys_str;};
+
+private:
+	struct lys_node *_node;
+	S_Deleter _deleter;
+};
+
+class Schema_Node_Anydata : public Schema_Node
+{
+public:
+	Schema_Node_Anydata(struct lys_node *node, S_Deleter deleter = NULL);
+	~Schema_Node_Anydata();
+    //struct lys_when *when;           /**< when statement (optional) */
+	//struct lys_restr *must;          /**< array of must constraints */
+
+private:
+	struct lys_node *_node;
+	S_Deleter _deleter;
+};
+
+class Schema_Node_Uses : public Schema_Node
+{
+public:
+	Schema_Node_Uses(struct lys_node *node, S_Deleter deleter = NULL);
+	~Schema_Node_Uses();
+    //struct lys_when *when;           /**< when statement (optional) */
+    //struct lys_refine *refine;       /**< array of refine changes to the referred grouping */
+    //struct lys_node_augment *augment;/**< array of local augments to the referred grouping */
+    //struct lys_node_grp *grp;        /**< referred grouping definition (mandatory) */
+
+private:
+	struct lys_node *_node;
+	S_Deleter _deleter;
+};
+
+class Schema_Node_Grp : public Schema_Node
+{
+public:
+	Schema_Node_Grp(struct lys_node *node, S_Deleter deleter = NULL);
+	~Schema_Node_Grp();
+    //struct lys_tpdf *tpdf;           /**< array of typedefs */
+
+private:
+	struct lys_node *_node;
+	S_Deleter _deleter;
+};
+
+class Schema_Node_Case : public Schema_Node
+{
+public:
+	Schema_Node_Case(struct lys_node *node, S_Deleter deleter = NULL);
+	~Schema_Node_Case();
+	//struct lys_when *when;           /**< when statement (optional) */
+
+private:
+	struct lys_node *_node;
+	S_Deleter _deleter;
+};
+
+class Schema_Node_Inout : public Schema_Node
+{
+public:
+	Schema_Node_Inout(struct lys_node *node, S_Deleter deleter = NULL);
+	~Schema_Node_Inout();
+    //struct lys_tpdf *tpdf;           /**< array of typedefs */
+    //struct lys_restr *must;          /**< array of must constraints */
+
+private:
+	struct lys_node *_node;
+	S_Deleter _deleter;
+};
+
+class Schema_Node_Notif : public Schema_Node
+{
+public:
+	Schema_Node_Notif(struct lys_node *node, S_Deleter deleter = NULL);
+	~Schema_Node_Notif();
+    //struct lys_tpdf *tpdf;           /**< array of typedefs */
+    //struct lys_restr *must;          /**< array of must constraints */
+
+private:
+	struct lys_node *_node;
+	S_Deleter _deleter;
+};
+
+class Schema_Node_Action : public Schema_Node
+{
+public:
+	Schema_Node_Action(struct lys_node *node, S_Deleter deleter = NULL);
+	~Schema_Node_Action();
+    //struct lys_tpdf *tpdf;           /**< array of typedefs */
+
+private:
+	struct lys_node *_node;
+	S_Deleter _deleter;
+};
+
+class Schema_Node_Augment : public Schema_Node
+{
+public:
+	Schema_Node_Augment(struct lys_node *node, S_Deleter deleter = NULL);
+	~Schema_Node_Augment();
+    //struct lys_when *when;           /**< when statement (optional) */
+    //struct lys_node *target;         /**< pointer to the target node */
 
 private:
 	struct lys_node *_node;
