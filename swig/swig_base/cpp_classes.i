@@ -32,6 +32,14 @@
 %shared_ptr(Schema_Node_Leaf);
 %shared_ptr(Schema_Node_Leaflist);
 %shared_ptr(Schema_Node_List);
+%shared_ptr(Schema_Node_Anydata);
+%shared_ptr(Schema_Node_Uses);
+%shared_ptr(Schema_Node_Grp);
+%shared_ptr(Schema_Node_Case);
+%shared_ptr(Schema_Node_Inout);
+%shared_ptr(Schema_Node_Notif);
+%shared_ptr(Schema_Node_Action);
+%shared_ptr(Schema_Node_Augment);
 %shared_ptr(Substmt);
 %shared_ptr(Ext);
 
