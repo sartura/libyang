@@ -42,6 +42,7 @@ class Subodule;
 class Ext_Instance;
 class Revision;
 class Schema_Node;
+class Schema_Node_Container;
 class Substmt;
 class Ext;
 
@@ -182,6 +183,21 @@ public:
 	/* emulate TREE macro's */
 	std::vector<S_Schema_Node> *tree_for();
 	std::vector<S_Schema_Node> *tree_dfs();
+
+private:
+	struct lys_node *_node;
+	S_Deleter _deleter;
+};
+
+class Schema_Node_Container : public Schema_Node
+{
+public:
+	Schema_Node_Container(struct lys_node *node, S_Deleter deleter = NULL);
+	~Schema_Node_Container();
+    //struct lys_when *when;           /**< when statement (optional) */
+    //struct lys_restr *must;          /**< array of must constraints */
+    //struct lys_tpdf *tpdf;           /**< array of typedefs */
+    const char *presence() {return ((struct lys_node_container *) _node)->presence;};
 
 private:
 	struct lys_node *_node;

@@ -113,6 +113,9 @@ std::vector<S_Schema_Node> *Schema_Node::tree_dfs() {
 	return s_vector;
 }
 
+Schema_Node_Container::Schema_Node_Container(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {};
+Schema_Node_Container::~Schema_Node_Container() {};
+
 Substmt::Substmt(struct lyext_substmt *substmt, S_Deleter deleter) {
 	_substmt = substmt;
 	_deleter = deleter;

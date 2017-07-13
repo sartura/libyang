@@ -23,26 +23,27 @@
 #ifndef INTERNAL_H
 #define INTERNAL_H
 
-#define S_String               std::string
-#define S_Deleter              std::shared_ptr<Deleter>
+#define S_String                 std::string
+#define S_Deleter                std::shared_ptr<Deleter>
 
 /* Libyang.hpp */
-#define S_Context              std::shared_ptr<Context>
+#define S_Context                std::shared_ptr<Context>
 
 /* Tree_Data.hpp */
-#define S_Data_Node            std::shared_ptr<Data_Node>
-#define S_Data_Node_Leaf_List  std::shared_ptr<Data_Node_Leaf_List>
-#define S_Data_Node_Anydata    std::shared_ptr<Data_Node_Anydata>
-#define S_Attr                 std::shared_ptr<Attr>
+#define S_Data_Node              std::shared_ptr<Data_Node>
+#define S_Data_Node_Leaf_List    std::shared_ptr<Data_Node_Leaf_List>
+#define S_Data_Node_Anydata      std::shared_ptr<Data_Node_Anydata>
+#define S_Attr                   std::shared_ptr<Attr>
 
 /* Tree_Schema.hpp */
-#define S_Module               std::shared_ptr<Module>
-#define S_Submodule            std::shared_ptr<Submodule>
-#define S_Ext_Instance         std::shared_ptr<Ext_Instance>
-#define S_Revision             std::shared_ptr<Revision>
-#define S_Schema_Node          std::shared_ptr<Schema_Node>
-#define S_Substmt              std::shared_ptr<Substmt>
-#define S_Ext                  std::shared_ptr<Ext>
+#define S_Module                 std::shared_ptr<Module>
+#define S_Submodule              std::shared_ptr<Submodule>
+#define S_Ext_Instance           std::shared_ptr<Ext_Instance>
+#define S_Revision               std::shared_ptr<Revision>
+#define S_Schema_Node            std::shared_ptr<Schema_Node>
+#define S_Schema_Node_Container  std::shared_ptr<Schema_Node_Container>
+#define S_Substmt                std::shared_ptr<Substmt>
+#define S_Ext                    std::shared_ptr<Ext>
 
 extern "C" {
 #include <libyang/libyang.h>

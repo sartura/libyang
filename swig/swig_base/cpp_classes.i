@@ -27,6 +27,7 @@
 %shared_ptr(Ext_Instance);
 %shared_ptr(Revision);
 %shared_ptr(Schema_Node);
+%shared_ptr(Schema_Node_Container);
 %shared_ptr(Substmt);
 %shared_ptr(Ext);
 
