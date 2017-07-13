@@ -31,6 +31,7 @@
 %shared_ptr(Schema_Node_Choice);
 %shared_ptr(Schema_Node_Leaf);
 %shared_ptr(Schema_Node_Leaflist);
+%shared_ptr(Schema_Node_List);
 %shared_ptr(Substmt);
 %shared_ptr(Ext);
 

@@ -254,6 +254,25 @@ private:
 	S_Deleter _deleter;
 };
 
+class Schema_Node_List : public Schema_Node
+{
+public:
+	Schema_Node_List(struct lys_node *node, S_Deleter deleter = NULL);
+	~Schema_Node_List();
+    //struct lys_when *when;           /**< when statement (optional) */
+    //struct lys_restr *must;          /**< array of must constraints */
+    //struct lys_tpdf *tpdf;           /**< array of typedefs */
+    //struct lys_node_leaf **keys;     /**< array of pointers to the key nodes */
+    //struct lys_unique *unique;       /**< array of unique statement structures */
+    uint32_t min() {return ((struct lys_node_list *)_node)->min;};
+    uint32_t max() {return ((struct lys_node_list *)_node)->max;};
+    const char *keys_str() {return ((struct lys_node_list *)_node)->keys_str;};
+
+private:
+	struct lys_node *_node;
+	S_Deleter _deleter;
+};
+
 class Substmt
 {
 public:
