@@ -48,6 +48,8 @@ extern "C" {
 #include <libyang/libyang.h>
 }
 
+#define typeof(x) __typeof__(x)
+
 class Deleter
 {
 public:

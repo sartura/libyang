@@ -84,6 +84,9 @@ public:
 	int validate(int options, S_Data_Node var_arg);
 	//int lyd_wd_default(struct lyd_node_leaf_list *node);
 
+	/* emulate TREE macro's */
+	std::vector<S_Data_Node> *tree_for();
+	std::vector<S_Data_Node> *tree_dfs();
 
 private:
 	struct lyd_node *_node;

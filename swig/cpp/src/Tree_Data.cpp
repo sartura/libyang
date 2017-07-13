@@ -30,6 +30,15 @@
 extern "C" {
 #include <libyang/libyang.h>
 #include <libyang/tree_data.h>
+#include <libyang/tree_schema.h>
+}
+
+#define typeof(x) __typeof__(x)
+
+template<typename T, typename ...Args>
+std::unique_ptr<T> make_unique( Args&& ...args )
+{
+    return std::unique_ptr<T>( new T( std::forward<Args>(args)... ) );
 }
 
 using namespace std;
@@ -176,6 +185,35 @@ int Data_Node::validate(int options, S_Context var_arg) {
 }
 int Data_Node::validate(int options, S_Data_Node var_arg) {
 	return lyd_validate(&_node, options, (void *) var_arg->_node);
+}
+std::vector<S_Data_Node> *Data_Node::tree_for() {
+	auto s_vector = new vector<S_Data_Node>;
+
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	struct lyd_node *elem = NULL;
+	LY_TREE_FOR(_node, elem) {
+		s_vector->push_back(S_Data_Node(new Data_Node(elem, _deleter)));
+	}
+
+	return s_vector;
+}
+std::vector<S_Data_Node> *Data_Node::tree_dfs() {
+	auto s_vector = new vector<S_Data_Node>;
+
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	struct lyd_node *elem = NULL, *next = NULL;
+	LY_TREE_DFS_BEGIN(_node, next, elem) {
+		s_vector->push_back(S_Data_Node(new Data_Node(elem, _deleter)));
+		LY_TREE_DFS_END(_node, next, elem)
+	}
+
+	return s_vector;
 }
 
 Data_Node_Leaf_List::Data_Node_Leaf_List(struct lyd_node *node, S_Deleter deleter) : Data_Node(node, deleter) {};
