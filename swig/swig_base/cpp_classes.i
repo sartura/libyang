@@ -48,5 +48,7 @@
 
 %template(vectorString) std::vector<string>;
 %template(vectorModules) std::vector<S_Module>;
+%template(vectorData_Node) std::vector<S_Data_Node>;
+%template(vectorSchema_Node) std::vector<S_Schema_Node>;
 %template(vectorExt_Instance) std::vector<S_Ext_Instance>;
 
