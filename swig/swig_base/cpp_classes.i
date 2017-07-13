@@ -28,6 +28,9 @@
 %shared_ptr(Revision);
 %shared_ptr(Schema_Node);
 %shared_ptr(Schema_Node_Container);
+%shared_ptr(Schema_Node_Choice);
+%shared_ptr(Schema_Node_Leaf);
+%shared_ptr(Schema_Node_Leaflist);
 %shared_ptr(Substmt);
 %shared_ptr(Ext);
 
