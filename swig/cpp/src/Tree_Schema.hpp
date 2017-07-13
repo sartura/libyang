@@ -163,6 +163,26 @@ public:
 	Schema_Node(lys_node *node, S_Deleter deleter);
 	~Schema_Node();
 	const char *name() {return _node->name;};
+	const char *dsc() {return _node->dsc;};
+	const char *ref() {return _node->ref;};
+	uint16_t flags() {return _node->flags;};
+	uint8_t ext_size() {return _node->ext_size;};
+	uint8_t iffeature_size() {return _node->iffeature_size;};
+	//uint8_t padding[4];
+	// struct lys_ext_instance **ext;
+	// struct lys_iffeature *iffeature;
+	S_Module module();
+	LYS_NODE nodetype() {return _node->nodetype;};
+	S_Schema_Node parent();
+	S_Schema_Node child();
+	S_Schema_Node next();
+	S_Schema_Node prev();
+	// void *priv;
+
+	/* emulate TREE macro's */
+	std::vector<S_Schema_Node> *tree_for();
+	std::vector<S_Schema_Node> *tree_dfs();
+
 private:
 	struct lys_node *_node;
 	S_Deleter _deleter;

@@ -78,6 +78,40 @@ Schema_Node::Schema_Node(struct lys_node *node, S_Deleter deleter) {
 	_deleter = deleter;
 };
 Schema_Node::~Schema_Node() {};
+S_Module Schema_Node::module() {return _node->module ? S_Module(new Module(_node->module, _deleter)) : NULL;};
+S_Schema_Node Schema_Node::parent() {return _node->parent ? S_Schema_Node(new Schema_Node(_node->parent, _deleter)) : NULL;};
+S_Schema_Node Schema_Node::child() {return _node->child ? S_Schema_Node(new Schema_Node(_node->child, _deleter)) : NULL;};
+S_Schema_Node Schema_Node::next() {return _node->next ? S_Schema_Node(new Schema_Node(_node->next, _deleter)) : NULL;};
+S_Schema_Node Schema_Node::prev() {return _node->prev ? S_Schema_Node(new Schema_Node(_node->prev, _deleter)) : NULL;};
+std::vector<S_Schema_Node> *Schema_Node::tree_for() {
+	auto s_vector = new vector<S_Schema_Node>;
+
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	struct lys_node *elem = NULL;
+	LY_TREE_FOR(_node, elem) {
+		s_vector->push_back(S_Schema_Node(new Schema_Node(elem, _deleter)));
+	}
+
+	return s_vector;
+}
+std::vector<S_Schema_Node> *Schema_Node::tree_dfs() {
+	auto s_vector = new vector<S_Schema_Node>;
+
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	struct lys_node *elem = NULL, *next = NULL;
+	LY_TREE_DFS_BEGIN(_node, next, elem) {
+		s_vector->push_back(S_Schema_Node(new Schema_Node(elem, _deleter)));
+		LY_TREE_DFS_END(_node, next, elem)
+	}
+
+	return s_vector;
+}
 
 Substmt::Substmt(struct lyext_substmt *substmt, S_Deleter deleter) {
 	_substmt = substmt;
