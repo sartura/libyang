@@ -25,7 +25,7 @@ else:
     module = ctx.load_module("turing-machine", None)
 
 try:
-    node = ctx.parse_path("/etc/sysrepo/data/turing-machine.startup", ly.LYD_XML, 1)
+    node = ctx.parse_path("/etc/sysrepo/data/turing-machine.startup", ly.LYD_XML, ly.LYD_OPT_CONFIG)
 except Exception as e:
     print(e)
 
