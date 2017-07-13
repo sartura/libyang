@@ -45,6 +45,7 @@
 #define S_Schema_Node_Choice     std::shared_ptr<Schema_Node_Choice>
 #define S_Schema_Node_Leaf       std::shared_ptr<Schema_Node_Leaf>
 #define S_Schema_Node_Leaflist   std::shared_ptr<Schema_Node_Leaflist>
+#define S_Schema_Node_List       std::shared_ptr<Schema_Node_List>
 #define S_Substmt                std::shared_ptr<Substmt>
 #define S_Ext                    std::shared_ptr<Ext>
 

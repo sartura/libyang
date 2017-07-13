@@ -125,6 +125,9 @@ Schema_Node_Leaf::~Schema_Node_Leaf() {};
 Schema_Node_Leaflist::Schema_Node_Leaflist(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {};
 Schema_Node_Leaflist::~Schema_Node_Leaflist() {};
 
+Schema_Node_List::Schema_Node_List(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {};
+Schema_Node_List::~Schema_Node_List() {};
+
 Substmt::Substmt(struct lyext_substmt *substmt, S_Deleter deleter) {
 	_substmt = substmt;
 	_deleter = deleter;
