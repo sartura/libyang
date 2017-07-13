@@ -33,14 +33,6 @@ extern "C" {
 #include <libyang/tree_schema.h>
 }
 
-#define typeof(x) __typeof__(x)
-
-template<typename T, typename ...Args>
-std::unique_ptr<T> make_unique( Args&& ...args )
-{
-    return std::unique_ptr<T>( new T( std::forward<Args>(args)... ) );
-}
-
 using namespace std;
 
 Data_Node::Data_Node(struct lyd_node *node, S_Deleter deleter) {
