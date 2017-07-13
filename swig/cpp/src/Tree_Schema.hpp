@@ -43,6 +43,9 @@ class Ext_Instance;
 class Revision;
 class Schema_Node;
 class Schema_Node_Container;
+class Schema_Node_Choice;
+class Schema_Node_Leaf;
+class Schema_Node_Leaflist;
 class Substmt;
 class Ext;
 
@@ -198,6 +201,53 @@ public:
     //struct lys_restr *must;          /**< array of must constraints */
     //struct lys_tpdf *tpdf;           /**< array of typedefs */
     const char *presence() {return ((struct lys_node_container *) _node)->presence;};
+
+private:
+	struct lys_node *_node;
+	S_Deleter _deleter;
+};
+
+class Schema_Node_Choice : public Schema_Node
+{
+public:
+	Schema_Node_Choice(struct lys_node *node, S_Deleter deleter = NULL);
+	~Schema_Node_Choice();
+    //struct lys_when *when;           /**< when statement (optional) */
+    //struct lys_node *dflt;           /**< default case of the choice (optional) */
+
+private:
+	struct lys_node *_node;
+	S_Deleter _deleter;
+};
+
+class Schema_Node_Leaf : public Schema_Node
+{
+public:
+	Schema_Node_Leaf(struct lys_node *node, S_Deleter deleter = NULL);
+	~Schema_Node_Leaf();
+    //struct lys_when *when;           /**< when statement (optional) */
+    //struct lys_restr *must;          /**< array of must constraints */
+    //struct lys_type type;            /**< YANG data type definition of the leaf (mandatory) */
+    const char *units() {return ((struct lys_node_leaf *)_node)->units;};
+    const char *dflt() {return ((struct lys_node_leaf *)_node)->dflt;};
+
+private:
+	struct lys_node *_node;
+	S_Deleter _deleter;
+};
+
+class Schema_Node_Leaflist : public Schema_Node
+{
+public:
+	Schema_Node_Leaflist(struct lys_node *node, S_Deleter deleter = NULL);
+	~Schema_Node_Leaflist();
+    //struct lys_when *when;           /**< when statement (optional) */
+    //struct lys_restr *must;          /**< array of must constraints */
+    //struct lys_type type;            /**< YANG data type definition of the leaf (mandatory) */
+    const char *units() {return ((struct lys_node_leaflist *)_node)->units;};
+    //TODO vector of string dflt();
+    uint32_t min() {return ((struct lys_node_leaflist *)_node)->min;};
+    uint32_t max() {return ((struct lys_node_leaflist *)_node)->max;};
 
 private:
 	struct lys_node *_node;

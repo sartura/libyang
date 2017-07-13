@@ -42,6 +42,9 @@
 #define S_Revision               std::shared_ptr<Revision>
 #define S_Schema_Node            std::shared_ptr<Schema_Node>
 #define S_Schema_Node_Container  std::shared_ptr<Schema_Node_Container>
+#define S_Schema_Node_Choice     std::shared_ptr<Schema_Node_Choice>
+#define S_Schema_Node_Leaf       std::shared_ptr<Schema_Node_Leaf>
+#define S_Schema_Node_Leaflist   std::shared_ptr<Schema_Node_Leaflist>
 #define S_Substmt                std::shared_ptr<Substmt>
 #define S_Ext                    std::shared_ptr<Ext>
 
