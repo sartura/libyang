@@ -166,10 +166,10 @@ S_Data_Node Context::parse_fd(int fd, LYD_FORMAT format, int options) {
 	return S_Data_Node(new Data_Node(node, _deleter));
 
 }
-S_Data_Node Context::parse_path(struct ly_ctx *ctx, const char *path, LYD_FORMAT format, int options) {
+S_Data_Node Context::parse_path(const char *path, LYD_FORMAT format, int options) {
 	struct lyd_node *node = NULL;
 
-	node = lyd_parse_mem(_ctx, path, format, options);
+	node = lyd_parse_path(_ctx, path, format, options);
 	if (NULL == node) {
 		return NULL;
 	}
