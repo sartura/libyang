@@ -1,5 +1,5 @@
 /**
- * @file Libyang.cpp
+ * @file process_tree.cpp
  * @author Mislav Novakovic <mislav.novakovic@sartura.hr>
  * @brief Example of the libyang C++ bindings
  *
