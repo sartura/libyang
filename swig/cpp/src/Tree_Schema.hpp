@@ -55,6 +55,7 @@ class Schema_Node_Inout;
 class Schema_Node_Notif;
 class Schema_Node_Action;
 class Schema_Node_Augment;
+class When;
 class Substmt;
 class Ext;
 
@@ -382,6 +383,22 @@ public:
 
 private:
 	struct lys_node *_node;
+	S_Deleter _deleter;
+};
+
+class When
+{
+public:
+	When(struct lys_when *when, S_Deleter deleter = NULL);
+	~When();
+	const char *cond() {return _when->cond;};
+	const char *dsc() {return _when->dsc;};
+	const char *ref() {return _when->ref;};
+	std::vector<S_Ext_Instance> *ext();
+	uint8_t ext_size() {return _when->ext_size;};
+
+private:
+	struct lys_when *_when;
 	S_Deleter _deleter;
 };
 

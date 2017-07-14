@@ -40,6 +40,7 @@
 %shared_ptr(Schema_Node_Notif);
 %shared_ptr(Schema_Node_Action);
 %shared_ptr(Schema_Node_Augment);
+%shared_ptr(When);
 %shared_ptr(Substmt);
 %shared_ptr(Ext);
 
