@@ -75,6 +75,10 @@ install(TARGETS libyang_cpp DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cpp/src/" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libyang
     FILES_MATCHING PATTERN "*.hpp")
 
+if (GEN_CPP_BINDINGS)
+	add_subdirectory(cpp/examples)
+endif()
+
 if(PYTHONLIBS_FOUND AND PYTHONINTERP_FOUND AND ${GEN_PYTHON_VERSION} STREQUAL "2")
 	add_subdirectory(python2)
 endif()
