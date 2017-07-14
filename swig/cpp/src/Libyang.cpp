@@ -153,7 +153,8 @@ S_Data_Node Context::parse_mem(const char *data, LYD_FORMAT format, int options)
 		return NULL;
 	}
 
-	return S_Data_Node(new Data_Node(node, _deleter));
+	S_Deleter deleter = S_Deleter(new Deleter(node, _deleter));
+	return S_Data_Node(new Data_Node(node, deleter));
 }
 S_Data_Node Context::parse_fd(int fd, LYD_FORMAT format, int options) {
 	struct lyd_node *node = NULL;
@@ -163,8 +164,8 @@ S_Data_Node Context::parse_fd(int fd, LYD_FORMAT format, int options) {
 		return NULL;
 	}
 
-	return S_Data_Node(new Data_Node(node, _deleter));
-
+	S_Deleter deleter = S_Deleter(new Deleter(node, _deleter));
+	return S_Data_Node(new Data_Node(node, deleter));
 }
 S_Data_Node Context::parse_path(const char *path, LYD_FORMAT format, int options) {
 	struct lyd_node *node = NULL;
@@ -174,6 +175,6 @@ S_Data_Node Context::parse_path(const char *path, LYD_FORMAT format, int options
 		return NULL;
 	}
 
-	return S_Data_Node(new Data_Node(node, _deleter));
-
+	S_Deleter deleter = S_Deleter(new Deleter(node, _deleter));
+	return S_Data_Node(new Data_Node(node, deleter));
 }
