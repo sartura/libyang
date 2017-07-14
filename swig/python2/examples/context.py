@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 __author__ = "Mislav Novakovic <mislav.novakovic@sartura.hr>"
 __copyright__ = "Copyright 2017, Deutsche Telekom AG"
@@ -23,7 +23,9 @@ try:
 except Exception as e:
 	print(e)
 
-print("searchdir: " + ctx.get_searchdir())
+folders = ctx.get_searchdirs()
+print(*folders, sep='\n')
+print("\n")
 
 module = ctx.get_module("ietf-interfaces", None)
 if module is not None:
@@ -32,3 +34,7 @@ else:
 	module = ctx.load_module("ietf-interfaces", None)
 	if module is not None:
 		print(module.name())
+
+modules = ctx.get_module_iter()
+for module in modules:
+    print("module: " + module.name() + " prefix: " + module.prefix() + " type: " + str(module.type()))
