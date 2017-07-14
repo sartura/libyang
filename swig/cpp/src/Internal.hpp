@@ -54,6 +54,7 @@
 #define S_Schema_Node_Notif      std::shared_ptr<Schema_Node_Notif>
 #define S_Schema_Node_Action     std::shared_ptr<Schema_Node_Action>
 #define S_Schema_Node_Augment    std::shared_ptr<Schema_Node_Augment>
+#define S_When                   std::shared_ptr<When>
 #define S_Substmt                std::shared_ptr<Substmt>
 #define S_Ext                    std::shared_ptr<Ext>
 
