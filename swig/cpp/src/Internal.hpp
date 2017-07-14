@@ -58,20 +58,50 @@
 #define S_Substmt                std::shared_ptr<Substmt>
 #define S_Ext                    std::shared_ptr<Ext>
 
+#include <iostream>
+#include <memory>
+
 extern "C" {
 #include <libyang/libyang.h>
 }
 
 #define typeof(x) __typeof__(x)
 
+using namespace std;
+
+class Deleter;
+
+typedef enum free_type_e {
+    CONTEXT,
+    DATA_NODE,
+	//TODO DATA_NODE_WITHSIBLINGS,
+    SCHEMA_NODE,
+    MODULE,
+    SUBMODULE,
+} free_type_t;
+
+typedef union value_e {
+    struct ly_ctx *ctx;
+    struct lyd_node *data;
+    struct lys_node *schema;
+	struct lys_module *module;
+	struct lys_submodule *submodule;
+} value_t;
+
 class Deleter
 {
 public:
-    Deleter(ly_ctx *ctx);
+    Deleter(ly_ctx *ctx, S_Deleter parent = NULL);
+    Deleter(struct lyd_node *data, S_Deleter parent = NULL);
+    Deleter(struct lys_node *schema, S_Deleter parent = NULL);
+    Deleter(struct lys_module *module, S_Deleter parent = NULL);
+    Deleter(struct lys_submodule *submodule, S_Deleter parent = NULL);
     ~Deleter();
 
 private:
-    ly_ctx *_ctx;
+	value_t _v;
+	free_type_t _t;
+	S_Deleter _parent;
 };
 
 #endif

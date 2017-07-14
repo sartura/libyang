@@ -27,13 +27,51 @@
 
 extern "C" {
 #include <libyang/libyang.h>
+#include <libyang/tree_data.h>
+#include <libyang/tree_schema.h>
 }
 
 using namespace std;
-
-Deleter::Deleter(ly_ctx *ctx) {
-	_ctx = ctx;
-}
+Deleter::Deleter(ly_ctx *ctx, S_Deleter parent) {
+	_v.ctx = ctx;
+	_t = CONTEXT;
+	_parent = parent;
+};
+Deleter::Deleter(struct lyd_node *data, S_Deleter parent) {
+	_v.data = data;
+	_t = DATA_NODE;
+	_parent = parent;
+};
+Deleter::Deleter(struct lys_node *schema, S_Deleter parent) {
+	_v.schema = schema;
+	_t = SCHEMA_NODE;
+	_parent = parent;
+};
+Deleter::Deleter(struct lys_module *module, S_Deleter parent) {
+	_v.module = module;
+	_t = MODULE;
+	_parent = parent;
+};
+Deleter::Deleter(struct lys_submodule *submodule, S_Deleter parent) {
+	_v.submodule = submodule;
+	_t = SUBMODULE;
+	_parent = parent;
+};
 Deleter::~Deleter() {
-	ly_ctx_destroy(_ctx, NULL);
-}
+	switch(_t) {
+	case CONTEXT:
+		if (_v.ctx) ly_ctx_destroy(_v.ctx, NULL);
+		_v.ctx = NULL;
+		break;
+	case DATA_NODE:
+		if (_v.data) lyd_free(_v.data);
+		_v.data = NULL;
+		break;
+	case SCHEMA_NODE:
+		break;
+	case MODULE:
+		break;
+	case SUBMODULE:
+		break;
+	}
+};
