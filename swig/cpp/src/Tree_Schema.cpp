@@ -152,6 +152,25 @@ Schema_Node_Action::~Schema_Node_Action() {};
 Schema_Node_Augment::Schema_Node_Augment(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {};
 Schema_Node_Augment::~Schema_Node_Augment() {};
 
+When::When(struct lys_when *when, S_Deleter deleter) {
+	_when = when;
+	_deleter = deleter;
+}
+When::~When() {};
+std::vector<S_Ext_Instance> *When::ext() {
+	auto s_vector = new vector<S_Ext_Instance>;
+
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	for(uint8_t i = 0; i < _when->ext_size; i++) {
+		s_vector->push_back(S_Ext_Instance(new Ext_Instance(_when->ext[i], _deleter)));
+	}
+
+	return s_vector;
+}
+
 Substmt::Substmt(struct lyext_substmt *substmt, S_Deleter deleter) {
 	_substmt = substmt;
 	_deleter = deleter;
