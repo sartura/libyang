@@ -207,7 +207,7 @@ class Schema_Node_Container : public Schema_Node
 public:
 	Schema_Node_Container(struct lys_node *node, S_Deleter deleter = NULL);
 	~Schema_Node_Container();
-    //struct lys_when *when;           /**< when statement (optional) */
+	S_When when();
     //struct lys_restr *must;          /**< array of must constraints */
     //struct lys_tpdf *tpdf;           /**< array of typedefs */
     const char *presence() {return ((struct lys_node_container *) _node)->presence;};
@@ -222,7 +222,7 @@ class Schema_Node_Choice : public Schema_Node
 public:
 	Schema_Node_Choice(struct lys_node *node, S_Deleter deleter = NULL);
 	~Schema_Node_Choice();
-    //struct lys_when *when;           /**< when statement (optional) */
+	S_When when();
     //struct lys_node *dflt;           /**< default case of the choice (optional) */
 
 private:
@@ -235,7 +235,7 @@ class Schema_Node_Leaf : public Schema_Node
 public:
 	Schema_Node_Leaf(struct lys_node *node, S_Deleter deleter = NULL);
 	~Schema_Node_Leaf();
-    //struct lys_when *when;           /**< when statement (optional) */
+	S_When when();
     //struct lys_restr *must;          /**< array of must constraints */
     //struct lys_type type;            /**< YANG data type definition of the leaf (mandatory) */
     const char *units() {return ((struct lys_node_leaf *)_node)->units;};
@@ -251,7 +251,7 @@ class Schema_Node_Leaflist : public Schema_Node
 public:
 	Schema_Node_Leaflist(struct lys_node *node, S_Deleter deleter = NULL);
 	~Schema_Node_Leaflist();
-    //struct lys_when *when;           /**< when statement (optional) */
+	S_When when();
     //struct lys_restr *must;          /**< array of must constraints */
     //struct lys_type type;            /**< YANG data type definition of the leaf (mandatory) */
     const char *units() {return ((struct lys_node_leaflist *)_node)->units;};
@@ -269,7 +269,7 @@ class Schema_Node_List : public Schema_Node
 public:
 	Schema_Node_List(struct lys_node *node, S_Deleter deleter = NULL);
 	~Schema_Node_List();
-    //struct lys_when *when;           /**< when statement (optional) */
+	S_When when();
     //struct lys_restr *must;          /**< array of must constraints */
     //struct lys_tpdf *tpdf;           /**< array of typedefs */
     //struct lys_node_leaf **keys;     /**< array of pointers to the key nodes */
@@ -288,7 +288,7 @@ class Schema_Node_Anydata : public Schema_Node
 public:
 	Schema_Node_Anydata(struct lys_node *node, S_Deleter deleter = NULL);
 	~Schema_Node_Anydata();
-    //struct lys_when *when;           /**< when statement (optional) */
+	S_When when();
 	//struct lys_restr *must;          /**< array of must constraints */
 
 private:
@@ -301,7 +301,7 @@ class Schema_Node_Uses : public Schema_Node
 public:
 	Schema_Node_Uses(struct lys_node *node, S_Deleter deleter = NULL);
 	~Schema_Node_Uses();
-    //struct lys_when *when;           /**< when statement (optional) */
+	S_When when();
     //struct lys_refine *refine;       /**< array of refine changes to the referred grouping */
     //struct lys_node_augment *augment;/**< array of local augments to the referred grouping */
     //struct lys_node_grp *grp;        /**< referred grouping definition (mandatory) */
@@ -328,7 +328,7 @@ class Schema_Node_Case : public Schema_Node
 public:
 	Schema_Node_Case(struct lys_node *node, S_Deleter deleter = NULL);
 	~Schema_Node_Case();
-	//struct lys_when *when;           /**< when statement (optional) */
+	S_When when();
 
 private:
 	struct lys_node *_node;
@@ -378,7 +378,7 @@ class Schema_Node_Augment : public Schema_Node
 public:
 	Schema_Node_Augment(struct lys_node *node, S_Deleter deleter = NULL);
 	~Schema_Node_Augment();
-    //struct lys_when *when;           /**< when statement (optional) */
+	S_When when();
     //struct lys_node *target;         /**< pointer to the target node */
 
 private:
