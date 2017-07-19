@@ -12,11 +12,17 @@
 
 %ignore throw_exception;
 
+/* add %newobject 
+ it tells python to free memory
+ */
 /* Libyang.hpp */
 %shared_ptr(Context);
 
 /* Tree_Data.hpp */
 %shared_ptr(Data_Node);
+%ignore Data_Node::swig_node;
+%ignore Data_Node::swig_deleter;
+
 %shared_ptr(Data_Node_Leaf_List);
 %shared_ptr(Data_Node_Anydata);
 %shared_ptr(Attr);
@@ -27,6 +33,8 @@
 %shared_ptr(Ext_Instance);
 %shared_ptr(Revision);
 %shared_ptr(Schema_Node);
+%ignore Schema_Node::swig_node;
+%ignore Schema_Node::swig_deleter;
 %shared_ptr(Schema_Node_Container);
 %shared_ptr(Schema_Node_Choice);
 %shared_ptr(Schema_Node_Leaf);
