@@ -146,7 +146,6 @@ public:
 	uint8_t insubstmt() {return _ext_instance->insubstmt;};
 	uint8_t parent_type() {return _ext_instance->parent_type;};
 	uint8_t ext_type() {return _ext_instance->ext_type;};
-	uint8_t padding() {return _ext_instance->padding;};
 	std::vector<S_Ext_Instance> *ext();
 	void *priv() {return _ext_instance->priv;};
 	S_Module module() {return _ext_instance->module ? S_Module(new Module(_ext_instance->module, _deleter)) : NULL;};
@@ -182,7 +181,6 @@ public:
 	uint16_t flags() {return _node->flags;};
 	uint8_t ext_size() {return _node->ext_size;};
 	uint8_t iffeature_size() {return _node->iffeature_size;};
-	//uint8_t padding[4];
 	// struct lys_ext_instance **ext;
 	// struct lys_iffeature *iffeature;
 	S_Module module();
@@ -429,7 +427,6 @@ public:
 	const char *ref() {return _ext->ref;};
 	uint16_t flags() {return _ext->flags;};
 	uint8_t ext_size() {return _ext->ext_size;};
-	//uint8_t padding() {return _ext->padding;};
 	std::vector<S_Ext_Instance> *ext();
 	const char *argument() {return _ext->argument;};
 	S_Module module();
