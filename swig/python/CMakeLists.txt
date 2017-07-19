@@ -5,12 +5,6 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 set(CMAKE_SWIG_FLAGS "-c++")
 set(CMAKE_SWIG_FLAGS "-I${PROJECT_SOURCE_DIR}")
 set(CMAKE_SWIG_OUTDIR ${CMAKE_CURRENT_BINARY_DIR})
-set(PYTHON3_SWIG_MIN_VERSION "3.0.5")
-
-find_package(SWIG ${PYTHON3_SWIG_MIN_VERSION})
-if (NOT SWIG_FOUND)
-  message(WARNING "Minimum SWIG version for Python is ${PYTHON3_SWIG_MIN_VERSION}. Tests won't be generated.")
-endif()
 
 set_source_files_properties(${PYTHON_SWIG_BINDING}.i PROPERTIES CPLUSPLUS ON)
 
