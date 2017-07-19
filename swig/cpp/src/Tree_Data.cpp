@@ -208,7 +208,10 @@ std::vector<S_Data_Node> *Data_Node::tree_dfs() {
 	return s_vector;
 }
 
-Data_Node_Leaf_List::Data_Node_Leaf_List(struct lyd_node *node, S_Deleter deleter) : Data_Node(node, deleter) {};
+Data_Node_Leaf_List::Data_Node_Leaf_List(struct lyd_node *node, S_Deleter deleter) : Data_Node(node, deleter) {
+	_node = node;
+	_deleter = deleter;
+};
 Data_Node_Leaf_List::~Data_Node_Leaf_List() {};
 int Data_Node_Leaf_List::change_leaf(const char *val_str) {
 	return lyd_change_leaf((struct lyd_node_leaf_list *) _node, val_str);
@@ -217,7 +220,10 @@ int Data_Node_Leaf_List::wd_default() {
 	return lyd_wd_default((struct lyd_node_leaf_list *)_node);
 }
 
-Data_Node_Anydata::Data_Node_Anydata(struct lyd_node *node, S_Deleter deleter) : Data_Node(node, deleter) {};
+Data_Node_Anydata::Data_Node_Anydata(struct lyd_node *node, S_Deleter deleter) : Data_Node(node, deleter) {
+	_node = node;
+	_deleter = deleter;
+};
 Data_Node_Anydata::~Data_Node_Anydata() {};
 
 Attr::Attr(struct lyd_attr *attr, S_Deleter deleter) {

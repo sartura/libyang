@@ -36,7 +36,13 @@ else:
     data_list = node.tree_dfs()
     if data_list is not None:
         for elem in data_list:
-            print("name: " + elem.schema().name() + " type: " + str(elem.schema().nodetype()))
+            schema = elem.schema()
+            print("name: " + schema.name() + " type: " + str(schema.nodetype()))
+            if (ly.LYS_LEAF == schema.nodetype() or ly.LYS_LEAFLIST == schema.nodetype()):
+                casted = elem.subtype()
+                if casted is None:
+                    continue
+                print("node " + casted.schema().name() + " has value " + casted.value_str())
 
     print("\nChild of " + node.schema().name() + " is " + node.child().schema().name() + " \n ")
 

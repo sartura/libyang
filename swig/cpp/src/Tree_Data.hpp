@@ -88,6 +88,10 @@ public:
 	std::vector<S_Data_Node> *tree_for();
 	std::vector<S_Data_Node> *tree_dfs();
 
+	/* SWIG can not access private variables so it needs public getters */
+	struct lyd_node *swig_node() {return _node;};
+	S_Deleter swig_deleter() {return _deleter;};
+
 private:
 	struct lyd_node *_node;
 	S_Deleter _deleter;
