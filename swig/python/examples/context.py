@@ -24,7 +24,8 @@ except Exception as e:
 	print(e)
 
 folders = ctx.get_searchdirs()
-print(*folders, sep='\n')
+for folder in folders:
+    print(folder)
 print("\n")
 
 module = ctx.get_module("ietf-interfaces", None)
