@@ -4,7 +4,7 @@ __author__ = "Mislav Novakovic <mislav.novakovic@sartura.hr>"
 __copyright__ = "Copyright 2017, Deutsche Telekom AG"
 __license__ = "Apache 2.0"
 
-import libyang_python3 as ly
+import libyang as ly
 import sys
 
 try:

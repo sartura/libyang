@@ -1,3 +1,3 @@
-%module libyang_python3
+%module libyang
 
 %include "../swig_base/python_base.i"
