@@ -57,6 +57,12 @@ Deleter::Deleter(struct lys_submodule *submodule, S_Deleter parent) {
 	_t = SUBMODULE;
 	_parent = parent;
 };
+Deleter::Deleter(S_Context context, struct lyxml_elem *elem, S_Deleter parent) {
+	_context = context;
+	_v.elem = elem;
+	_t = XML;
+	_parent = parent;
+};
 Deleter::~Deleter() {
 	switch(_t) {
 	case CONTEXT:
@@ -72,6 +78,10 @@ Deleter::~Deleter() {
 	case MODULE:
 		break;
 	case SUBMODULE:
+		break;
+	case XML:
+		if (_v.elem) lyxml_free(_context->_ctx, _v.elem);
+		_v.elem = NULL;
 		break;
 	}
 };

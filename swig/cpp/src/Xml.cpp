@@ -49,16 +49,17 @@ Xml_Attr::~Xml_Attr() {}
 S_Xml_Attr Xml_Attr::next() {return _attr->next ? S_Xml_Attr(new Xml_Attr(_attr->next, _deleter)) : NULL;}
 S_Xml_Ns Xml_Attr::ns() {return _attr->ns ? S_Xml_Ns(new Xml_Ns((struct lyxml_ns *)_attr->ns, _deleter)) : NULL;}
 
-Xml_Elem::Xml_Elem(struct lyxml_elem *elem, S_Deleter deleter) {
+Xml_Elem::Xml_Elem(S_Context context, struct lyxml_elem *elem, S_Deleter deleter) {
+	_context = context;
 	_elem = elem;
 	_deleter = deleter;
 }
 Xml_Elem::~Xml_Elem() {}
-S_Xml_Elem Xml_Elem::parent() {return _elem->parent ? S_Xml_Elem(new Xml_Elem(_elem->parent, _deleter)) : NULL;}
+S_Xml_Elem Xml_Elem::parent() {return _elem->parent ? S_Xml_Elem(new Xml_Elem(_context, _elem->parent, _deleter)) : NULL;}
 S_Xml_Attr Xml_Elem::attr() {return _elem->attr ? S_Xml_Attr(new Xml_Attr(_elem->attr, _deleter)) : NULL;}
-S_Xml_Elem Xml_Elem::child() {return _elem->child ? S_Xml_Elem(new Xml_Elem(_elem->child, _deleter)) : NULL;}
-S_Xml_Elem Xml_Elem::next() {return _elem->next ? S_Xml_Elem(new Xml_Elem(_elem->next, _deleter)) : NULL;}
-S_Xml_Elem Xml_Elem::prev() {return _elem->prev ? S_Xml_Elem(new Xml_Elem(_elem->prev, _deleter)) : NULL;}
+S_Xml_Elem Xml_Elem::child() {return _elem->child ? S_Xml_Elem(new Xml_Elem(_context, _elem->child, _deleter)) : NULL;}
+S_Xml_Elem Xml_Elem::next() {return _elem->next ? S_Xml_Elem(new Xml_Elem(_context, _elem->next, _deleter)) : NULL;}
+S_Xml_Elem Xml_Elem::prev() {return _elem->prev ? S_Xml_Elem(new Xml_Elem(_context, _elem->prev, _deleter)) : NULL;}
 S_Xml_Ns Xml_Elem::ns() {return _elem->ns ? S_Xml_Ns(new Xml_Ns((struct lyxml_ns *)_elem->ns, _deleter)) : NULL;}
 const char *Xml_Elem::get_attr(const char *name, const char *ns) {
 	return lyxml_get_attr(_elem, name, ns);
@@ -89,7 +90,7 @@ std::vector<S_Xml_Elem> *Xml_Elem::tree_for() {
 
 	struct lyxml_elem *elem = NULL;
 	LY_TREE_FOR(_elem, elem) {
-		s_vector->push_back(S_Xml_Elem(new Xml_Elem(elem, _deleter)));
+		s_vector->push_back(S_Xml_Elem(new Xml_Elem(_context, elem, _deleter)));
 	}
 
 	return s_vector;
@@ -103,9 +104,9 @@ std::vector<S_Xml_Elem> *Xml_Elem::tree_dfs() {
 
 	struct lyxml_elem *elem = NULL, *next = NULL;
 	LY_TREE_DFS_BEGIN(_elem, next, elem) {
-		s_vector->push_back(S_Xml_Elem(new Xml_Elem(elem, _deleter)));
+		s_vector->push_back(S_Xml_Elem(new Xml_Elem(_context, elem, _deleter)));
 		LY_TREE_DFS_END(_elem, next, elem)
 	}
 
-	return s_vector;
-}
+		return s_vector;
+			}

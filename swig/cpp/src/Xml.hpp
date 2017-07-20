@@ -80,7 +80,7 @@ private:
 class Xml_Elem
 {
 public:
-	Xml_Elem(struct lyxml_elem *elem, S_Deleter deleter);
+	Xml_Elem(S_Context context, struct lyxml_elem *elem, S_Deleter deleter);
 	~Xml_Elem();
 	char flags() {return _elem->flags;};
 	S_Xml_Elem parent();
@@ -113,6 +113,7 @@ public:
 	friend Context;
 
 private:
+	S_Context _context;
 	struct lyxml_elem *_elem;
 	S_Deleter _deleter;
 };
