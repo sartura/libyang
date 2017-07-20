@@ -56,6 +56,7 @@
 
 %{
 /* Includes the header in the wrapper code */
+#include "Xml.hpp"
 #include "Internal.hpp"
 #include "Libyang.hpp"
 #include "Tree_Data.hpp"
@@ -63,6 +64,7 @@
 #include <vector>
 %}
 
+%include "Xml.hpp"
 %include "Internal.hpp"
 %include "Libyang.hpp"
 %include "Tree_Data.hpp"

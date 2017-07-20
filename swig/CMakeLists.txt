@@ -38,12 +38,14 @@ endif()
 
 project(libyang_cpp)
 set(LIBYANG_CPP_SOURCES
+	${CMAKE_SOURCE_DIR}/swig/cpp/src/Xml.cpp
 	${CMAKE_SOURCE_DIR}/swig/cpp/src/Libyang.cpp
 	${CMAKE_SOURCE_DIR}/swig/cpp/src/Tree_Data.cpp
 	${CMAKE_SOURCE_DIR}/swig/cpp/src/Tree_Schema.cpp
 	${CMAKE_SOURCE_DIR}/swig/cpp/src/Internal.cpp)
 
 set(LIBYANG_H_SOURCES
+	${CMAKE_SOURCE_DIR}/swig/cpp/src/Xml.hpp
 	${CMAKE_SOURCE_DIR}/swig/cpp/src/Libyang.hpp
 	${CMAKE_SOURCE_DIR}/swig/cpp/src/Tree_Data.hpp
 	${CMAKE_SOURCE_DIR}/swig/cpp/src/Tree_Schema.hpp
