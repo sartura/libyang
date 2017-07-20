@@ -36,4 +36,61 @@ extern "C" {
 
 using namespace std;
 
+/* defined */
+class Xml_Ns;
+class Xml_Attr;
+class Xml_Elem;
+
+class Xml_Ns
+{
+public:
+	Xml_Ns(struct lyxml_ns *ns, S_Deleter deleter);
+	~Xml_Ns();
+    LYXML_ATTR_TYPE type() {return _ns->type;};
+    S_Xml_Ns next();
+    //struct lyxml_elem *parent;       /**< parent node of the attribute */
+    const char *prefix() {return _ns->prefix;};
+    const char *value() {return _ns->value;};
+
+private:
+	struct lyxml_ns *_ns;
+	S_Deleter _deleter;
+};
+
+class Xml_Attr
+{
+public:
+	Xml_Attr(struct lyxml_attr *attr, S_Deleter deleter);
+	~Xml_Attr();
+    LYXML_ATTR_TYPE type() {return _attr->type;};
+    S_Xml_Attr next();
+    S_Xml_Ns ns();
+    const char *name() {return _attr->name;};
+    const char *value() {return _attr->value;};
+
+private:
+	struct lyxml_attr *_attr;
+	S_Deleter _deleter;
+};
+
+class Xml_Elem
+{
+public:
+	Xml_Elem(struct lyxml_elem *elem, S_Deleter deleter);
+	~Xml_Elem();
+	char flags() {return _elem->flags;};
+	S_Xml_Elem parent();
+	S_Xml_Attr attr();
+	S_Xml_Elem child();
+	S_Xml_Elem next();
+	S_Xml_Elem prev();
+    const char *name() {return _elem->name;};
+    S_Xml_Ns ns();
+    const char *content() {return _elem->content;};
+
+private:
+	struct lyxml_elem *_elem;
+	S_Deleter _deleter;
+};
+
 #endif

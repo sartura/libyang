@@ -34,3 +34,29 @@ extern "C" {
 
 using namespace std;
 
+Xml_Ns::Xml_Ns(struct lyxml_ns *ns, S_Deleter deleter) {
+	_ns = ns;
+	_deleter = deleter;
+};
+Xml_Ns::~Xml_Ns() {};
+S_Xml_Ns Xml_Ns::next() {return _ns->next ? S_Xml_Ns(new Xml_Ns(_ns->next, _deleter)) : NULL;};
+
+Xml_Attr::Xml_Attr(struct lyxml_attr *attr, S_Deleter deleter) {
+	_attr = attr;
+	_deleter = deleter;
+};
+Xml_Attr::~Xml_Attr() {};
+S_Xml_Attr Xml_Attr::next() {return _attr->next ? S_Xml_Attr(new Xml_Attr(_attr->next, _deleter)) : NULL;};
+S_Xml_Ns Xml_Attr::ns() {return _attr->ns ? S_Xml_Ns(new Xml_Ns((struct lyxml_ns *)_attr->ns, _deleter)) : NULL;};
+
+Xml_Elem::Xml_Elem(struct lyxml_elem *elem, S_Deleter deleter) {
+	_elem = elem;
+	_deleter = deleter;
+};
+Xml_Elem::~Xml_Elem() {};
+S_Xml_Elem Xml_Elem::parent() {return _elem->parent ? S_Xml_Elem(new Xml_Elem(_elem->parent, _deleter)) : NULL;};
+S_Xml_Attr Xml_Elem::attr() {return _elem->attr ? S_Xml_Attr(new Xml_Attr(_elem->attr, _deleter)) : NULL;};
+S_Xml_Elem Xml_Elem::child() {return _elem->child ? S_Xml_Elem(new Xml_Elem(_elem->child, _deleter)) : NULL;};
+S_Xml_Elem Xml_Elem::next() {return _elem->next ? S_Xml_Elem(new Xml_Elem(_elem->next, _deleter)) : NULL;};
+S_Xml_Elem Xml_Elem::prev() {return _elem->prev ? S_Xml_Elem(new Xml_Elem(_elem->prev, _deleter)) : NULL;};
+S_Xml_Ns Xml_Elem::ns() {return _elem->ns ? S_Xml_Ns(new Xml_Ns((struct lyxml_ns *)_elem->ns, _deleter)) : NULL;};
