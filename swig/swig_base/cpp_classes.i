@@ -15,6 +15,11 @@
 /* add %newobject 
  it tells python to free memory
  */
+/* Xml.hpp */
+%shared_ptr(Xml_Ns);
+%shared_ptr(Xml_Attr);
+%shared_ptr(Xml_Elem);
+
 /* Libyang.hpp */
 %shared_ptr(Context);
 

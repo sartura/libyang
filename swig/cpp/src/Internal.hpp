@@ -26,6 +26,11 @@
 #define S_String                 std::string
 #define S_Deleter                std::shared_ptr<Deleter>
 
+/* Xml.hpp */
+#define S_Xml_Ns                 std::shared_ptr<Xml_Ns>
+#define S_Xml_Attr               std::shared_ptr<Xml_Attr>
+#define S_Xml_Elem               std::shared_ptr<Xml_Elem>
+
 /* Libyang.hpp */
 #define S_Context                std::shared_ptr<Context>
 
