@@ -189,6 +189,10 @@ public:
 	S_Schema_Node child();
 	S_Schema_Node next();
 	S_Schema_Node prev();
+	S_Set find_xpath(const char *expr, int options);
+	//struct ly_set *lys_xpath_atomize(const struct lys_node *ctx_node, enum lyxp_node_type ctx_node_type,
+    //                             const char *expr, int options);
+	S_Set xpath_atomize(int options);
 	// void *priv;
 
 	/* emulate TREE macro's */
@@ -200,6 +204,7 @@ public:
 	S_Deleter swig_deleter() {return _deleter;};
 
 	friend Set;
+	friend Data_Node;
 
 private:
 	struct lys_node *_node;
@@ -239,6 +244,7 @@ class Schema_Node_Leaf : public Schema_Node
 public:
 	Schema_Node_Leaf(struct lys_node *node, S_Deleter deleter = NULL);
 	~Schema_Node_Leaf();
+	S_Set backlinks();
 	S_When when();
     //struct lys_restr *must;          /**< array of must constraints */
     //struct lys_type type;            /**< YANG data type definition of the leaf (mandatory) */
@@ -256,6 +262,7 @@ public:
 	Schema_Node_Leaflist(struct lys_node *node, S_Deleter deleter = NULL);
 	~Schema_Node_Leaflist();
 	S_When when();
+	S_Set backlinks();
     //struct lys_restr *must;          /**< array of must constraints */
     //struct lys_type type;            /**< YANG data type definition of the leaf (mandatory) */
     const char *units() {return ((struct lys_node_leaflist *)_node)->units;};

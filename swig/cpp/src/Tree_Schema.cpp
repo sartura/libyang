@@ -83,6 +83,22 @@ S_Schema_Node Schema_Node::parent() {return _node->parent ? S_Schema_Node(new Sc
 S_Schema_Node Schema_Node::child() {return _node->child ? S_Schema_Node(new Schema_Node(_node->child, _deleter)) : NULL;};
 S_Schema_Node Schema_Node::next() {return _node->next ? S_Schema_Node(new Schema_Node(_node->next, _deleter)) : NULL;};
 S_Schema_Node Schema_Node::prev() {return _node->prev ? S_Schema_Node(new Schema_Node(_node->prev, _deleter)) : NULL;};
+S_Set Schema_Node::find_xpath(const char *expr, int options) {
+	struct ly_set *set = lys_find_xpath(_node, expr, options);
+	if (NULL == set) {
+		return NULL;
+	}
+
+	return S_Set(new Set(set, _deleter));
+}
+S_Set Schema_Node::xpath_atomize(int options) {
+	struct ly_set *set = lys_node_xpath_atomize(_node, options);
+	if (NULL == set) {
+		return NULL;
+	}
+
+	return S_Set(new Set(set, _deleter));
+}
 std::vector<S_Schema_Node> *Schema_Node::tree_for() {
 	auto s_vector = new vector<S_Schema_Node>;
 
@@ -138,6 +154,10 @@ Schema_Node_Leaf::Schema_Node_Leaf(struct lys_node *node, S_Deleter deleter) : S
 	_deleter = deleter;
 };
 Schema_Node_Leaf::~Schema_Node_Leaf() {};
+S_Set Schema_Node_Leaf::backlinks() {
+	struct ly_set *set = ((struct lys_node_leaf *)_node)->backlinks;
+	return set ? S_Set(new Set(set, _deleter)) : NULL;
+}
 S_When Schema_Node_Leaf::when() {
 	lys_node_leaf *node = (struct lys_node_leaf *)_node;
 	return node->when ? S_When(new When(node->when, _deleter)) : NULL;
@@ -148,6 +168,10 @@ Schema_Node_Leaflist::Schema_Node_Leaflist(struct lys_node *node, S_Deleter dele
 	_deleter = deleter;
 };
 Schema_Node_Leaflist::~Schema_Node_Leaflist() {};
+S_Set Schema_Node_Leaflist::backlinks() {
+	struct ly_set *set = ((struct lys_node_leaflist *)_node)->backlinks;
+	return set ? S_Set(new Set(set, _deleter)) : NULL;
+}
 S_When Schema_Node_Leaflist::when() {
 	lys_node_leaflist *node = (struct lys_node_leaflist *)_node;
 	return node->when ? S_When(new When(node->when, _deleter)) : NULL;

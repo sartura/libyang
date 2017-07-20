@@ -77,8 +77,8 @@ public:
 	int insert_before(S_Data_Node node);
 	int insert_after(S_Data_Node node);
 	int schema_sort(int recursive);
-	//struct ly_set *lyd_find_xpath(const struct lyd_node *ctx_node, const char *expr);
-	//struct ly_set *lyd_find_instance(const struct lyd_node *data, const struct lys_node *schema);
+	S_Set find_xpath(const char *expr);
+	S_Set find_instance(S_Schema_Node schema);
 	S_Data_Node first_sibling();
 	int validate(int options, S_Context var_arg);
 	int validate(int options, S_Data_Node var_arg);
