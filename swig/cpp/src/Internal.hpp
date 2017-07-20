@@ -33,6 +33,7 @@
 
 /* Libyang.hpp */
 #define S_Context                std::shared_ptr<Context>
+#define S_Set                    std::shared_ptr<Set>
 
 /* Tree_Data.hpp */
 #define S_Data_Node              std::shared_ptr<Data_Node>
