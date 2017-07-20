@@ -1,5 +1,5 @@
 /**
- * @file Libyang.cpp
+ * @file Libyang.hpp
  * @author Mislav Novakovic <mislav.novakovic@sartura.hr>
  * @brief Class implementation for libyang C header libyang.h.
  *

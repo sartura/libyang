@@ -1,5 +1,5 @@
 /**
- * @file Tree_Data.cpp
+ * @file Tree_Data.hpp
  * @author Mislav Novakovic <mislav.novakovic@sartura.hr>
  * @brief Class implementation for libyang C header tree_data.h.
  *

@@ -1,5 +1,5 @@
 /**
- * @file Tree_Schema.cpp
+ * @file Tree_Schema.hpp
  * @author Mislav Novakovic <mislav.novakovic@sartura.hr>
  * @brief Class implementation for libyang C header tree_schema.h
  *
