@@ -63,6 +63,11 @@ Deleter::Deleter(S_Context context, struct lyxml_elem *elem, S_Deleter parent) {
 	_t = XML;
 	_parent = parent;
 };
+Deleter::Deleter(struct ly_set *set, S_Deleter parent) {
+	_v.set = set;
+	_t = SET;
+	_parent = parent;
+}
 Deleter::~Deleter() {
 	switch(_t) {
 	case CONTEXT:
@@ -82,6 +87,10 @@ Deleter::~Deleter() {
 	case XML:
 		if (_v.elem) lyxml_free(_context->_ctx, _v.elem);
 		_v.elem = NULL;
+		break;
+	case SET:
+		if (_v.set) ly_set_free(_v.set);
+		_v.set = NULL;
 		break;
 	}
 };

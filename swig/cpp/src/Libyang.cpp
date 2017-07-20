@@ -198,8 +198,7 @@ Set::Set() {
 	}
 
 	_set = set;
-	//TODO deleter
-	_deleter = NULL;
+	_deleter = S_Deleter(new Deleter(_set));
 }
 Set::Set(struct ly_set *set, S_Deleter deleter) {
 	_set = set;
@@ -238,8 +237,8 @@ S_Set Set::dup() {
 		return NULL;
 	}
 
-	//TODO deleter
-	return S_Set(new Set(set, NULL));
+	auto deleter = S_Deleter(new Deleter(set));
+	return S_Set(new Set(set, deleter));
 }
 int Set::add(S_Data_Node node, int options) {
 	return ly_set_add(_set, (void *) node->_node, options);
