@@ -81,4 +81,5 @@
 %template(vectorSchema_Node) std::vector<S_Schema_Node>;
 %template(vectorExt_Instance) std::vector<S_Ext_Instance>;
 %template(vectorWhen) std::vector<S_When>;
+%template(vectorXml_Elem) std::vector<S_Xml_Elem>;
 

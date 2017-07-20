@@ -88,6 +88,23 @@ public:
     S_Xml_Ns ns();
     const char *content() {return _elem->content;};
 
+	/* methods */
+	const char *get_attr(const char *name, const char *ns);
+	S_Xml_Ns get_ns(const char *prefix);
+	S_String print_mem(int options);
+	//int lyxml_print_fd(int fd, const struct lyxml_elem *elem, int options);
+	//int lyxml_print_file(FILE * stream, const struct lyxml_elem *elem, int options);
+
+	/* emulate TREE macro's */
+	std::vector<S_Xml_Elem> *tree_for();
+	std::vector<S_Xml_Elem> *tree_dfs();
+
+	/* TODO
+	struct lyxml_elem *lyxml_dup(struct ly_ctx *ctx, struct lyxml_elem *root);
+	struct lyxml_elem *lyxml_parse_mem(struct ly_ctx *ctx, const char *data, int options);
+	struct lyxml_elem *lyxml_parse_path(struct ly_ctx *ctx, const char *filename, int options);
+	*/
+
 private:
 	struct lyxml_elem *_elem;
 	S_Deleter _deleter;
