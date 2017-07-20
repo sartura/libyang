@@ -24,6 +24,7 @@
 #include <stdexcept>
 #include <vector>
 
+#include "Xml.hpp"
 #include "Internal.hpp"
 #include "Libyang.hpp"
 #include "Tree_Data.hpp"
@@ -171,6 +172,17 @@ S_Data_Node Context::parse_path(const char *path, LYD_FORMAT format, int options
 	struct lyd_node *node = NULL;
 
 	node = lyd_parse_path(_ctx, path, format, options);
+	if (NULL == node) {
+		return NULL;
+	}
+
+	S_Deleter deleter = S_Deleter(new Deleter(node, _deleter));
+	return S_Data_Node(new Data_Node(node, deleter));
+}
+S_Data_Node Context::parse_xml(S_Xml_Elem elem, int options) {
+	struct lyd_node *node = NULL;
+
+	node = lyd_parse_xml(_ctx, &elem->_elem, options);
 	if (NULL == node) {
 		return NULL;
 	}

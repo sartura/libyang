@@ -41,6 +41,10 @@ class Xml_Ns;
 class Xml_Attr;
 class Xml_Elem;
 
+/* used */
+class Data_Node;
+class Context;
+
 class Xml_Ns
 {
 public:
@@ -104,6 +108,9 @@ public:
 	struct lyxml_elem *lyxml_parse_mem(struct ly_ctx *ctx, const char *data, int options);
 	struct lyxml_elem *lyxml_parse_path(struct ly_ctx *ctx, const char *filename, int options);
 	*/
+
+	friend Data_Node;
+	friend Context;
 
 private:
 	struct lyxml_elem *_elem;

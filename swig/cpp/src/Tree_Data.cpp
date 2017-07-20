@@ -23,6 +23,7 @@
 #include <memory>
 #include <stdexcept>
 
+#include "Xml.hpp"
 #include "Libyang.hpp"
 #include "Tree_Data.hpp"
 #include "Tree_Schema.hpp"
@@ -99,6 +100,21 @@ Data_Node::Data_Node(S_Data_Node parent, S_Module module, const char *name, S_Da
 	_node = node;
 	_deleter = NULL;
 };
+Data_Node::Data_Node(S_Data_Node parent, S_Module module, const char *name, S_Xml_Elem value, LYD_ANYDATA_VALUETYPE value_type) {
+	lyd_node *node = NULL;
+
+	if (NULL == module) {
+		throw std::invalid_argument("Module can not be empty");
+	}
+
+	node = lyd_new_anydata(parent->_node, module->_module, name, (void *) value->_elem, value_type);
+	if (NULL == node) {
+		throw std::invalid_argument("libyang could not create new data node, invalid argument");
+	}
+
+	_node = node;
+	_deleter = NULL;
+}
 Data_Node::~Data_Node() {};
 S_Schema_Node Data_Node::schema() {return _node->schema ? S_Schema_Node(new Schema_Node(_node->schema, _deleter)) : NULL;};
 S_Attr Data_Node::attr() {return _node->attr ? S_Attr(new Attr(_node->attr, _deleter)) : NULL;}

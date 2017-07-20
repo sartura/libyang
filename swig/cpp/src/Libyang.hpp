@@ -43,6 +43,7 @@ class Error;
 class Context;
 class Module;
 class Data_Node;
+class Xml_Elem;
 
 class Error
 {
@@ -95,7 +96,7 @@ public:
 	S_Data_Node parse_mem(const char *data, LYD_FORMAT format, int options);
 	S_Data_Node parse_fd(int fd, LYD_FORMAT format, int options);
 	S_Data_Node parse_path(const char *path, LYD_FORMAT format, int options);
-	//lyd_parse_xml(struct ly_ctx *ctx, struct lyxml_elem **root, int options,...);
+	S_Data_Node parse_xml(S_Xml_Elem elem, int options);
 
 	friend Data_Node;
 
