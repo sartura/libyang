@@ -1,5 +1,5 @@
 /**
- * @file Internal.cpp
+ * @file Internal.hpp
  * @author Mislav Novakovic <mislav.novakovic@sartura.hr>
  * @brief Internal C++ helper class
  *
