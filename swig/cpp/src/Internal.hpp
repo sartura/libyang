@@ -74,7 +74,11 @@ extern "C" {
 
 using namespace std;
 
+/* defined */
 class Deleter;
+
+/* used */
+class Context;
 
 typedef enum free_type_e {
     CONTEXT,
@@ -83,6 +87,7 @@ typedef enum free_type_e {
     SCHEMA_NODE,
     MODULE,
     SUBMODULE,
+    XML,
 } free_type_t;
 
 typedef union value_e {
@@ -91,6 +96,7 @@ typedef union value_e {
     struct lys_node *schema;
 	struct lys_module *module;
 	struct lys_submodule *submodule;
+	struct lyxml_elem *elem;
 } value_t;
 
 class Deleter
@@ -101,9 +107,11 @@ public:
     Deleter(struct lys_node *schema, S_Deleter parent = NULL);
     Deleter(struct lys_module *module, S_Deleter parent = NULL);
     Deleter(struct lys_submodule *submodule, S_Deleter parent = NULL);
+    Deleter(S_Context context, struct lyxml_elem *elem, S_Deleter parent = NULL);
     ~Deleter();
 
 private:
+	S_Context _context;
 	value_t _v;
 	free_type_t _t;
 	S_Deleter _parent;

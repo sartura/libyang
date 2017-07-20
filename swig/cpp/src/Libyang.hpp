@@ -40,10 +40,10 @@ class Context;
 class Error;
 
 /* used */
-class Context;
 class Module;
 class Data_Node;
 class Xml_Elem;
+class Deleter;
 
 class Error
 {
@@ -99,6 +99,7 @@ public:
 	S_Data_Node parse_xml(S_Xml_Elem elem, int options);
 
 	friend Data_Node;
+	friend Deleter;
 
 private:
 	struct ly_ctx *_ctx;
