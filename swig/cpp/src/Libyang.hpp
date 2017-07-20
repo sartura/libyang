@@ -38,10 +38,12 @@ using namespace std;
 /* defined */
 class Context;
 class Error;
+class Set;
 
 /* used */
 class Module;
 class Data_Node;
+class Schema_Node;
 class Xml_Elem;
 class Deleter;
 
@@ -73,7 +75,7 @@ private:
 class Context
 {
 public:
-	Context(ly_ctx *ctx, S_Deleter deleter);
+	Context(struct ly_ctx *ctx, S_Deleter deleter);
 	Context(const char *search_dir = NULL);
 	Context(const char *search_dir, const char *path, LYD_FORMAT format);
 	Context(const char *search_dir, LYD_FORMAT format, const char *data);
@@ -103,6 +105,33 @@ public:
 
 private:
 	struct ly_ctx *_ctx;
+	S_Deleter _deleter;
+};
+
+class Set
+{
+public:
+	Set(struct ly_set *set, S_Deleter);
+	Set();
+	~Set();
+    unsigned int size() {return _set->size;};
+    unsigned int number() {return _set->number;};
+	vector<S_Data_Node> *data();
+	vector<S_Schema_Node> *schema();
+
+	/* functions */
+	S_Set dup();
+	int add(S_Data_Node node, int options);
+	int add(S_Schema_Node node, int options);
+	int contains(S_Data_Node node);
+	int contains(S_Schema_Node node);
+	int clean();
+	int rm(S_Data_Node node);
+	int rm(S_Schema_Node node);
+	int rm_index(unsigned int index);
+
+private:
+	struct ly_set *_set;
 	S_Deleter _deleter;
 };
 

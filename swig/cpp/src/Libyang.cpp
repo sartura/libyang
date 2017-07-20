@@ -190,3 +190,78 @@ S_Data_Node Context::parse_xml(S_Xml_Elem elem, int options) {
 	S_Deleter deleter = S_Deleter(new Deleter(node, _deleter));
 	return S_Data_Node(new Data_Node(node, deleter));
 }
+
+Set::Set() {
+	struct ly_set *set = ly_set_new();
+	if (NULL == _set) {
+		throw runtime_error("can not create new set");
+	}
+
+	_set = set;
+	//TODO deleter
+	_deleter = NULL;
+}
+Set::Set(struct ly_set *set, S_Deleter deleter) {
+	_set = set;
+	_deleter = deleter;
+}
+Set::~Set() {}
+vector<S_Data_Node> *Set::data() {
+	auto s_vector = new vector<S_Data_Node>;
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	int size = 0, i;
+	for (i = 0; i < _set->number; i++){
+		s_vector->push_back(S_Data_Node(new Data_Node(_set->set.d[i], _deleter)));
+	}
+
+	return s_vector;
+};
+vector<S_Schema_Node> *Set::schema() {
+	auto s_vector = new vector<S_Schema_Node>;
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	int size = 0, i;
+	for (i = 0; i < _set->number; i++){
+		s_vector->push_back(S_Schema_Node(new Schema_Node(_set->set.s[i], _deleter)));
+	}
+
+	return s_vector;
+};
+S_Set Set::dup() {
+	ly_set *set = ly_set_dup(_set);
+	if (NULL == set) {
+		return NULL;
+	}
+
+	//TODO deleter
+	return S_Set(new Set(set, NULL));
+}
+int Set::add(S_Data_Node node, int options) {
+	return ly_set_add(_set, (void *) node->_node, options);
+}
+int Set::add(S_Schema_Node node, int options) {
+	return ly_set_add(_set, (void *) node->_node, options);
+}
+int Set::contains(S_Data_Node node) {
+	return ly_set_contains(_set, (void *) node->_node);
+}
+int Set::contains(S_Schema_Node node) {
+	return ly_set_contains(_set, (void *) node->_node);
+}
+int Set::clean() {
+	ly_set_clean(_set);
+}
+int Set::rm(S_Data_Node node) {
+	return ly_set_rm(_set, (void *) node->_node);
+}
+int Set::rm(S_Schema_Node node) {
+	return ly_set_rm(_set, (void *) node->_node);
+}
+int Set::rm_index(unsigned int index) {
+	return ly_set_rm_index(_set, index);
+}

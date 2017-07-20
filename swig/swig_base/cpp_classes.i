@@ -22,6 +22,7 @@
 
 /* Libyang.hpp */
 %shared_ptr(Context);
+%shared_ptr(Set);
 
 /* Tree_Data.hpp */
 %shared_ptr(Data_Node);

@@ -199,6 +199,8 @@ public:
 	struct lys_node *swig_node() {return _node;};
 	S_Deleter swig_deleter() {return _deleter;};
 
+	friend Set;
+
 private:
 	struct lys_node *_node;
 	S_Deleter _deleter;
