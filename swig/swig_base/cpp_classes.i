@@ -12,26 +12,98 @@
 
 %ignore throw_exception;
 
-/* add %newobject 
- it tells python to free memory
- */
 /* Xml.hpp */
 %shared_ptr(Xml_Ns);
+%newobject Xml_Ns::next;
+
 %shared_ptr(Xml_Attr);
+%newobject Xml_Attr::next;
+%newobject Xml_Attr::ns;
+
 %shared_ptr(Xml_Elem);
+%newobject Xml_Elem::parent;
+%newobject Xml_Elem::attr;
+%newobject Xml_Elem::child;
+%newobject Xml_Elem::next;
+%newobject Xml_Elem::prev;
+%newobject Xml_Elem::ns;
+%newobject Xml_Elem::get_ns;
+
 
 /* Libyang.hpp */
 %shared_ptr(Context);
+%newobject Context::get_searchdirs;
+%newobject Context::info;
+%newobject Context::get_module_iter;
+%newobject Context::get_disabled_module_iter;
+%newobject Context::get_module;
+%newobject Context::get_module_older;
+%newobject Context::load_module;
+%newobject Context::get_module_by_Ns;
+%newobject Context::parse_mem;
+%newobject Context::parse_fd;
+%newobject Context::parse_path;
+%newobject Context::parse_xml;
+
 %shared_ptr(Set);
+%newobject Set::data;
+%newobject Set::schema;
+%newobject Set::dup;
+
 
 /* Tree_Data.hpp */
 %shared_ptr(Data_Node);
+%newobject Data_Node::schema;
+%newobject Data_Node::attr;
+%newobject Data_Node::next;
+%newobject Data_Node::prev;
+%newobject Data_Node::parent;
+%newobject Data_Node::child;
+%newobject Data_Node::path;
+%newobject Data_Node::qualifed_path;
+%newobject Data_Node::dup;
+%newobject Data_Node::dup_to_ctx;
+%newobject Data_Node::find_xpath;
+%newobject Data_Node::find_instance;
 %ignore Data_Node::swig_node;
 %ignore Data_Node::swig_deleter;
 
 %shared_ptr(Data_Node_Leaf_List);
+%newobject Data_Node_Leaf_List::schema;
+%newobject Data_Node_Leaf_List::attr;
+%newobject Data_Node_Leaf_List::next;
+%newobject Data_Node_Leaf_List::prev;
+%newobject Data_Node_Leaf_List::parent;
+%newobject Data_Node_Leaf_List::child;
+%newobject Data_Node_Leaf_List::path;
+%newobject Data_Node_Leaf_List::qualifed_path;
+%newobject Data_Node_Leaf_List::dup;
+%newobject Data_Node_Leaf_List::dup_to_ctx;
+%newobject Data_Node_Leaf_List::find_xpath;
+%newobject Data_Node_Leaf_List::find_instance;
+%ignore Data_Node_Leaf_List::swig_node;
+%ignore Data_Node_Leaf_List::swig_deleter;
+
+
 %shared_ptr(Data_Node_Anydata);
+%newobject Data_Node_Leaf_List::schema;
+%newobject Data_Node_Leaf_List::attr;
+%newobject Data_Node_Leaf_List::next;
+%newobject Data_Node_Leaf_List::prev;
+%newobject Data_Node_Leaf_List::parent;
+%newobject Data_Node_Leaf_List::child;
+%newobject Data_Node_Leaf_List::path;
+%newobject Data_Node_Leaf_List::qualifed_path;
+%newobject Data_Node_Leaf_List::dup;
+%newobject Data_Node_Leaf_List::dup_to_ctx;
+%newobject Data_Node_Leaf_List::find_xpath;
+%newobject Data_Node_Leaf_List::find_instance;
+%ignore Data_Node_Leaf_List::swig_node;
+%ignore Data_Node_Leaf_List::swig_deleter;
+
 %shared_ptr(Attr);
+%newobject Attr::next;
+
 
 /* Tree_Schema.hpp */
 %shared_ptr(Module);
