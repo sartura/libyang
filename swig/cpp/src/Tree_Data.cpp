@@ -181,6 +181,22 @@ int Data_Node::insert_after(S_Data_Node node) {
 int Data_Node::schema_sort(int recursive) {
 	return lyd_schema_sort(_node, recursive);
 }
+S_Set Data_Node::find_xpath(const char *expr) {
+	struct ly_set *set = lyd_find_xpath(_node, expr);
+	if (NULL == set) {
+		return NULL;
+	}
+
+	return S_Set(new Set(set, _deleter));
+}
+S_Set Data_Node::find_instance(S_Schema_Node schema) {
+	struct ly_set *set = lyd_find_instance(_node, schema->_node);
+	if (NULL == set) {
+		return NULL;
+	}
+
+	return S_Set(new Set(set, _deleter));
+}
 S_Data_Node Data_Node::first_sibling() {
 	struct lyd_node *node = NULL;
 
