@@ -275,9 +275,6 @@
 %shared_ptr(Ext);
 %newobject Ext::module;
 
-%shared_ptr(Ext_Instance);
-%newobject Ext_Instance::module;
-
 %shared_ptr(Error);
 
 %{
