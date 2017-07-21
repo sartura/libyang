@@ -32,10 +32,7 @@
 
 /* Libyang.hpp */
 %shared_ptr(Context);
-%newobject Context::get_searchdirs;
 %newobject Context::info;
-%newobject Context::get_module_iter;
-%newobject Context::get_disabled_module_iter;
 %newobject Context::get_module;
 %newobject Context::get_module_older;
 %newobject Context::load_module;
@@ -46,8 +43,6 @@
 %newobject Context::parse_xml;
 
 %shared_ptr(Set);
-%newobject Set::data;
-%newobject Set::schema;
 %newobject Set::dup;
 
 
@@ -280,6 +275,9 @@
 %shared_ptr(Ext);
 %newobject Ext::module;
 
+%shared_ptr(Ext_Instance);
+%newobject Ext_Instance::module;
+
 %shared_ptr(Error);
 
 %{
@@ -298,7 +296,7 @@
 %include "Tree_Data.hpp"
 %include "Tree_Schema.hpp"
 
-%template(vectorString) std::vector<string>;
+%template(vectorS_String) std::vector<S_String>;
 %template(vectorModules) std::vector<S_Module>;
 %template(vectorData_Node) std::vector<S_Data_Node>;
 %template(vectorSchema_Node) std::vector<S_Schema_Node>;
