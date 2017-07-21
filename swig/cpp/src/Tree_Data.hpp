@@ -63,7 +63,7 @@ public:
 	S_Data_Node next();
 	S_Data_Node prev();
 	S_Data_Node parent();
-	S_Data_Node child();
+	virtual S_Data_Node child();
 
 	/* functions */
 	S_String path();
@@ -107,6 +107,7 @@ public:
     const char *value_str() {return ((struct lyd_node_leaf_list *) _node)->value_str;};
     //lyd_val value;                   /**< node's value representation, always corresponds to schema->type.base */
     uint16_t value_type() {return ((struct lyd_node_leaf_list *) _node)->value_type;};
+	S_Data_Node child() {return NULL;};
 
 	/* functions */
 	int change_leaf(const char *val_str);
@@ -125,6 +126,7 @@ public:
 	~Data_Node_Anydata();
     LYD_ANYDATA_VALUETYPE value_type() {return ((struct lyd_node_anydata *) _node)->value_type;};
 	//union value
+	S_Data_Node child() {return NULL;};
 
 private:
 	struct lyd_node *_node;

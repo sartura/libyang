@@ -185,10 +185,10 @@ public:
 	// struct lys_iffeature *iffeature;
 	S_Module module();
 	LYS_NODE nodetype() {return _node->nodetype;};
-	S_Schema_Node parent();
-	S_Schema_Node child();
-	S_Schema_Node next();
-	S_Schema_Node prev();
+	virtual S_Schema_Node parent();
+	virtual S_Schema_Node child();
+	virtual S_Schema_Node next();
+	virtual S_Schema_Node prev();
 	S_Set find_xpath(const char *expr, int options);
 	//struct ly_set *lys_xpath_atomize(const struct lys_node *ctx_node, enum lyxp_node_type ctx_node_type,
     //                             const char *expr, int options);
@@ -250,6 +250,7 @@ public:
     //struct lys_type type;            /**< YANG data type definition of the leaf (mandatory) */
     const char *units() {return ((struct lys_node_leaf *)_node)->units;};
     const char *dflt() {return ((struct lys_node_leaf *)_node)->dflt;};
+	S_Schema_Node child() {return NULL;};
 
 private:
 	struct lys_node *_node;
@@ -269,6 +270,7 @@ public:
     //TODO vector of string dflt();
     uint32_t min() {return ((struct lys_node_leaflist *)_node)->min;};
     uint32_t max() {return ((struct lys_node_leaflist *)_node)->max;};
+	S_Schema_Node child() {return NULL;};
 
 private:
 	struct lys_node *_node;
