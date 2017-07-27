@@ -59,7 +59,9 @@ class When;
 class Substmt;
 class Ext;
 class Refine_Mod_List;
-class Refine_Mod;
+class Refine;
+class Deviate;
+class Deviation;
 
 class Module
 {
@@ -89,6 +91,7 @@ public:
 	uint8_t ext_size() {return _module->ext_size;};
 	const char *ns() {return _module->ns;};
 	S_Revision rev();
+	std::vector<S_Deviation> *deviation();
 
 	friend class Context;
 	friend class Data_Node;
@@ -127,6 +130,7 @@ public:
 	uint8_t extensions_size() {return _submodule->extensions_size;};
 	uint8_t ext_size() {return _submodule->ext_size;};
 	S_Revision rev();
+	std::vector<S_Deviation> *deviation();
 
 	S_Module belongsto() {return _submodule->belongsto ? S_Module(new Module(_submodule->belongsto, _deleter)) : NULL;};
 
@@ -317,7 +321,7 @@ public:
 	Schema_Node_Uses(struct lys_node *node, S_Deleter deleter = NULL);
 	~Schema_Node_Uses();
 	S_When when();
-    //struct lys_refine *refine;       /**< array of refine changes to the referred grouping */
+	std::vector<S_Refine> *refine();
     //struct lys_node_augment *augment;/**< array of local augments to the referred grouping */
     //struct lys_node_grp *grp;        /**< referred grouping definition (mandatory) */
 
@@ -485,6 +489,52 @@ public:
 
 private:
 	struct lys_refine *_refine;
+	S_Deleter _deleter;
+};
+
+class Deviate
+{
+public:
+	Deviate(struct lys_deviate *deviate, S_Deleter deleter);
+	~Deviate();
+	LYS_DEVIATE_TYPE mod() {return _deviate->mod;};
+	uint8_t flags() {return _deviate->flags;};
+	uint8_t dflt_size() {return _deviate->dflt_size;};
+	uint8_t ext_size() {return _deviate->ext_size;};
+	uint8_t min_set() {return _deviate->min_set;};
+	uint8_t max_set() {return _deviate->max_set;};
+	uint8_t must_size() {return _deviate->must_size;};
+	uint8_t unique_size() {return _deviate->unique_size;};
+	uint32_t min() {return _deviate->min;};
+	uint32_t max() {return _deviate->max;};
+    //struct lys_restr *must;          /**< Properties: must - array of must constraints */
+	//struct lys_unique *unique;       /**< Properties: unique - array of unique statement structures */
+	//struct lys_type *type;           /**< Properties: type - pointer to type in target, type cannot be deleted or added */
+	const char *units() {return _deviate->units;};
+	vector<string> *dflt();
+	std::vector<S_Ext_Instance> *ext();
+
+private:
+	struct lys_deviate *_deviate;
+	S_Deleter _deleter;
+};
+
+class Deviation
+{
+public:
+	Deviation(struct lys_deviation *deviation, S_Deleter deleter);
+	~Deviation();
+	const char *target_name() {return _deviation->target_name;};
+	const char *dsc() {return _deviation->dsc;};
+	const char *ref() {return _deviation->ref;};
+	S_Schema_Node orig_node();
+	uint8_t deviate_size() {return _deviation->deviate_size;};
+	uint8_t ext_size() {return _deviation->ext_size;};
+	std::vector<S_Deviate> *deviate();
+	std::vector<S_Ext_Instance> *ext();
+
+private:
+	struct lys_deviation *_deviation;
 	S_Deleter _deleter;
 };
 

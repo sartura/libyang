@@ -199,6 +199,7 @@
 %newobject Schema_Node_Uses::module;
 %newobject Schema_Node_Uses::find_xpath;
 %newobject Schema_Node_Uses::xpath_atomize;
+%newobject Schema_Node_Uses::when;
 %ignore    Schema_Node_Uses::swig_node;
 %ignore    Schema_Node_Uses::swig_deleter;
 
@@ -275,6 +276,16 @@
 %shared_ptr(Ext);
 %newobject Ext::module;
 
+%shared_ptr(Refine_Mod_List);
+
+%shared_ptr(Refine);
+%newobject Refine::module;
+
+%shared_ptr(Deviate);
+
+%shared_ptr(Deviation);
+%newobject Deviation::orig_node;
+
 %shared_ptr(Error);
 
 %{
@@ -299,5 +310,8 @@
 %template(vectorSchema_Node) std::vector<S_Schema_Node>;
 %template(vectorExt_Instance) std::vector<S_Ext_Instance>;
 %template(vectorWhen) std::vector<S_When>;
+%template(vectorRefine) std::vector<S_Refine>;
 %template(vectorXml_Elem) std::vector<S_Xml_Elem>;
+%template(vectorDeviate) std::vector<S_Deviate>;
+%template(vectorDeviation) std::vector<S_Deviation>;
 
