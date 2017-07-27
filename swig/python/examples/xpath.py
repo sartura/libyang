@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 __author__ = "Mislav Novakovic <mislav.novakovic@sartura.hr>"
 __copyright__ = "Copyright 2017, Deutsche Telekom AG"
 __license__ = "Apache 2.0"
