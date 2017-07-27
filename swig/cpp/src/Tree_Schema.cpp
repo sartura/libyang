@@ -40,13 +40,36 @@ Module::Module(struct lys_module *module, S_Deleter deleter) {
 };
 Module::~Module() {};
 S_Revision Module::rev() {return _module->rev ? S_Revision(new Revision(_module->rev, _deleter)) : NULL;};
+std::vector<S_Deviation> *Module::deviation() {
+	auto s_vector = new vector<S_Deviation>;
+	if (NULL == s_vector) {
+		return NULL;
+	}
 
+	for(uint8_t i = 0; i < _module->deviation_size; i++) {
+		s_vector->push_back(S_Deviation(new Deviation(&_module->deviation[i], _deleter)));
+	}
+
+	return s_vector;
+}
 Submodule::Submodule(struct lys_submodule *submodule, S_Deleter deleter) {
 	_submodule = submodule;
 	_deleter = deleter;
 };
 Submodule::~Submodule() {};
 S_Revision Submodule::rev() {return _submodule->rev ? S_Revision(new Revision(_submodule->rev, _deleter)) : NULL;};
+std::vector<S_Deviation> *Submodule::deviation() {
+	auto s_vector = new vector<S_Deviation>;
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	for(uint8_t i = 0; i < _submodule->deviation_size; i++) {
+		s_vector->push_back(S_Deviation(new Deviation(&_submodule->deviation[i], _deleter)));
+	}
+
+	return s_vector;
+}
 
 Ext_Instance::Ext_Instance(lys_ext_instance *ext_instance, S_Deleter deleter) {
 	_ext_instance = ext_instance;
@@ -206,7 +229,20 @@ S_When Schema_Node_Uses::when() {
 	lys_node_uses *node = (struct lys_node_uses *)_node;
 	return node->when ? S_When(new When(node->when, _deleter)) : NULL;
 };
+std::vector<S_Refine> *Schema_Node_Uses::refine() {
+	lys_node_uses *node = (struct lys_node_uses *)_node;
+	auto s_vector = new vector<S_Refine>;
 
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	for(uint8_t i = 0; i < node->refine_size; i++) {
+		s_vector->push_back(S_Refine(new Refine(&node->refine[i], _deleter)));
+	}
+
+	return s_vector;
+}
 Schema_Node_Grp::Schema_Node_Grp(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {
 	_node = node;
 	_deleter = deleter;
@@ -296,7 +332,6 @@ std::vector<S_Ext_Instance> *Ext::ext() {
 }
 S_Module Ext::module() {return _ext->module ? S_Module(new Module(_ext->module, _deleter)) : NULL;};
 
-
 Refine_Mod_List::Refine_Mod_List(struct lys_refine_mod_list *list, S_Deleter deleter) {
 	_list = list;
 	_deleter = _deleter;
@@ -333,4 +368,67 @@ vector<string> *Refine::dflt() {
 	}
 
 	return s_vector;
-};
+}
+
+Deviate::Deviate(struct lys_deviate *deviate, S_Deleter deleter) {
+	_deviate = deviate;
+	_deleter = _deleter;
+}
+Deviate::~Deviate() {};
+vector<string> *Deviate::dflt() {
+	auto s_vector = new vector<string>;
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	for(uint8_t i = 0; i < _deviate->dflt_size; i++) {
+		s_vector->push_back(std::string(_deviate->dflt[i]));
+	}
+
+	return s_vector;
+}
+std::vector<S_Ext_Instance> *Deviate::ext() {
+	auto s_vector = new vector<S_Ext_Instance>;
+
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	for(uint8_t i = 0; i < _deviate->ext_size; i++) {
+		s_vector->push_back(S_Ext_Instance(new Ext_Instance(_deviate->ext[i], _deleter)));
+	}
+
+	return s_vector;
+}
+
+Deviation::Deviation(struct lys_deviation *deviation, S_Deleter deleter) {
+	_deviation = deviation;
+	_deleter = _deleter;
+}
+Deviation::~Deviation() {};
+S_Schema_Node Deviation::orig_node() {return _deviation->orig_node ? S_Schema_Node(new Schema_Node(_deviation->orig_node, _deleter)) : NULL;};
+std::vector<S_Deviate> *Deviation::deviate() {
+	auto s_vector = new vector<S_Deviate>;
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	for(uint8_t i = 0; i < _deviation->deviate_size; i++) {
+		s_vector->push_back(S_Deviate(new Deviate(&_deviation->deviate[i], _deleter)));
+	}
+
+	return s_vector;
+}
+std::vector<S_Ext_Instance> *Deviation::ext() {
+	auto s_vector = new vector<S_Ext_Instance>;
+
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	for(uint8_t i = 0; i < _deviation->ext_size; i++) {
+		s_vector->push_back(S_Ext_Instance(new Ext_Instance(_deviation->ext[i], _deleter)));
+	}
+
+	return s_vector;
+}
