@@ -68,7 +68,7 @@ std::vector<S_Ext_Instance> *Ext_Instance::ext() {
 }
 
 Revision::Revision(lys_revision *revision, S_Deleter deleter) {
-	_revisinon = revision;
+	_revision = revision;
 	_deleter = deleter;
 };
 Revision::~Revision() {};
@@ -295,3 +295,42 @@ std::vector<S_Ext_Instance> *Ext::ext() {
 	return s_vector;
 }
 S_Module Ext::module() {return _ext->module ? S_Module(new Module(_ext->module, _deleter)) : NULL;};
+
+
+Refine_Mod_List::Refine_Mod_List(struct lys_refine_mod_list *list, S_Deleter deleter) {
+	_list = list;
+	_deleter = _deleter;
+}
+Refine_Mod_List::~Refine_Mod_List() {};
+
+Refine::Refine(struct lys_refine *refine, S_Deleter deleter) {
+	_refine = refine;
+	_deleter = _deleter;
+}
+Refine::~Refine() {};
+std::vector<S_Ext_Instance> *Refine::ext() {
+	auto s_vector = new vector<S_Ext_Instance>;
+
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	for(uint8_t i = 0; i < _refine->ext_size; i++) {
+		s_vector->push_back(S_Ext_Instance(new Ext_Instance(_refine->ext[i], _deleter)));
+	}
+
+	return s_vector;
+}
+S_Module Refine::module() {return _refine->module ? S_Module(new Module(_refine->module, _deleter)) : NULL;};
+vector<string> *Refine::dflt() {
+	auto s_vector = new vector<string>;
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	for(uint8_t i = 0; i < _refine->dflt_size; i++) {
+		s_vector->push_back(std::string(_refine->dflt[i]));
+	}
+
+	return s_vector;
+};
