@@ -25,7 +25,6 @@
 %extend Data_Node {
     PyObject *subtype() {
         PyObject *casted = 0;
-        PyObject *result = 0;
 
         auto type = self->swig_node()->schema->nodetype;
         if (LYS_LEAF == type || LYS_LEAFLIST == type) {
@@ -49,7 +48,6 @@
 %extend Schema_Node {
     PyObject *subtype() {
         PyObject *casted = 0;
-        PyObject *result = 0;
 
         auto type = self->swig_node()->nodetype;
         if (LYS_CONTAINER == type) {

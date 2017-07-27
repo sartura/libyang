@@ -211,7 +211,7 @@ vector<S_Data_Node> *Set::data() {
 		return NULL;
 	}
 
-	int size = 0, i;
+	unsigned int i;
 	for (i = 0; i < _set->number; i++){
 		s_vector->push_back(S_Data_Node(new Data_Node(_set->set.d[i], _deleter)));
 	}
@@ -224,7 +224,7 @@ vector<S_Schema_Node> *Set::schema() {
 		return NULL;
 	}
 
-	int size = 0, i;
+	unsigned int i;
 	for (i = 0; i < _set->number; i++){
 		s_vector->push_back(S_Schema_Node(new Schema_Node(_set->set.s[i], _deleter)));
 	}
@@ -253,7 +253,7 @@ int Set::contains(S_Schema_Node node) {
 	return ly_set_contains(_set, (void *) node->_node);
 }
 int Set::clean() {
-	ly_set_clean(_set);
+	return ly_set_clean(_set);
 }
 int Set::rm(S_Data_Node node) {
 	return ly_set_rm(_set, (void *) node->_node);
