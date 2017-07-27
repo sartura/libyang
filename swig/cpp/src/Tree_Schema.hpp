@@ -58,6 +58,8 @@ class Schema_Node_Augment;
 class When;
 class Substmt;
 class Ext;
+class Refine_Mod_List;
+class Refine_Mod;
 
 class Module
 {
@@ -160,13 +162,13 @@ class Revision
 public:
 	Revision(lys_revision *revision, S_Deleter deleter);
 	~Revision();
-	char *date() {return &_revisinon->date[0];};
-	uint8_t ext_size() {return _revisinon->ext_size;};
-	const char *dsc() {return _revisinon->dsc;};
-	const char *ref() {return _revisinon->ref;};
+	char *date() {return &_revision->date[0];};
+	uint8_t ext_size() {return _revision->ext_size;};
+	const char *dsc() {return _revision->dsc;};
+	const char *ref() {return _revision->ref;};
 
 private:
-	struct lys_revision *_revisinon;
+	struct lys_revision *_revision;
 	S_Deleter _deleter;
 };
 
@@ -446,4 +448,44 @@ private:
 	struct lys_ext *_ext;
 	S_Deleter _deleter;
 };
+
+class Refine_Mod_List
+{
+public:
+	Refine_Mod_List(struct lys_refine_mod_list *list, S_Deleter deleter);
+	~Refine_Mod_List();
+	uint32_t min() {return _list->min;};
+	uint32_t max() {return _list->max;};
+
+private:
+	struct lys_refine_mod_list *_list;
+	S_Deleter _deleter;
+};
+
+class Refine
+{
+public:
+	Refine(struct lys_refine *refine, S_Deleter deleter);
+	~Refine();
+	const char *target_name() {return _refine->target_name;};
+	const char *dsc() {return _refine->dsc;};
+	const char *ref() {return _refine->ref;};
+	uint16_t flags() {return _refine->flags;};
+	uint8_t ext_size() {return _refine->ext_size;};
+	uint8_t iffeature_size() {return _refine->iffeature_size;};
+	uint16_t target_type() {return _refine->target_type;};
+	uint8_t must_size() {return _refine->must_size;};
+	uint8_t dflt_size() {return _refine->dflt_size;};
+	std::vector<S_Ext_Instance> *ext();
+	//struct lys_iffeature *iffeature; /**< array of if-feature expressions */
+	S_Module module();
+	//struct lys_restr *must;          /**< array of additional must restrictions to be added to the target */
+	vector<string> *dflt();
+	//union lys_refine_mod mod;        /**< mutually exclusive target modifications according to the possible target_type */
+
+private:
+	struct lys_refine *_refine;
+	S_Deleter _deleter;
+};
+
 #endif

@@ -63,6 +63,8 @@
 #define S_When                   std::shared_ptr<When>
 #define S_Substmt                std::shared_ptr<Substmt>
 #define S_Ext                    std::shared_ptr<Ext>
+#define S_Refine_Mod_List        std::shared_ptr<Refine_Mod_List>
+#define S_Refine                 std::shared_ptr<Refine>
 
 #include <iostream>
 #include <memory>
