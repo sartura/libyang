@@ -187,7 +187,7 @@ S_Set Data_Node::find_xpath(const char *expr) {
 		return NULL;
 	}
 
-	return S_Set(new Set(set, _deleter));
+	return S_Set(new Set(set, S_Deleter(new Deleter(set, _deleter))));
 }
 S_Set Data_Node::find_instance(S_Schema_Node schema) {
 	struct ly_set *set = lyd_find_instance(_node, schema->_node);
@@ -195,7 +195,7 @@ S_Set Data_Node::find_instance(S_Schema_Node schema) {
 		return NULL;
 	}
 
-	return S_Set(new Set(set, _deleter));
+	return S_Set(new Set(set, S_Deleter(new Deleter(set, _deleter))));
 }
 S_Data_Node Data_Node::first_sibling() {
 	struct lyd_node *node = NULL;
