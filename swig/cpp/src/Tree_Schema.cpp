@@ -118,17 +118,9 @@ std::vector<S_Schema_Node> *Schema_Node::tree_dfs() {
 	return s_vector;
 }
 
-Schema_Node_Container::Schema_Node_Container(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {
-	_node = node;
-	_deleter = deleter;
-};
 Schema_Node_Container::~Schema_Node_Container() {};
 S_When Schema_Node_Container::when() NEW_CASTED(lys_node_container, _node, when, When);
 
-Schema_Node_Choice::Schema_Node_Choice(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {
-	_node = node;
-	_deleter = deleter;
-};
 Schema_Node_Choice::~Schema_Node_Choice() {};
 S_When Schema_Node_Choice::when() NEW_CASTED(lys_node_choice, _node, when, When);
 
@@ -136,10 +128,6 @@ Schema_Node_Leaf::~Schema_Node_Leaf() {};
 S_Set Schema_Node_Leaf::backlinks() NEW_CASTED(lys_node_leaf, _node, backlinks, Set);
 S_When Schema_Node_Leaf::when() NEW_CASTED(lys_node_leaf, _node, when, When);
 
-Schema_Node_Leaflist::Schema_Node_Leaflist(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {
-	_node = node;
-	_deleter = deleter;
-};
 Schema_Node_Leaflist::~Schema_Node_Leaflist() {};
 S_Set Schema_Node_Leaflist::backlinks() NEW_CASTED(lys_node_leaflist, _node, backlinks, Set);
 S_When Schema_Node_Leaflist::when() NEW_CASTED(lys_node_leaflist, _node, when, When);
@@ -149,10 +137,6 @@ std::vector<S_String> *Schema_Node_Leaflist::dflt() {
 }
 std::vector<S_Restr> *Schema_Node_Leaflist::must() NEW_LIST_CASTED(lys_node_leaflist, _node, must, must_size, Restr);
 
-Schema_Node_List::Schema_Node_List(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {
-	_node = node;
-	_deleter = deleter;
-};
 Schema_Node_List::~Schema_Node_List() {};
 S_When Schema_Node_List::when() NEW_CASTED(lys_node_list, _node, when, When);
 std::vector<S_Restr> *Schema_Node_List::must() NEW_LIST_CASTED(lys_node_list, _node, must, must_size, Restr);
@@ -160,58 +144,26 @@ std::vector<S_Tpdf> *Schema_Node_List::tpdf() NEW_LIST_CASTED(lys_node_list, _no
 //std::vector<Schema_Node_Leaf> *Schema_Node_List::keys() NEW_P_LIST_CASTED(lys_node_list, _node, keys, keys_size, Schema_Node_Leaf);
 std::vector<S_Unique> *Schema_Node_List::unique() NEW_LIST_CASTED(lys_node_list, _node, unique, unique_size, Unique);
 
-Schema_Node_Anydata::Schema_Node_Anydata(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {
-	_node = node;
-	_deleter = deleter;
-};
 Schema_Node_Anydata::~Schema_Node_Anydata() {};
 S_When Schema_Node_Anydata::when() NEW_CASTED(lys_node_anydata, _node, when, When);
 
-Schema_Node_Uses::Schema_Node_Uses(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {
-	_node = node;
-	_deleter = deleter;
-};
 Schema_Node_Uses::~Schema_Node_Uses() {};
 S_When Schema_Node_Uses::when() NEW_CASTED(lys_node_uses, _node, when, When);
 std::vector<S_Refine> *Schema_Node_Uses::refine() {
 	struct lys_node_uses *node = (struct lys_node_uses *)_node;
 	NEW_LIST(node, refine, refine_size, Refine);
 	};
-Schema_Node_Grp::Schema_Node_Grp(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {
-	_node = node;
-	_deleter = deleter;
-};
 Schema_Node_Grp::~Schema_Node_Grp() {};
 
-Schema_Node_Case::Schema_Node_Case(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {
-	_node = node;
-	_deleter = deleter;
-};
 Schema_Node_Case::~Schema_Node_Case() {};
 S_When Schema_Node_Case::when() NEW_CASTED(lys_node_case, _node, when, When);
 
-Schema_Node_Inout::Schema_Node_Inout(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {
-	_node = node;
-	_deleter = deleter;
-};
 Schema_Node_Inout::~Schema_Node_Inout() {};
 
-Schema_Node_Notif::Schema_Node_Notif(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {
-	_node = node;
-	_deleter = deleter;
-};
 Schema_Node_Notif::~Schema_Node_Notif() {};
 
-Schema_Node_Action::Schema_Node_Action(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {
-	_node = node;
-	_deleter = deleter;
-};
 Schema_Node_Action::~Schema_Node_Action() {};
 
-Schema_Node_Augment::Schema_Node_Augment(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {
-	_node = node;
-	_deleter = deleter;
-};
 Schema_Node_Augment::~Schema_Node_Augment() {};
 S_When Schema_Node_Augment::when() NEW_CASTED(lys_node_augment, _node, when, When);
 
