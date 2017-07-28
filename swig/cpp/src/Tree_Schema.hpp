@@ -40,7 +40,6 @@ using namespace std;
 class Module;
 class Subodule;
 class Ext_Instance;
-class Revision;
 class Schema_Node;
 class Schema_Node_Container;
 class Schema_Node_Choice;
@@ -55,13 +54,21 @@ class Schema_Node_Inout;
 class Schema_Node_Notif;
 class Schema_Node_Action;
 class Schema_Node_Augment;
-class When;
 class Substmt;
 class Ext;
 class Refine_Mod_List;
 class Refine;
 class Deviate;
 class Deviation;
+class Import;
+class Include;
+class Revision;
+class Tpdf;
+class Unique;
+class Feature;
+class Restr;
+class When;
+class Ident;
 
 class Module
 {
@@ -158,21 +165,6 @@ public:
 	LYS_NODE nodetype() {return _ext_instance->nodetype;};
 private:
 	struct lys_ext_instance *_ext_instance;
-	S_Deleter _deleter;
-};
-
-class Revision
-{
-public:
-	Revision(lys_revision *revision, S_Deleter deleter);
-	~Revision();
-	char *date() {return &_revision->date[0];};
-	uint8_t ext_size() {return _revision->ext_size;};
-	const char *dsc() {return _revision->dsc;};
-	const char *ref() {return _revision->ref;};
-
-private:
-	struct lys_revision *_revision;
 	S_Deleter _deleter;
 };
 
@@ -405,22 +397,6 @@ private:
 	S_Deleter _deleter;
 };
 
-class When
-{
-public:
-	When(struct lys_when *when, S_Deleter deleter = NULL);
-	~When();
-	const char *cond() {return _when->cond;};
-	const char *dsc() {return _when->dsc;};
-	const char *ref() {return _when->ref;};
-	std::vector<S_Ext_Instance> *ext();
-	uint8_t ext_size() {return _when->ext_size;};
-
-private:
-	struct lys_when *_when;
-	S_Deleter _deleter;
-};
-
 class Substmt
 {
 public:
@@ -535,6 +511,171 @@ public:
 
 private:
 	struct lys_deviation *_deviation;
+	S_Deleter _deleter;
+};
+
+class Import
+{
+public:
+	Import(struct lys_import *import, S_Deleter deleter);
+	~Import();
+	S_Module module() NEW(_import, module, Module);
+	const char *prefix() {return _import->prefix;};
+	char *rev() {return &_import->rev[0];};
+	uint8_t ext_size() {return _import->ext_size;};
+	std::vector<S_Ext_Instance> *ext() NEW_P_LIST(_import, ext, ext_size, Ext_Instance);
+	const char *dsc() {return _import->dsc;};
+	const char *ref() {return _import->ref;};
+
+private:
+	struct lys_import *_import;
+	S_Deleter _deleter;
+};
+
+class Include
+{
+public:
+	Include(struct lys_include *include, S_Deleter deleter);
+	~Include();
+	S_Submodule submodule() NEW(_include, submodule, Submodule);
+	char *rev() {return &_include->rev[0];};
+	uint8_t ext_size() {return _include->ext_size;};
+	std::vector<S_Ext_Instance> *ext() NEW_P_LIST(_include, ext, ext_size, Ext_Instance);
+	const char *dsc() {return _include->dsc;};
+	const char *ref() {return _include->ref;};
+
+private:
+	struct lys_include *_include;
+	S_Deleter _deleter;
+};
+
+class Revision
+{
+public:
+	Revision(lys_revision *revision, S_Deleter deleter);
+	~Revision();
+	char *date() {return &_revision->date[0];};
+	uint8_t ext_size() {return _revision->ext_size;};
+	const char *dsc() {return _revision->dsc;};
+	const char *ref() {return _revision->ref;};
+
+private:
+	struct lys_revision *_revision;
+	S_Deleter _deleter;
+};
+
+class Tpdf
+{
+public:
+	Tpdf(struct lys_tpdf *tpdf, S_Deleter deleter);
+	~Tpdf();
+	const char *name() {return _tpdf->name;};
+	const char *dsc() {return _tpdf->dsc;};
+	const char *ref() {return _tpdf->ref;};
+	uint16_t flags() {return _tpdf->flags;};
+	uint8_t ext_size() {return _tpdf->ext_size;};
+	uint8_t padding_iffsize() {return _tpdf->padding_iffsize;};
+	uint8_t has_union_leafref() {return _tpdf->has_union_leafref;};
+	std::vector<S_Ext_Instance> *ext() NEW_P_LIST(_tpdf, ext, ext_size, Ext_Instance);
+	const char *units() {return _tpdf->units;};
+	S_Module module() NEW(_tpdf, module, Module);
+	//struct lys_type type;            /**< base type from which the typedef is derived (mandatory). In case of a special
+	const char *dflt() {return _tpdf->dflt;};
+
+private:
+	struct lys_tpdf *_tpdf;
+	S_Deleter _deleter;
+};
+
+class Unique
+{
+public:
+	Unique(struct lys_unique *unique, S_Deleter deleter);
+	~Unique();
+	std::vector<S_String> *expr() NEW_STRING_LIST(_unique, expr, expr_size);
+	uint8_t expr_size() {return _unique->expr_size;};
+	uint8_t trg_type() {return _unique->trg_type;};
+
+private:
+	struct lys_unique *_unique;
+	S_Deleter _deleter;
+};
+
+class Feature
+{
+public:
+	Feature(struct lys_feature *feature, S_Deleter);
+	~Feature();
+	const char *name() {return _feature->name;};
+	const char *dsc() {return _feature->dsc;};
+	const char *ref() {return _feature->ref;};
+	uint16_t flags() {return _feature->flags;};
+	uint8_t ext_size() {return _feature->ext_size;};
+	uint8_t iffeature_size() {return _feature->iffeature_size;};
+	std::vector<S_Ext_Instance> *ext() NEW_P_LIST(_feature, ext, ext_size, Ext_Instance);
+	//struct lys_iffeature *iffeature; /**< array of if-feature expressions */
+	S_Module module() NEW(_feature, module, Module);
+	S_Set depfeatures() NEW(_feature, depfeatures, Set);
+
+private:
+	struct lys_feature *_feature;
+	S_Deleter _deleter;
+};
+
+class Restr
+{
+public:
+	Restr(struct lys_restr *restr, S_Deleter deleter);
+	~Restr();
+	const char *expr() {return _restr->expr;};
+	const char *dsc() {return _restr->dsc;};
+	const char *ref() {return _restr->ref;};
+	const char *eapptag() {return _restr->eapptag;};
+	const char *emsg() {return _restr->emsg;};
+	std::vector<S_Ext_Instance> *ext() NEW_P_LIST(_restr, ext, ext_size, Ext_Instance);
+	uint8_t ext_size() {return _restr->ext_size;};
+
+private:
+	struct lys_restr *_restr;
+	S_Deleter _deleter;
+};
+
+class When
+{
+public:
+	When(struct lys_when *when, S_Deleter deleter = NULL);
+	~When();
+	const char *cond() {return _when->cond;};
+	const char *dsc() {return _when->dsc;};
+	const char *ref() {return _when->ref;};
+	std::vector<S_Ext_Instance> *ext();
+	uint8_t ext_size() {return _when->ext_size;};
+
+private:
+	struct lys_when *_when;
+	S_Deleter _deleter;
+};
+
+class Ident
+{
+public:
+	Ident(struct lys_ident *ident, S_Deleter deleter);
+	~Ident();
+	const char *name() {return _ident->name;};
+	const char *dsc() {return _ident->dsc;};
+	const char *ref() {return _ident->ref;};
+	uint16_t flags() {return _ident->flags;};
+	uint8_t ext_size() {return _ident->ext_size;};
+	uint8_t iffeature_size() {return _ident->iffeature_size;};
+	uint8_t base_size() {return _ident->base_size;};
+	std::vector<S_Ext_Instance> *ext() NEW_P_LIST(_ident, ext, ext_size, Ext_Instance);
+    //struct lys_iffeature *iffeature; /**< array of if-feature expressions */
+	S_Module module() NEW(_ident, module, Module);
+	std::vector<S_Ident> *base();
+	S_Set der() NEW(_ident, der, Set);
+
+private:
+	struct lys_ident *_ident;
 	S_Deleter _deleter;
 };
 

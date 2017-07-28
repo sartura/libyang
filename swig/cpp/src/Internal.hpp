@@ -67,6 +67,12 @@
 #define S_Refine                 std::shared_ptr<Refine>
 #define S_Deviate                std::shared_ptr<Deviate>
 #define S_Deviation              std::shared_ptr<Deviation>
+#define S_Import                 std::shared_ptr<Import>
+#define S_Include                std::shared_ptr<Include>
+#define S_Tpdf                   std::shared_ptr<Tpdf>
+#define S_Feature                std::shared_ptr<Feature>
+#define S_Restr                  std::shared_ptr<Restr>
+#define S_Ident                  std::shared_ptr<Ident>
 
 #define NEW(data, element, class)                                                                                                                    \
 	{                                                                                                                                                \
@@ -116,6 +122,20 @@
                                                                                                                                                      \
 		for (uint8_t i = 0; i < data->size; i++) {                                                                                                   \
 			s_vector->push_back(S_##class(new class(data->element[i], _deleter)));                                                                   \
+		}                                                                                                                                            \
+                                                                                                                                                     \
+		return s_vector;                                                                                                                             \
+	};
+
+#define NEW_STRING_LIST(data, element, size)                                                                                                         \
+	{                                                                                                                                                \
+		auto s_vector = new vector<S_String>;                                                                                                        \
+		if (NULL == s_vector) {                                                                                                                      \
+			return NULL;                                                                                                                             \
+		}                                                                                                                                            \
+                                                                                                                                                     \
+		for (uint8_t i = 0; i < data->size; i++) {                                                                                                   \
+			s_vector->push_back(std::string(data->element[i]));                                                                                      \
 		}                                                                                                                                            \
                                                                                                                                                      \
 		return s_vector;                                                                                                                             \

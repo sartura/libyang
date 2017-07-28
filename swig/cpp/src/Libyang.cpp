@@ -129,7 +129,6 @@ vector<string> *Context::get_searchdirs() {
 		return NULL;
 	}
 
-	//std::shared_ptr<std::vector<string> > s_vector( new std::vector<string>);
 	auto s_vector = new vector<string>;
 	if (NULL == s_vector) {
 		return NULL;
@@ -263,4 +262,4 @@ int Set::rm(S_Schema_Node node) {
 }
 int Set::rm_index(unsigned int index) {
 	return ly_set_rm_index(_set, index);
-}
+

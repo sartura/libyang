@@ -284,3 +284,46 @@ Deviation::~Deviation() {};
 S_Schema_Node Deviation::orig_node() NEW(_deviation, orig_node, Schema_Node);
 std::vector<S_Deviate> *Deviation::deviate() NEW_LIST(_deviation, deviate, deviate_size, Deviate);
 std::vector<S_Ext_Instance> *Deviation::ext() NEW_P_LIST(_deviation, ext, ext_size, Ext_Instance);
+
+Import::Import(struct lys_import *import, S_Deleter deleter) {
+	_import = import;
+	_deleter = deleter;
+}
+Import::~Import() {};
+
+Include::Include(struct lys_include *include, S_Deleter deleter) {
+	_include = include;
+	_deleter = deleter;
+}
+Include::~Include() {};
+
+Tpdf::Tpdf(struct lys_tpdf *tpdf, S_Deleter deleter) {
+	_tpdf = tpdf;
+	_deleter = deleter;
+}
+Tpdf::~Tpdf() {};
+
+Unique::Unique(struct lys_unique *unique, S_Deleter deleter) {
+	_unique = unique;
+	_deleter = deleter;
+}
+Unique::~Unique() {};
+
+Feature::Feature(struct lys_feature *feature, S_Deleter deleter) {
+	_feature = feature;
+	_deleter = deleter;
+}
+Feature::~Feature() {};
+
+Restr::Restr(struct lys_restr *restr, S_Deleter deleter) {
+	_restr = restr;
+	_deleter = deleter;
+}
+Restr::~Restr() {};
+
+Ident::Ident(struct lys_ident *ident, S_Deleter deleter) {
+	_ident = ident;
+	_deleter = deleter;
+}
+Ident::~Ident() {};
+std::vector<S_Ident> *Ident::base() NEW_P_LIST(_ident, base, base_size, Ident);
