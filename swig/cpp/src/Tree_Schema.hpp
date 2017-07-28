@@ -230,7 +230,7 @@ public:
 	Schema_Node_Choice(struct lys_node *node, S_Deleter deleter = NULL);
 	~Schema_Node_Choice();
 	S_When when();
-    //struct lys_node *dflt;           /**< default case of the choice (optional) */
+	//struct lys_node *dflt;           /**< default case of the choice (optional) */
 
 private:
 	struct lys_node *_node;
@@ -240,14 +240,13 @@ private:
 class Schema_Node_Leaf : public Schema_Node
 {
 public:
-	Schema_Node_Leaf(struct lys_node *node, S_Deleter deleter = NULL);
+	using Schema_Node::Schema_Node;
 	~Schema_Node_Leaf();
 	S_Set backlinks();
 	S_When when();
-    //struct lys_restr *must;          /**< array of must constraints */
-    //struct lys_type type;            /**< YANG data type definition of the leaf (mandatory) */
-    const char *units() {return ((struct lys_node_leaf *)_node)->units;};
-    const char *dflt() {return ((struct lys_node_leaf *)_node)->dflt;};
+	//struct lys_type type;            /**< YANG data type definition of the leaf (mandatory) */
+	const char *units() {return ((struct lys_node_leaf *)_node)->units;};
+	const char *dflt() {return ((struct lys_node_leaf *)_node)->dflt;};
 	S_Schema_Node child() {return NULL;};
 
 private:
@@ -260,14 +259,16 @@ class Schema_Node_Leaflist : public Schema_Node
 public:
 	Schema_Node_Leaflist(struct lys_node *node, S_Deleter deleter = NULL);
 	~Schema_Node_Leaflist();
+	uint8_t dflt_size() {return ((struct lys_node_leaflist *)_node)->dflt_size;};
+	uint8_t must_size() {return ((struct lys_node_leaflist *)_node)->must_size;};
 	S_When when();
 	S_Set backlinks();
-    //struct lys_restr *must;          /**< array of must constraints */
-    //struct lys_type type;            /**< YANG data type definition of the leaf (mandatory) */
-    const char *units() {return ((struct lys_node_leaflist *)_node)->units;};
-    //TODO vector of string dflt();
-    uint32_t min() {return ((struct lys_node_leaflist *)_node)->min;};
-    uint32_t max() {return ((struct lys_node_leaflist *)_node)->max;};
+	std::vector<S_Restr> *must();
+	//struct lys_type type;            /**< YANG data type definition of the leaf (mandatory) */
+	const char *units() {return ((struct lys_node_leaflist *)_node)->units;};
+	vector<S_String> *dflt();
+	uint32_t min() {return ((struct lys_node_leaflist *)_node)->min;};
+	uint32_t max() {return ((struct lys_node_leaflist *)_node)->max;};
 	S_Schema_Node child() {return NULL;};
 
 private:
@@ -280,14 +281,18 @@ class Schema_Node_List : public Schema_Node
 public:
 	Schema_Node_List(struct lys_node *node, S_Deleter deleter = NULL);
 	~Schema_Node_List();
+	uint8_t must_size() {return ((struct lys_node_list *)_node)->must_size;};
+	uint8_t tpdf_size() {return ((struct lys_node_list *)_node)->tpdf_size;};
+	uint8_t keys_size() {return ((struct lys_node_list *)_node)->keys_size;};
+	uint8_t unique_size() {return ((struct lys_node_list *)_node)->unique_size;};
 	S_When when();
-    //struct lys_restr *must;          /**< array of must constraints */
-    //struct lys_tpdf *tpdf;           /**< array of typedefs */
-    //struct lys_node_leaf **keys;     /**< array of pointers to the key nodes */
-    //struct lys_unique *unique;       /**< array of unique statement structures */
-    uint32_t min() {return ((struct lys_node_list *)_node)->min;};
-    uint32_t max() {return ((struct lys_node_list *)_node)->max;};
-    const char *keys_str() {return ((struct lys_node_list *)_node)->keys_str;};
+	std::vector<S_Restr> *must();
+	std::vector<S_Tpdf> *tpdf();
+	//std::vector<Schema_Node_Leaf> *keys();
+	std::vector<S_Unique> *unique();
+	uint32_t min() {return ((struct lys_node_list *)_node)->min;};
+	uint32_t max() {return ((struct lys_node_list *)_node)->max;};
+	const char *keys_str() {return ((struct lys_node_list *)_node)->keys_str;};
 
 private:
 	struct lys_node *_node;

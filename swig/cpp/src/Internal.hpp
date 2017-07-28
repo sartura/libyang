@@ -70,6 +70,7 @@
 #define S_Import                 std::shared_ptr<Import>
 #define S_Include                std::shared_ptr<Include>
 #define S_Tpdf                   std::shared_ptr<Tpdf>
+#define S_Unique                 std::shared_ptr<Unique>
 #define S_Feature                std::shared_ptr<Feature>
 #define S_Restr                  std::shared_ptr<Restr>
 #define S_Ident                  std::shared_ptr<Ident>
@@ -99,18 +100,10 @@
 		return s_vector;                                                                                                                             \
 	};
 
-#define NEW_P_LIST(data, element, size, class)                                                                                                       \
+#define NEW_LIST_CASTED(cast, data, element, size, class)                                                                                            \
 	{                                                                                                                                                \
-		auto s_vector = new vector<S_##class>;                                                                                                       \
-		if (NULL == s_vector) {                                                                                                                      \
-			return NULL;                                                                                                                             \
-		}                                                                                                                                            \
-                                                                                                                                                     \
-		for (uint8_t i = 0; i < data->size; i++) {                                                                                                   \
-			s_vector->push_back(S_##class(new class(data->element[i], _deleter)));                                                                   \
-		}                                                                                                                                            \
-                                                                                                                                                     \
-		return s_vector;                                                                                                                             \
+		struct cast *node = (struct cast *) data;                                                                                                    \
+		NEW_LIST(node, element, size, class);                                                                                                        \
 	};
 
 #define NEW_P_LIST(data, element, size, class)                                                                                                       \
@@ -125,6 +118,12 @@
 		}                                                                                                                                            \
                                                                                                                                                      \
 		return s_vector;                                                                                                                             \
+	};
+
+#define NEW_P_LIST_CASTED(cast, data, element, size, class)                                                                                          \
+	{                                                                                                                                                \
+		struct cast *node = (struct cast *) data;                                                                                                    \
+		NEW_P_LIST(node, element, size, class);                                                                                                      \
 	};
 
 #define NEW_STRING_LIST(data, element, size)                                                                                                         \
