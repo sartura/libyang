@@ -132,10 +132,6 @@ Schema_Node_Choice::Schema_Node_Choice(struct lys_node *node, S_Deleter deleter)
 Schema_Node_Choice::~Schema_Node_Choice() {};
 S_When Schema_Node_Choice::when() NEW_CASTED(lys_node_choice, _node, when, When);
 
-Schema_Node_Leaf::Schema_Node_Leaf(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {
-	_node = node;
-	_deleter = deleter;
-};
 Schema_Node_Leaf::~Schema_Node_Leaf() {};
 S_Set Schema_Node_Leaf::backlinks() NEW_CASTED(lys_node_leaf, _node, backlinks, Set);
 S_When Schema_Node_Leaf::when() NEW_CASTED(lys_node_leaf, _node, when, When);
@@ -147,6 +143,11 @@ Schema_Node_Leaflist::Schema_Node_Leaflist(struct lys_node *node, S_Deleter dele
 Schema_Node_Leaflist::~Schema_Node_Leaflist() {};
 S_Set Schema_Node_Leaflist::backlinks() NEW_CASTED(lys_node_leaflist, _node, backlinks, Set);
 S_When Schema_Node_Leaflist::when() NEW_CASTED(lys_node_leaflist, _node, when, When);
+std::vector<S_String> *Schema_Node_Leaflist::dflt() {
+	struct lys_node_leaflist *node = (struct lys_node_leaflist *)_node;
+	NEW_STRING_LIST(node, dflt, dflt_size);
+}
+std::vector<S_Restr> *Schema_Node_Leaflist::must() NEW_LIST_CASTED(lys_node_leaflist, _node, must, must_size, Restr);
 
 Schema_Node_List::Schema_Node_List(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {
 	_node = node;
@@ -154,6 +155,10 @@ Schema_Node_List::Schema_Node_List(struct lys_node *node, S_Deleter deleter) : S
 };
 Schema_Node_List::~Schema_Node_List() {};
 S_When Schema_Node_List::when() NEW_CASTED(lys_node_list, _node, when, When);
+std::vector<S_Restr> *Schema_Node_List::must() NEW_LIST_CASTED(lys_node_list, _node, must, must_size, Restr);
+std::vector<S_Tpdf> *Schema_Node_List::tpdf() NEW_LIST_CASTED(lys_node_list, _node, tpdf, tpdf_size, Tpdf);
+//std::vector<Schema_Node_Leaf> *Schema_Node_List::keys() NEW_P_LIST_CASTED(lys_node_list, _node, keys, keys_size, Schema_Node_Leaf);
+std::vector<S_Unique> *Schema_Node_List::unique() NEW_LIST_CASTED(lys_node_list, _node, unique, unique_size, Unique);
 
 Schema_Node_Anydata::Schema_Node_Anydata(struct lys_node *node, S_Deleter deleter) : Schema_Node(node, deleter) {
 	_node = node;
