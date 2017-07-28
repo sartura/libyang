@@ -112,8 +112,6 @@
 %shared_ptr(Ext_Instance);
 %newobject Ext_Instance::module;
 
-%shared_ptr(Revision);
-
 %shared_ptr(Schema_Node);
 %newobject Schema_Node::parent;
 %newobject Schema_Node::child;
@@ -269,8 +267,6 @@
 %ignore    Schema_Node_Augment::swig_node;
 %ignore    Schema_Node_Augment::swig_deleter;
 
-%shared_ptr(When);
-
 %shared_ptr(Substmt);
 
 %shared_ptr(Ext);
@@ -285,6 +281,31 @@
 
 %shared_ptr(Deviation);
 %newobject Deviation::orig_node;
+
+%shared_ptr(Import);
+%newobject Import::module;
+
+%shared_ptr(Include);
+%newobject Include::submodule;
+
+%shared_ptr(Revision);
+%newobject Tpdf::module;
+
+%shared_ptr(Tpdf);
+
+%shared_ptr(Unique);
+
+%shared_ptr(Feature);
+%newobject Feature::module;
+%newobject Feature::depfeatures;
+
+%shared_ptr(Restr);
+
+%shared_ptr(When);
+
+%shared_ptr(Ident);
+%newobject Ident::module;
+%newobject Ident::der;
 
 %shared_ptr(Error);
 
@@ -314,4 +335,5 @@
 %template(vectorXml_Elem) std::vector<S_Xml_Elem>;
 %template(vectorDeviate) std::vector<S_Deviate>;
 %template(vectorDeviation) std::vector<S_Deviation>;
+%template(vectorIdent) std::vector<S_Ident>;
 
