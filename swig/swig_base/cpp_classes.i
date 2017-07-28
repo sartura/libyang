@@ -336,4 +336,8 @@
 %template(vectorDeviate) std::vector<S_Deviate>;
 %template(vectorDeviation) std::vector<S_Deviation>;
 %template(vectorIdent) std::vector<S_Ident>;
+%template(vectorRestr) std::vector<S_Restr>;
+%template(vectorTpdf) std::vector<S_Tpdf>;
+%template(vectorUnique) std::vector<S_Unique>;
+%template(vectorSchema_Node_Leaf) std::vector<S_Schema_Node_Leaf>;
 

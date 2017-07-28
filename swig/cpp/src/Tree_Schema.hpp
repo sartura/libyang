@@ -212,7 +212,7 @@ private:
 class Schema_Node_Container : public Schema_Node
 {
 public:
-	Schema_Node_Container(struct lys_node *node, S_Deleter deleter = NULL);
+	using Schema_Node::Schema_Node;
 	~Schema_Node_Container();
 	S_When when();
     //struct lys_restr *must;          /**< array of must constraints */
@@ -227,7 +227,7 @@ private:
 class Schema_Node_Choice : public Schema_Node
 {
 public:
-	Schema_Node_Choice(struct lys_node *node, S_Deleter deleter = NULL);
+	using Schema_Node::Schema_Node;
 	~Schema_Node_Choice();
 	S_When when();
 	//struct lys_node *dflt;           /**< default case of the choice (optional) */
@@ -257,7 +257,7 @@ private:
 class Schema_Node_Leaflist : public Schema_Node
 {
 public:
-	Schema_Node_Leaflist(struct lys_node *node, S_Deleter deleter = NULL);
+	using Schema_Node::Schema_Node;
 	~Schema_Node_Leaflist();
 	uint8_t dflt_size() {return ((struct lys_node_leaflist *)_node)->dflt_size;};
 	uint8_t must_size() {return ((struct lys_node_leaflist *)_node)->must_size;};
@@ -279,7 +279,7 @@ private:
 class Schema_Node_List : public Schema_Node
 {
 public:
-	Schema_Node_List(struct lys_node *node, S_Deleter deleter = NULL);
+	using Schema_Node::Schema_Node;
 	~Schema_Node_List();
 	uint8_t must_size() {return ((struct lys_node_list *)_node)->must_size;};
 	uint8_t tpdf_size() {return ((struct lys_node_list *)_node)->tpdf_size;};
@@ -302,7 +302,7 @@ private:
 class Schema_Node_Anydata : public Schema_Node
 {
 public:
-	Schema_Node_Anydata(struct lys_node *node, S_Deleter deleter = NULL);
+	using Schema_Node::Schema_Node;
 	~Schema_Node_Anydata();
 	S_When when();
 	//struct lys_restr *must;          /**< array of must constraints */
@@ -315,7 +315,7 @@ private:
 class Schema_Node_Uses : public Schema_Node
 {
 public:
-	Schema_Node_Uses(struct lys_node *node, S_Deleter deleter = NULL);
+	using Schema_Node::Schema_Node;
 	~Schema_Node_Uses();
 	S_When when();
 	std::vector<S_Refine> *refine();
@@ -330,7 +330,7 @@ private:
 class Schema_Node_Grp : public Schema_Node
 {
 public:
-	Schema_Node_Grp(struct lys_node *node, S_Deleter deleter = NULL);
+	using Schema_Node::Schema_Node;
 	~Schema_Node_Grp();
     //struct lys_tpdf *tpdf;           /**< array of typedefs */
 
@@ -342,7 +342,7 @@ private:
 class Schema_Node_Case : public Schema_Node
 {
 public:
-	Schema_Node_Case(struct lys_node *node, S_Deleter deleter = NULL);
+	using Schema_Node::Schema_Node;
 	~Schema_Node_Case();
 	S_When when();
 
@@ -354,7 +354,7 @@ private:
 class Schema_Node_Inout : public Schema_Node
 {
 public:
-	Schema_Node_Inout(struct lys_node *node, S_Deleter deleter = NULL);
+	using Schema_Node::Schema_Node;
 	~Schema_Node_Inout();
     //struct lys_tpdf *tpdf;           /**< array of typedefs */
     //struct lys_restr *must;          /**< array of must constraints */
@@ -367,7 +367,7 @@ private:
 class Schema_Node_Notif : public Schema_Node
 {
 public:
-	Schema_Node_Notif(struct lys_node *node, S_Deleter deleter = NULL);
+	using Schema_Node::Schema_Node;
 	~Schema_Node_Notif();
     //struct lys_tpdf *tpdf;           /**< array of typedefs */
     //struct lys_restr *must;          /**< array of must constraints */
@@ -380,7 +380,7 @@ private:
 class Schema_Node_Action : public Schema_Node
 {
 public:
-	Schema_Node_Action(struct lys_node *node, S_Deleter deleter = NULL);
+	using Schema_Node::Schema_Node;
 	~Schema_Node_Action();
     //struct lys_tpdf *tpdf;           /**< array of typedefs */
 
@@ -392,7 +392,7 @@ private:
 class Schema_Node_Augment : public Schema_Node
 {
 public:
-	Schema_Node_Augment(struct lys_node *node, S_Deleter deleter = NULL);
+	using Schema_Node::Schema_Node;
 	~Schema_Node_Augment();
 	S_When when();
     //struct lys_node *target;         /**< pointer to the target node */
