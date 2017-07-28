@@ -106,7 +106,7 @@ class Submodule
 public:
 	Submodule(struct lys_submodule *submodule, S_Deleter deleter);
 	~Submodule();
-	S_Context ctx() {return _submodule->ctx ? S_Context(new Context(_submodule->ctx, _deleter)) : NULL;};
+	S_Context ctx() NEW(_submodule, ctx, Context);
 	const char *name() {return _submodule->name;};
 	const char *prefix() {return _submodule->prefix;};
 	const char *dsc() {return _submodule->dsc;};
@@ -132,7 +132,7 @@ public:
 	S_Revision rev();
 	std::vector<S_Deviation> *deviation();
 
-	S_Module belongsto() {return _submodule->belongsto ? S_Module(new Module(_submodule->belongsto, _deleter)) : NULL;};
+	S_Module belongsto() NEW(_submodule, belongsto, Module);
 
 private:
 	struct lys_submodule *_submodule;
@@ -154,7 +154,7 @@ public:
 	uint8_t ext_type() {return _ext_instance->ext_type;};
 	std::vector<S_Ext_Instance> *ext();
 	void *priv() {return _ext_instance->priv;};
-	S_Module module() {return _ext_instance->module ? S_Module(new Module(_ext_instance->module, _deleter)) : NULL;};
+	S_Module module() NEW(_ext_instance, module, Module);
 	LYS_NODE nodetype() {return _ext_instance->nodetype;};
 private:
 	struct lys_ext_instance *_ext_instance;

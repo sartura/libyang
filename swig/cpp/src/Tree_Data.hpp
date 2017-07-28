@@ -27,6 +27,7 @@
 #include <exception>
 
 #include "Internal.hpp"
+#include "Tree_Schema.hpp"
 
 extern "C" {
 #include <libyang/libyang.h>
@@ -55,15 +56,15 @@ public:
 	Data_Node(S_Data_Node parent, S_Module module, const char *name, S_Data_Node value, LYD_ANYDATA_VALUETYPE value_type);
 	Data_Node(S_Data_Node parent, S_Module module, const char *name, S_Xml_Elem value, LYD_ANYDATA_VALUETYPE value_type);
 	~Data_Node();
-	S_Schema_Node schema();
+	S_Schema_Node schema() NEW(_node, schema, Schema_Node);
 	uint8_t validity() {return _node->validity;};
 	uint8_t dflt() {return _node->dflt;};
 	uint8_t when_status() {return _node->when_status;};
 	S_Attr attr();
-	S_Data_Node next();
-	S_Data_Node prev();
-	S_Data_Node parent();
-	virtual S_Data_Node child();
+	S_Data_Node next() NEW(_node, next, Data_Node);
+	S_Data_Node prev() NEW(_node, prev, Data_Node);
+	S_Data_Node parent() NEW(_node, parent, Data_Node);
+	virtual S_Data_Node child() NEW(_node, child, Data_Node);
 
 	/* functions */
 	S_String path();
@@ -138,7 +139,7 @@ class Attr
 public:
 	Attr(struct lyd_attr *attr, S_Deleter deleter = NULL);
 	~Attr();
-	S_Data_Node parent();
+	S_Data_Node parent() NEW(_attr, parent, Data_Node);
 	S_Attr next();
 	//struct lys_ext_instance_complex *annotation
 	const char *name() {return _attr->name;};

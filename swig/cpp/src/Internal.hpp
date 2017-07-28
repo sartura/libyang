@@ -68,6 +68,59 @@
 #define S_Deviate                std::shared_ptr<Deviate>
 #define S_Deviation              std::shared_ptr<Deviation>
 
+#define NEW(data, element, class)                                                                                                                    \
+	{                                                                                                                                                \
+		return data->element ? S_##class(new class(data->element, _deleter)) : NULL;                                                                 \
+	};
+
+#define NEW_CASTED(cast, data, element, class)                                                                                                       \
+	{                                                                                                                                                \
+		cast *node = (struct cast *) data;                                                                                                           \
+		return node->element ? S_##class(new class(node->element, _deleter)) : NULL;                                                                 \
+	};
+
+#define NEW_LIST(data, element, size, class)                                                                                                         \
+	{                                                                                                                                                \
+		auto s_vector = new vector<S_##class>;                                                                                                       \
+		if (NULL == s_vector) {                                                                                                                      \
+			return NULL;                                                                                                                             \
+		}                                                                                                                                            \
+                                                                                                                                                     \
+		for (uint8_t i = 0; i < data->size; i++) {                                                                                                   \
+			s_vector->push_back(S_##class(new class(&data->element[i], _deleter)));                                                                  \
+		}                                                                                                                                            \
+                                                                                                                                                     \
+		return s_vector;                                                                                                                             \
+	};
+
+#define NEW_P_LIST(data, element, size, class)                                                                                                       \
+	{                                                                                                                                                \
+		auto s_vector = new vector<S_##class>;                                                                                                       \
+		if (NULL == s_vector) {                                                                                                                      \
+			return NULL;                                                                                                                             \
+		}                                                                                                                                            \
+                                                                                                                                                     \
+		for (uint8_t i = 0; i < data->size; i++) {                                                                                                   \
+			s_vector->push_back(S_##class(new class(data->element[i], _deleter)));                                                                   \
+		}                                                                                                                                            \
+                                                                                                                                                     \
+		return s_vector;                                                                                                                             \
+	};
+
+#define NEW_P_LIST(data, element, size, class)                                                                                                       \
+	{                                                                                                                                                \
+		auto s_vector = new vector<S_##class>;                                                                                                       \
+		if (NULL == s_vector) {                                                                                                                      \
+			return NULL;                                                                                                                             \
+		}                                                                                                                                            \
+                                                                                                                                                     \
+		for (uint8_t i = 0; i < data->size; i++) {                                                                                                   \
+			s_vector->push_back(S_##class(new class(data->element[i], _deleter)));                                                                   \
+		}                                                                                                                                            \
+                                                                                                                                                     \
+		return s_vector;                                                                                                                             \
+	};
+
 #include <iostream>
 #include <memory>
 

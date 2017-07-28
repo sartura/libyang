@@ -48,7 +48,7 @@ class Context;
 class Xml_Ns
 {
 public:
-	Xml_Ns(struct lyxml_ns *ns, S_Deleter deleter);
+	Xml_Ns(const struct lyxml_ns *ns, S_Deleter deleter);
 	~Xml_Ns();
     LYXML_ATTR_TYPE type() {return _ns->type;};
     S_Xml_Ns next();

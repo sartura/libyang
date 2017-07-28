@@ -34,20 +34,20 @@ extern "C" {
 
 using namespace std;
 
-Xml_Ns::Xml_Ns(struct lyxml_ns *ns, S_Deleter deleter) {
-	_ns = ns;
+Xml_Ns::Xml_Ns(const struct lyxml_ns *ns, S_Deleter deleter) {
+	_ns = (struct lyxml_ns *) ns;
 	_deleter = deleter;
 }
 Xml_Ns::~Xml_Ns() {}
-S_Xml_Ns Xml_Ns::next() {return _ns->next ? S_Xml_Ns(new Xml_Ns(_ns->next, _deleter)) : NULL;}
+S_Xml_Ns Xml_Ns::next() NEW(_ns, next, Xml_Ns);
 
 Xml_Attr::Xml_Attr(struct lyxml_attr *attr, S_Deleter deleter) {
 	_attr = attr;
 	_deleter = deleter;
 }
 Xml_Attr::~Xml_Attr() {}
-S_Xml_Attr Xml_Attr::next() {return _attr->next ? S_Xml_Attr(new Xml_Attr(_attr->next, _deleter)) : NULL;}
-S_Xml_Ns Xml_Attr::ns() {return _attr->ns ? S_Xml_Ns(new Xml_Ns((struct lyxml_ns *)_attr->ns, _deleter)) : NULL;}
+S_Xml_Attr Xml_Attr::next() NEW(_attr, next, Xml_Attr);
+S_Xml_Ns Xml_Attr::ns() NEW(_attr, ns, Xml_Ns);
 
 Xml_Elem::Xml_Elem(S_Context context, struct lyxml_elem *elem, S_Deleter deleter) {
 	_context = context;
@@ -56,11 +56,11 @@ Xml_Elem::Xml_Elem(S_Context context, struct lyxml_elem *elem, S_Deleter deleter
 }
 Xml_Elem::~Xml_Elem() {}
 S_Xml_Elem Xml_Elem::parent() {return _elem->parent ? S_Xml_Elem(new Xml_Elem(_context, _elem->parent, _deleter)) : NULL;}
-S_Xml_Attr Xml_Elem::attr() {return _elem->attr ? S_Xml_Attr(new Xml_Attr(_elem->attr, _deleter)) : NULL;}
+S_Xml_Attr Xml_Elem::attr() NEW(_elem, attr, Xml_Attr);
 S_Xml_Elem Xml_Elem::child() {return _elem->child ? S_Xml_Elem(new Xml_Elem(_context, _elem->child, _deleter)) : NULL;}
 S_Xml_Elem Xml_Elem::next() {return _elem->next ? S_Xml_Elem(new Xml_Elem(_context, _elem->next, _deleter)) : NULL;}
 S_Xml_Elem Xml_Elem::prev() {return _elem->prev ? S_Xml_Elem(new Xml_Elem(_context, _elem->prev, _deleter)) : NULL;}
-S_Xml_Ns Xml_Elem::ns() {return _elem->ns ? S_Xml_Ns(new Xml_Ns((struct lyxml_ns *)_elem->ns, _deleter)) : NULL;}
+S_Xml_Ns Xml_Elem::ns() NEW(_elem, ns, Xml_Ns);
 const char *Xml_Elem::get_attr(const char *name, const char *ns) {
 	return lyxml_get_attr(_elem, name, ns);
 }
