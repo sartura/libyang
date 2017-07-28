@@ -460,7 +460,7 @@ public:
 	//struct lys_iffeature *iffeature; /**< array of if-feature expressions */
 	S_Module module();
 	//struct lys_restr *must;          /**< array of additional must restrictions to be added to the target */
-	vector<string> *dflt();
+	vector<S_String> *dflt() NEW_STRING_LIST(_refine, dflt, dflt_size);
 	//union lys_refine_mod mod;        /**< mutually exclusive target modifications according to the possible target_type */
 
 private:
@@ -487,7 +487,7 @@ public:
 	//struct lys_unique *unique;       /**< Properties: unique - array of unique statement structures */
 	//struct lys_type *type;           /**< Properties: type - pointer to type in target, type cannot be deleted or added */
 	const char *units() {return _deviate->units;};
-	vector<string> *dflt();
+	vector<S_String> *dflt() NEW_STRING_LIST(_deviate, dflt, dflt_size);
 	std::vector<S_Ext_Instance> *ext();
 
 private:
