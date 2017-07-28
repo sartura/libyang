@@ -262,4 +262,4 @@ int Set::rm(S_Schema_Node node) {
 }
 int Set::rm_index(unsigned int index) {
 	return ly_set_rm_index(_set, index);
-
+}

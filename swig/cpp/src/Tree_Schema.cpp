@@ -244,36 +244,12 @@ Refine::Refine(struct lys_refine *refine, S_Deleter deleter) {
 Refine::~Refine() {};
 std::vector<S_Ext_Instance> *Refine::ext() NEW_P_LIST(_refine, ext, ext_size, Ext_Instance);
 S_Module Refine::module() NEW(_refine, module, Module);
-vector<string> *Refine::dflt() {
-	auto s_vector = new vector<string>;
-	if (NULL == s_vector) {
-		return NULL;
-	}
-
-	for(uint8_t i = 0; i < _refine->dflt_size; i++) {
-		s_vector->push_back(std::string(_refine->dflt[i]));
-	}
-
-	return s_vector;
-}
 
 Deviate::Deviate(struct lys_deviate *deviate, S_Deleter deleter) {
 	_deviate = deviate;
 	_deleter = _deleter;
 }
 Deviate::~Deviate() {};
-vector<string> *Deviate::dflt() {
-	auto s_vector = new vector<string>;
-	if (NULL == s_vector) {
-		return NULL;
-	}
-
-	for(uint8_t i = 0; i < _deviate->dflt_size; i++) {
-		s_vector->push_back(std::string(_deviate->dflt[i]));
-	}
-
-	return s_vector;
-}
 std::vector<S_Ext_Instance> *Deviate::ext() NEW_P_LIST(_deviate, ext, ext_size, Ext_Instance);
 
 Deviation::Deviation(struct lys_deviation *deviation, S_Deleter deleter) {
