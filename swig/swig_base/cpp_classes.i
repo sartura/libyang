@@ -245,16 +245,16 @@
 %ignore    Schema_Node_Notif::swig_node;
 %ignore    Schema_Node_Notif::swig_deleter;
 
-%shared_ptr(Schema_Node_Action);
-%newobject Schema_Node_Action::parent;
-%newobject Schema_Node_Action::child;
-%newobject Schema_Node_Action::next;
-%newobject Schema_Node_Action::prev;
-%newobject Schema_Node_Action::module;
-%newobject Schema_Node_Action::find_xpath;
-%newobject Schema_Node_Action::xpath_atomize;
-%ignore    Schema_Node_Action::swig_node;
-%ignore    Schema_Node_Action::swig_deleter;
+%shared_ptr(Schema_Node_Rpc_Action);
+%newobject Schema_Node_Rpc_Action::parent;
+%newobject Schema_Node_Rpc_Action::child;
+%newobject Schema_Node_Rpc_Action::next;
+%newobject Schema_Node_Rpc_Action::prev;
+%newobject Schema_Node_Rpc_Action::module;
+%newobject Schema_Node_Rpc_Action::find_xpath;
+%newobject Schema_Node_Rpc_Action::xpath_atomize;
+%ignore    Schema_Node_Rpc_Action::swig_node;
+%ignore    Schema_Node_Rpc_Action::swig_deleter;
 
 %shared_ptr(Schema_Node_Augment);
 %newobject Schema_Node_Augment::parent;
@@ -264,6 +264,7 @@
 %newobject Schema_Node_Augment::module;
 %newobject Schema_Node_Augment::find_xpath;
 %newobject Schema_Node_Augment::xpath_atomize;
+%newobject Schema_Node_Augment::target;
 %ignore    Schema_Node_Augment::swig_node;
 %ignore    Schema_Node_Augment::swig_deleter;
 

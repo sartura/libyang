@@ -146,23 +146,28 @@ std::vector<S_Unique> *Schema_Node_List::unique() NEW_LIST_CASTED(lys_node_list,
 
 Schema_Node_Anydata::~Schema_Node_Anydata() {};
 S_When Schema_Node_Anydata::when() NEW_CASTED(lys_node_anydata, _node, when, When);
+std::vector<S_Restr> *Schema_Node_Anydata::must() NEW_LIST_CASTED(lys_node_anydata, _node, must, must_size, Restr);
 
 Schema_Node_Uses::~Schema_Node_Uses() {};
 S_When Schema_Node_Uses::when() NEW_CASTED(lys_node_uses, _node, when, When);
-std::vector<S_Refine> *Schema_Node_Uses::refine() {
-	struct lys_node_uses *node = (struct lys_node_uses *)_node;
-	NEW_LIST(node, refine, refine_size, Refine);
-	};
+std::vector<S_Refine> *Schema_Node_Uses::refine() NEW_LIST_CASTED(lys_node_uses, _node, refine, refine_size, Refine);
+
 Schema_Node_Grp::~Schema_Node_Grp() {};
+std::vector<S_Tpdf> *Schema_Node_Grp::tpdf() NEW_LIST_CASTED(lys_node_grp, _node, tpdf, tpdf_size, Tpdf);
 
 Schema_Node_Case::~Schema_Node_Case() {};
 S_When Schema_Node_Case::when() NEW_CASTED(lys_node_case, _node, when, When);
 
 Schema_Node_Inout::~Schema_Node_Inout() {};
+std::vector<S_Tpdf> *Schema_Node_Inout::tpdf() NEW_LIST_CASTED(lys_node_inout, _node, tpdf, tpdf_size, Tpdf);
+std::vector<S_Restr> *Schema_Node_Inout::must() NEW_LIST_CASTED(lys_node_inout, _node, must, must_size, Restr);
 
 Schema_Node_Notif::~Schema_Node_Notif() {};
+std::vector<S_Tpdf> *Schema_Node_Notif::tpdf() NEW_LIST_CASTED(lys_node_notif, _node, tpdf, tpdf_size, Tpdf);
+std::vector<S_Restr> *Schema_Node_Notif::must() NEW_LIST_CASTED(lys_node_notif, _node, must, must_size, Restr);
 
-Schema_Node_Action::~Schema_Node_Action() {};
+Schema_Node_Rpc_Action::~Schema_Node_Rpc_Action() {};
+std::vector<S_Tpdf> *Schema_Node_Rpc_Action::tpdf() NEW_LIST_CASTED(lys_node_rpc_action, _node, tpdf, tpdf_size, Tpdf);
 
 Schema_Node_Augment::~Schema_Node_Augment() {};
 S_When Schema_Node_Augment::when() NEW_CASTED(lys_node_augment, _node, when, When);
