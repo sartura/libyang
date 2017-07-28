@@ -304,8 +304,9 @@ class Schema_Node_Anydata : public Schema_Node
 public:
 	using Schema_Node::Schema_Node;
 	~Schema_Node_Anydata();
+	uint8_t must_size() {return ((struct lys_node_list *)_node)->must_size;};
 	S_When when();
-	//struct lys_restr *must;          /**< array of must constraints */
+	std::vector<S_Restr> *must();
 
 private:
 	struct lys_node *_node;
@@ -317,10 +318,11 @@ class Schema_Node_Uses : public Schema_Node
 public:
 	using Schema_Node::Schema_Node;
 	~Schema_Node_Uses();
+	uint8_t augment_size() {return ((struct lys_node_uses *)_node)->augment_size;};
 	S_When when();
 	std::vector<S_Refine> *refine();
-    //struct lys_node_augment *augment;/**< array of local augments to the referred grouping */
-    //struct lys_node_grp *grp;        /**< referred grouping definition (mandatory) */
+	//std::vector<S_Schema_Node_Augment> *augment();
+	//S_Schema_Node_Grp *grp() NEW_CASTED(lys_node_uses, _node, grp, Schema_Node_Grp);
 
 private:
 	struct lys_node *_node;
@@ -332,7 +334,8 @@ class Schema_Node_Grp : public Schema_Node
 public:
 	using Schema_Node::Schema_Node;
 	~Schema_Node_Grp();
-    //struct lys_tpdf *tpdf;           /**< array of typedefs */
+	uint8_t tpdf_size() {return ((struct lys_node_grp *)_node)->tpdf_size;};
+	std::vector<S_Tpdf> *tpdf();
 
 private:
 	struct lys_node *_node;
@@ -356,8 +359,10 @@ class Schema_Node_Inout : public Schema_Node
 public:
 	using Schema_Node::Schema_Node;
 	~Schema_Node_Inout();
-    //struct lys_tpdf *tpdf;           /**< array of typedefs */
-    //struct lys_restr *must;          /**< array of must constraints */
+	uint8_t tpdf_size() {return ((struct lys_node_inout *)_node)->tpdf_size;};
+	uint8_t must_size() {return ((struct lys_node_inout *)_node)->must_size;};
+	std::vector<S_Tpdf> *tpdf();
+	std::vector<S_Restr> *must();
 
 private:
 	struct lys_node *_node;
@@ -369,20 +374,23 @@ class Schema_Node_Notif : public Schema_Node
 public:
 	using Schema_Node::Schema_Node;
 	~Schema_Node_Notif();
-    //struct lys_tpdf *tpdf;           /**< array of typedefs */
-    //struct lys_restr *must;          /**< array of must constraints */
+	uint8_t tpdf_size() {return ((struct lys_node_notif *)_node)->tpdf_size;};
+	uint8_t must_size() {return ((struct lys_node_notif *)_node)->must_size;};
+	std::vector<S_Tpdf> *tpdf();
+	std::vector<S_Restr> *must();
 
 private:
 	struct lys_node *_node;
 	S_Deleter _deleter;
 };
 
-class Schema_Node_Action : public Schema_Node
+class Schema_Node_Rpc_Action : public Schema_Node
 {
 public:
 	using Schema_Node::Schema_Node;
-	~Schema_Node_Action();
-    //struct lys_tpdf *tpdf;           /**< array of typedefs */
+	~Schema_Node_Rpc_Action();
+	uint8_t tpdf_size() {return ((struct lys_node_rpc_action *)_node)->tpdf_size;};
+	std::vector<S_Tpdf> *tpdf();
 
 private:
 	struct lys_node *_node;
@@ -395,7 +403,7 @@ public:
 	using Schema_Node::Schema_Node;
 	~Schema_Node_Augment();
 	S_When when();
-    //struct lys_node *target;         /**< pointer to the target node */
+	S_Schema_Node target() NEW_CASTED(lys_node_augment, _node, target, Schema_Node);
 
 private:
 	struct lys_node *_node;
