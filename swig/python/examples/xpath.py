@@ -22,7 +22,7 @@ except Exception as e:
     print(e)
     sys.exit()
 
-node_set = node.find_xpath("/turing-machine:turing-machine/transition-function/delta[label='left summand']/*")
+node_set = node.find_path("/turing-machine:turing-machine/transition-function/delta[label='left summand']/*")
 if node_set is None:
     print("could not find data for xpath")
     sys.exit()

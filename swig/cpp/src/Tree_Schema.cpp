@@ -72,8 +72,8 @@ S_Schema_Node Schema_Node::parent() NEW(_node, parent, Schema_Node);
 S_Schema_Node Schema_Node::child() NEW(_node, child, Schema_Node);
 S_Schema_Node Schema_Node::next() NEW(_node, next, Schema_Node);
 S_Schema_Node Schema_Node::prev() NEW(_node, prev, Schema_Node); 
-S_Set Schema_Node::find_xpath(const char *expr, int options) {
-	struct ly_set *set = lys_find_xpath(_node, expr, options);
+S_Set Schema_Node::find_xpath(const char *path) {
+	struct ly_set *set = lys_find_path(_node->module, _node, path);
 	if (NULL == set) {
 		return NULL;
 	}

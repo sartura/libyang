@@ -68,7 +68,6 @@ public:
 
 	/* functions */
 	S_String path();
-	S_String qualified_path();
 	S_Data_Node dup(int recursive);
 	S_Data_Node dup_to_ctx(int recursive, S_Context context);
 	int merge(S_Data_Node source, int options);
@@ -78,7 +77,7 @@ public:
 	int insert_before(S_Data_Node node);
 	int insert_after(S_Data_Node node);
 	int schema_sort(int recursive);
-	S_Set find_xpath(const char *expr);
+	S_Set find_path(const char *expr);
 	S_Set find_instance(S_Schema_Node schema);
 	S_Data_Node first_sibling();
 	int validate(int options, S_Context var_arg);

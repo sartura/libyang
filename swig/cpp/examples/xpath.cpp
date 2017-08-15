@@ -54,7 +54,7 @@ int main() {
 		return -1;
 	}
 
-	auto node_set = node->find_xpath("/turing-machine:turing-machine/transition-function/delta[label='left summand']/*");\
+	auto node_set = node->find_path("/turing-machine:turing-machine/transition-function/delta[label='left summand']/*");\
 	if (NULL == node_set) {
 		printf("could not find data for xpath\n");
 		return -1;
