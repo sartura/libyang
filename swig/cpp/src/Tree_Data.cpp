@@ -129,18 +129,6 @@ S_String Data_Node::path() {
     free(path);
     return s_path;
 }
-S_String Data_Node::qualified_path() {
-	char *qualified_path = NULL;
-
-	qualified_path = lyd_qualified_path(_node);
-	if (NULL == qualified_path) {
-		return NULL;
-	}
-
-    S_String s_qualified_path = qualified_path;
-    free(qualified_path);
-    return s_qualified_path;
-}
 S_Data_Node Data_Node::dup(int recursive) {
 	struct lyd_node *node = NULL;
 
@@ -176,8 +164,8 @@ int Data_Node::insert_after(S_Data_Node node) {
 int Data_Node::schema_sort(int recursive) {
 	return lyd_schema_sort(_node, recursive);
 }
-S_Set Data_Node::find_xpath(const char *expr) {
-	struct ly_set *set = lyd_find_xpath(_node, expr);
+S_Set Data_Node::find_path(const char *expr) {
+	struct ly_set *set = lyd_find_path(_node, expr);
 	if (NULL == set) {
 		return NULL;
 	}
