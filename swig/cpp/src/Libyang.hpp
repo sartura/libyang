@@ -30,7 +30,7 @@
 #include "Internal.hpp"
 
 extern "C" {
-#include <libyang/libyang.h>
+#include "../../../src/libyang.h"
 }
 
 using namespace std;

@@ -28,8 +28,8 @@
 #include "Xml.hpp"
 
 extern "C" {
-#include <libyang/libyang.h>
-#include <libyang/xml.h>
+#include "../../../src/libyang.h"
+#include "../../../src/xml.h"
 }
 
 using namespace std;

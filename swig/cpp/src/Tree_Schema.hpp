@@ -30,8 +30,8 @@
 #include "Libyang.hpp"
 
 extern "C" {
-#include <libyang/libyang.h>
-#include <libyang/tree_schema.h>
+#include "../../../src/libyang.h"
+#include "../../../src/tree_schema.h"
 }
 
 using namespace std;
