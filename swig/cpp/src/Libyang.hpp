@@ -52,8 +52,8 @@ class Error
 /* add custom deleter for Context class */
 public:
 	Error() {
-		_err = *ly_errno_location();
-		_vecode = *ly_vecode_location();
+		_err = ly_errno;
+		_vecode = ly_vecode;
 		_errmsg = ly_errmsg();
 		_errpath = ly_errpath();
 		_errapptag = ly_errapptag();
