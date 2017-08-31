@@ -167,7 +167,18 @@ S_Data_Node Context::parse_fd(int fd, LYD_FORMAT format, int options) {
 	S_Deleter deleter = S_Deleter(new Deleter(node, _deleter));
 	return S_Data_Node(new Data_Node(node, deleter));
 }
-S_Data_Node Context::parse_path(const char *path, LYD_FORMAT format, int options) {
+S_Module Context::parse_path(const char *path, LYS_INFORMAT format) {
+	struct lys_module *module = NULL;
+
+	module = (struct lys_module *) lys_parse_path(_ctx, path, format);
+	if (NULL == module) {
+		return NULL;
+	}
+
+	S_Deleter deleter = S_Deleter(new Deleter(module, _deleter));
+	return S_Module(new Module(module, deleter));
+}
+S_Data_Node Context::parse_data_path(const char *path, LYD_FORMAT format, int options) {
 	struct lyd_node *node = NULL;
 
 	node = lyd_parse_path(_ctx, path, format, options);

@@ -48,7 +48,7 @@ int main() {
 
 	S_Data_Node node = NULL;
 	try {
-		node = ctx->parse_path("/etc/sysrepo/data/turing-machine.startup", LYD_XML, LYD_OPT_CONFIG);
+		node = ctx->parse_data_path("/etc/sysrepo/data/turing-machine.startup", LYD_XML, LYD_OPT_CONFIG);
     } catch( const std::exception& e ) {
 		cout << e.what() << endl;
 		return -1;

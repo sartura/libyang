@@ -97,8 +97,9 @@ public:
 	/* functions */
 	S_Data_Node parse_mem(const char *data, LYD_FORMAT format, int options);
 	S_Data_Node parse_fd(int fd, LYD_FORMAT format, int options);
-	S_Data_Node parse_path(const char *path, LYD_FORMAT format, int options);
+	S_Data_Node parse_data_path(const char *path, LYD_FORMAT format, int options);
 	S_Data_Node parse_xml(S_Xml_Elem elem, int options);
+	S_Module parse_path(const char *path, LYS_INFORMAT format);
 
 	friend Data_Node;
 	friend Deleter;
