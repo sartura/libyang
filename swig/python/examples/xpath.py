@@ -17,7 +17,7 @@ if module is None:
     sys.exit()
 
 try:
-    node = ctx.parse_path("/etc/sysrepo/data/turing-machine.startup", ly.LYD_XML, ly.LYD_OPT_CONFIG)
+    node = ctx.parse_data_path("/etc/sysrepo/data/turing-machine.startup", ly.LYD_XML, ly.LYD_OPT_CONFIG)
 except Exception as e:
     print(e)
     sys.exit()

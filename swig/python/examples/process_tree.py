@@ -23,12 +23,12 @@ else:
     module = ctx.load_module("turing-machine", None)
 
 try:
-    node = ctx.parse_path("/etc/sysrepo/data/turing-machine.startup", ly.LYD_XML, ly.LYD_OPT_CONFIG)
+    node = ctx.parse_data_path("/etc/sysrepo/data/turing-machine.startup", ly.LYD_XML, ly.LYD_OPT_CONFIG)
 except Exception as e:
     print(e)
 
 if node is None:
-    print("parse_path did not return any nodes")
+    print("parse_data_path did not return any nodes")
 else:
     print("tree_dfs\n")
     data_list = node.tree_dfs()
