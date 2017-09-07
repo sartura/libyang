@@ -38,7 +38,7 @@ using namespace std;
 
 /* defined */
 class Module;
-class Subodule;
+class Submodule;
 class Ext_Instance;
 class Schema_Node;
 class Schema_Node_Container;
@@ -203,6 +203,7 @@ public:
 
 	friend Set;
 	friend Data_Node;
+	friend Context;
 
 private:
 	struct lys_node *_node;

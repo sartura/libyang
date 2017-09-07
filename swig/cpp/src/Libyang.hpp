@@ -42,7 +42,9 @@ class Set;
 
 /* used */
 class Module;
+class Submodule;
 class Data_Node;
+class Schema_Node;
 class Schema_Node;
 class Xml_Elem;
 class Deleter;
@@ -92,6 +94,9 @@ public:
 	S_Module get_module_older(S_Module module);
 	S_Module load_module(const char *name, const char *revision);
 	S_Module get_module_by_ns(const char *ns, const char *revision);
+	S_Submodule get_submodule(const char *module, const char *revision, const char *submodule, const char *sub_revision);
+	S_Submodule get_submodule2(S_Module main_module, const char *submodule);
+	S_Schema_Node get_node(S_Schema_Node start, const char *data_path, int output);
 	void clean();
 
 	/* functions */

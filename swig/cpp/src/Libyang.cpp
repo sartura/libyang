@@ -145,6 +145,27 @@ vector<string> *Context::get_searchdirs() {
 
 	return s_vector;
 };
+S_Submodule Context::get_submodule(const char *module, const char *revision, const char *submodule, const char *sub_revision) {
+	const struct lys_submodule *tmp_submodule = NULL;
+
+	tmp_submodule = ly_ctx_get_submodule(_ctx, module, revision, submodule, sub_revision);
+
+	return tmp_submodule ? S_Submodule(new Submodule((struct lys_submodule *) tmp_submodule, _deleter)) : NULL;
+}
+S_Submodule Context::get_submodule2(S_Module main_module, const char *submodule) {
+	const struct lys_submodule *tmp_submodule = NULL;
+
+	tmp_submodule = ly_ctx_get_submodule2(main_module->_module, submodule);
+
+	return tmp_submodule ? S_Submodule(new Submodule((struct lys_submodule *) tmp_submodule, _deleter)) : NULL;
+}
+S_Schema_Node Context::get_node(S_Schema_Node start, const char *data_path, int output) {
+	const struct lys_node *node = NULL;
+
+	node = ly_ctx_get_node(_ctx, start->_node, data_path, output);
+
+	return node ? S_Schema_Node(new Schema_Node((struct lys_node *) node, _deleter)) : NULL;
+}
 S_Data_Node Context::parse_mem(const char *data, LYD_FORMAT format, int options) {
 	struct lyd_node *node = NULL;
 
