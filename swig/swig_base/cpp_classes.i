@@ -70,6 +70,7 @@
 %newobject Data_Node::find_instance;
 %ignore    Data_Node::swig_node;
 %ignore    Data_Node::swig_deleter;
+%newobject Data_Node::diff;
 
 %shared_ptr(Data_Node_Leaf_List);
 %newobject Data_Node_Leaf_List::value;
@@ -87,6 +88,7 @@
 %newobject Data_Node_Leaf_List::find_instance;
 %ignore    Data_Node_Leaf_List::swig_node;
 %ignore    Data_Node_Leaf_List::swig_deleter;
+%newobject Data_Node::diff;
 
 %shared_ptr(Data_Node_Anydata);
 %newobject Data_Node_Anydata::schema;
@@ -103,12 +105,14 @@
 %newobject Data_Node_Anydata::find_instance;
 %ignore    Data_Node_Anydata::swig_node;
 %ignore    Data_Node_Anydata::swig_deleter;
+%newobject Data_Node::diff;
 
 %shared_ptr(Attr);
 %newobject Attr::value;
 %newobject Attr::parent;
 %newobject Attr::next;
 
+%shared_ptr(Difflist);
 
 /* Tree_Schema.hpp */
 %shared_ptr(Module);

@@ -42,6 +42,7 @@ class Data_Node;
 class Data_Node_Leaf_List;
 class Data_Node_Anydata;
 class Attr;
+class Difflist;
 
 /* used */
 class Schema_Node;
@@ -113,6 +114,7 @@ public:
 	int validate(int options, S_Context var_arg);
 	int validate(int options, S_Data_Node var_arg);
 	//int lyd_wd_default(struct lyd_node_leaf_list *node);
+	S_Difflist diff(S_Data_Node second, int options);
 
 	/* emulate TREE macro's */
 	std::vector<S_Data_Node> *tree_for();
@@ -177,6 +179,20 @@ public:
 	uint16_t value_type() {return _attr->value_type;};
 private:
 	struct lyd_attr *_attr;
+	S_Deleter _deleter;
+};
+
+class Difflist
+{
+public:
+	Difflist(struct lyd_difflist *diff, S_Deleter deleter);
+	~Difflist();
+    LYD_DIFFTYPE *type() {return _diff->type;};
+	std::vector<S_Data_Node> *first();
+	std::vector<S_Data_Node> *second();
+
+private:
+	struct lyd_difflist *_diff;
 	S_Deleter _deleter;
 };
 

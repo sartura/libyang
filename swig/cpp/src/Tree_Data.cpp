@@ -212,6 +212,13 @@ int Data_Node::validate(int options, S_Context var_arg) {
 int Data_Node::validate(int options, S_Data_Node var_arg) {
 	return lyd_validate(&_node, options, (void *) var_arg->_node);
 }
+S_Difflist Data_Node::diff(S_Data_Node second, int options) {
+	struct lyd_difflist *diff;
+
+	diff = lyd_diff(_node, second->_node, options);
+
+	return diff ? S_Difflist(new Difflist(diff, _deleter)) : NULL;
+}
 std::vector<S_Data_Node> *Data_Node::tree_for() {
 	auto s_vector = new vector<S_Data_Node>;
 
@@ -274,3 +281,43 @@ S_Value Attr::value() {
 	return S_Value(new Value(leaf->value, leaf->value_type, _deleter));
 }
 S_Attr Attr::next() NEW(_attr, next, Attr);
+
+Difflist::Difflist(struct lyd_difflist *diff, S_Deleter deleter) {
+	_diff = diff;
+	_deleter = S_Deleter(new Deleter(diff, deleter));
+}
+Difflist::~Difflist() {};
+std::vector<S_Data_Node> *Difflist::first() {
+	int i = 0;
+	if (NULL == *_diff->first) {
+		return NULL;
+	}
+
+	auto s_vector = new vector<S_Data_Node>;
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	for(i = 0; i < sizeof(*_diff->first); i++) {
+		s_vector->push_back(S_Data_Node(new Data_Node(*_diff->first, _deleter)));
+	}
+
+	return s_vector;
+}
+std::vector<S_Data_Node> *Difflist::second() {
+	int i = 0;
+	if (NULL == *_diff->second) {
+		return NULL;
+	}
+
+	auto s_vector = new vector<S_Data_Node>;
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	for(i = 0; i < sizeof(*_diff->second); i++) {
+		s_vector->push_back(S_Data_Node(new Data_Node(*_diff->second, _deleter)));
+	}
+
+	return s_vector;
+}
