@@ -86,6 +86,12 @@ public:
 	Data_Node(S_Data_Node parent, S_Module module, const char *name, const char *value, LYD_ANYDATA_VALUETYPE value_type);
 	Data_Node(S_Data_Node parent, S_Module module, const char *name, S_Data_Node value, LYD_ANYDATA_VALUETYPE value_type);
 	Data_Node(S_Data_Node parent, S_Module module, const char *name, S_Xml_Elem value, LYD_ANYDATA_VALUETYPE value_type);
+	//TODO
+	//struct lyd_node *lyd_new_output(struct lyd_node *parent, const struct lys_module *module, const char *name);
+	//struct lyd_node *lyd_new_output_leaf(struct lyd_node *parent, const struct lys_module *module, const char *name,
+	//                                     const char *val_str);
+	//struct lyd_node *lyd_new_output_leaf(struct lyd_node *parent, const struct lys_module *module, const char *name,
+	//                                     void *value, LYD_ANYDATA_VALUETYPE value_type);
 	~Data_Node();
 	S_Schema_Node schema() NEW(_node, schema, Schema_Node);
 	uint8_t validity() {return _node->validity;};
