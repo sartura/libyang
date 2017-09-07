@@ -68,6 +68,11 @@ Deleter::Deleter(struct ly_set *set, S_Deleter parent) {
 	_t = SET;
 	_parent = parent;
 }
+Deleter::Deleter(struct lyd_difflist *diff, S_Deleter parent) {
+	_v.diff = diff;
+	_t = DIFFLIST;
+	_parent = parent;
+}
 Deleter::~Deleter() {
 	switch(_t) {
 	case CONTEXT:
@@ -92,5 +97,8 @@ Deleter::~Deleter() {
 		if (_v.set) ly_set_free(_v.set);
 		_v.set = NULL;
 		break;
+	case DIFFLIST:
+		if (_v.diff) lyd_free_diff(_v.diff);
+		_v.diff = NULL;
 	}
 };

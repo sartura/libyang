@@ -41,6 +41,7 @@
 #define S_Data_Node_Leaf_List    std::shared_ptr<Data_Node_Leaf_List>
 #define S_Data_Node_Anydata      std::shared_ptr<Data_Node_Anydata>
 #define S_Attr                   std::shared_ptr<Attr>
+#define S_Difflist               std::shared_ptr<Difflist>
 
 /* Tree_Schema.hpp */
 #define S_Module                 std::shared_ptr<Module>
@@ -167,6 +168,7 @@ typedef enum free_type_e {
     SUBMODULE,
     XML,
 	SET,
+	DIFFLIST,
 } free_type_t;
 
 typedef union value_e {
@@ -177,6 +179,7 @@ typedef union value_e {
 	struct lys_submodule *submodule;
 	struct lyxml_elem *elem;
 	struct ly_set *set;
+	struct lyd_difflist *diff;
 } value_t;
 
 class Deleter
@@ -189,6 +192,7 @@ public:
     Deleter(struct lys_submodule *submodule, S_Deleter parent = NULL);
     Deleter(S_Context context, struct lyxml_elem *elem, S_Deleter parent = NULL);
     Deleter(struct ly_set *set, S_Deleter parent = NULL);
+    Deleter(struct lyd_difflist *diff, S_Deleter parent = NULL);
     ~Deleter();
 
 private:
