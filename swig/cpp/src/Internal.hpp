@@ -36,6 +36,7 @@
 #define S_Set                    std::shared_ptr<Set>
 
 /* Tree_Data.hpp */
+#define S_Value                  std::shared_ptr<Value>
 #define S_Data_Node              std::shared_ptr<Data_Node>
 #define S_Data_Node_Leaf_List    std::shared_ptr<Data_Node_Leaf_List>
 #define S_Data_Node_Anydata      std::shared_ptr<Data_Node_Anydata>

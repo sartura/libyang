@@ -36,6 +36,25 @@ extern "C" {
 
 using namespace std;
 
+Value::Value(lyd_val value, uint16_t value_type, S_Deleter deleter) {
+	_value = value;
+	_type = value_type;
+	_deleter = deleter;
+}
+Value::~Value() {};
+S_Data_Node Value::instance() {
+	if (LY_TYPE_INST != _type) {
+		return NULL;
+	}
+	return _value.instance ? S_Data_Node(new Data_Node(_value.instance, _deleter)) : NULL;
+}
+S_Data_Node Value::leafref() {
+	if (LY_TYPE_LEAFREF != _type) {
+		return NULL;
+	}
+	return _value.leafref ? S_Data_Node(new Data_Node(_value.leafref, _deleter)) : NULL;
+}
+
 Data_Node::Data_Node(struct lyd_node *node, S_Deleter deleter) {
 	_node = node;
 	_deleter = deleter;
@@ -228,6 +247,10 @@ Data_Node_Leaf_List::Data_Node_Leaf_List(struct lyd_node *node, S_Deleter delete
 	_deleter = deleter;
 };
 Data_Node_Leaf_List::~Data_Node_Leaf_List() {};
+S_Value Data_Node_Leaf_List::value() {
+	struct lyd_node_leaf_list *leaf = (struct lyd_node_leaf_list *) _node;
+	return S_Value(new Value(leaf->value, leaf->value_type, _deleter));
+}
 int Data_Node_Leaf_List::change_leaf(const char *val_str) {
 	return lyd_change_leaf((struct lyd_node_leaf_list *) _node, val_str);
 }
@@ -246,4 +269,8 @@ Attr::Attr(struct lyd_attr *attr, S_Deleter deleter) {
 	_deleter = deleter;
 };
 Attr::~Attr() {};
+S_Value Attr::value() {
+	struct lyd_node_leaf_list *leaf = (struct lyd_node_leaf_list *) _attr;
+	return S_Value(new Value(leaf->value, leaf->value_type, _deleter));
+}
 S_Attr Attr::next() NEW(_attr, next, Attr);
