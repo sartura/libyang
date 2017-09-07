@@ -120,9 +120,15 @@ public:
 	S_Data_Node first_sibling();
 	int validate(int options, S_Context var_arg);
 	int validate(int options, S_Data_Node var_arg);
-	//int lyd_wd_default(struct lyd_node_leaf_list *node);
+	int validate_value(const char *value) {return lyd_validate_value(_node->schema, value);};
 	S_Difflist diff(S_Data_Node second, int options);
 	S_Data_Node new_path(S_Context ctx, const char *path, void *value, LYD_ANYDATA_VALUETYPE value_type, int options);
+	unsigned int list_pos() {return lyd_list_pos(_node);};
+	int unlink() {return lyd_unlink(_node);};
+	S_Attr insert_attr(S_Module module, const char *name, const char *value);
+	S_Module node_module();
+	//const struct lys_type *lyd_leaf_type(const struct lyd_node_leaf_list *leaf);
+	S_String print_mem(LYD_FORMAT format, int options);
 
 	/* emulate TREE macro's */
 	std::vector<S_Data_Node> *tree_for();
