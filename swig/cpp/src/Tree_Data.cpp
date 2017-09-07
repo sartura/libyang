@@ -226,6 +226,34 @@ S_Data_Node Data_Node::new_path(S_Context ctx, const char *path, void *value, LY
 
 	return node ? S_Data_Node(new Data_Node(node, _deleter)) : NULL;
 }
+S_Attr Data_Node::insert_attr(S_Module module, const char *name, const char *value) {
+	struct lyd_attr *attr = NULL;
+
+	attr = lyd_insert_attr(_node, module->_module, name, value);
+
+	return attr ? S_Attr(new Attr(attr, _deleter)) : NULL;
+}
+S_Module Data_Node::node_module() {
+	struct lys_module *module = NULL;
+
+	module = lyd_node_module(_node);
+
+	return module ? S_Module(new Module(module, _deleter)) : NULL;
+}
+S_String Data_Node::print_mem(LYD_FORMAT format, int options) {
+	char *strp = NULL;
+	int rc = 0;
+
+	rc = lyd_print_mem(&strp, _node, format, options);
+	if (0 != rc) {
+		return NULL;
+	}
+
+    S_String s_strp = strp;
+    free(strp);
+    return s_strp;
+
+}
 std::vector<S_Data_Node> *Data_Node::tree_for() {
 	auto s_vector = new vector<S_Data_Node>;
 
