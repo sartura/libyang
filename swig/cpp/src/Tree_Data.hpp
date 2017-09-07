@@ -37,6 +37,7 @@ extern "C" {
 using namespace std;
 
 /* defined */
+class Value;
 class Data_Node;
 class Data_Node_Leaf_List;
 class Data_Node_Anydata;
@@ -45,6 +46,35 @@ class Attr;
 /* used */
 class Schema_Node;
 class Xml_Elem;
+
+class Value
+{
+public:
+	Value(lyd_val value, uint16_t value_type, S_Deleter deleter);
+	~Value();
+	const char *binary() {LY_TYPE_BINARY == _type ? _value.binary : NULL;};
+	//struct lys_type_bit **bit();
+	int8_t bln() {LY_TYPE_BOOL == _type ? _value.bln : throw "wrong type";};
+	int64_t dec64() {LY_TYPE_DEC64 == _type ? _value.dec64 : throw "wrong type";};
+	//struct lys_type_enum *enm;   /**< pointer to the schema definition of the enumeration value */
+	//struct lys_ident *ident;     /**< pointer to the schema definition of the identityref value */
+	S_Data_Node instance();
+	int8_t int8() {LY_TYPE_INT8 == _type ? _value.int8 : throw "wrong type";};
+	int16_t int16() {LY_TYPE_INT16 == _type ? _value.int16 : throw "wrong type";};
+	int32_t int32() {LY_TYPE_INT32 == _type ? _value.int32 : throw "wrong type";};
+	int64_t int64() {LY_TYPE_INT64 == _type ? _value.int64 : throw "wrong type";};
+	S_Data_Node leafref();
+	const char *string() {LY_TYPE_STRING == _type ? _value.string : NULL;};
+	int8_t uint8() {LY_TYPE_UINT8 == _type ? _value.uint8 : throw "wrong type";};
+	int16_t uint16() {LY_TYPE_UINT16 == _type ? _value.uint16 : throw "wrong type";};
+	int32_t uintu32() {LY_TYPE_UINT32 == _type ? _value.uint32 : throw "wrong type";};
+	int64_t uint64() {LY_TYPE_UINT64 == _type ? _value.uint64 : throw "wrong type";};
+
+private:
+	lyd_val _value;
+	uint16_t _type;
+	S_Deleter _deleter;
+};
 
 class Data_Node
 {
@@ -104,9 +134,9 @@ class Data_Node_Leaf_List : public Data_Node
 public:
 	Data_Node_Leaf_List(struct lyd_node *node, S_Deleter deleter = NULL);
 	~Data_Node_Leaf_List();
-    const char *value_str() {return ((struct lyd_node_leaf_list *) _node)->value_str;};
-    //lyd_val value;                   /**< node's value representation, always corresponds to schema->type.base */
-    uint16_t value_type() {return ((struct lyd_node_leaf_list *) _node)->value_type;};
+	const char *value_str() {return ((struct lyd_node_leaf_list *) _node)->value_str;};
+	S_Value value();
+	uint16_t value_type() {return ((struct lyd_node_leaf_list *) _node)->value_type;};
 	S_Data_Node child() {return NULL;};
 
 	/* functions */
@@ -143,7 +173,7 @@ public:
 	//struct lys_ext_instance_complex *annotation
 	const char *name() {return _attr->name;};
 	const char *value_str() {return _attr->value_str;};
-	//lyd_val value;
+	S_Value value();
 	uint16_t value_type() {return _attr->value_type;};
 private:
 	struct lyd_attr *_attr;

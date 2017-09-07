@@ -51,6 +51,10 @@
 
 
 /* Tree_Data.hpp */
+%shared_ptr(Value);
+%newobject Value::instance;
+%newobject Value::leafref;
+
 %shared_ptr(Data_Node);
 %newobject Data_Node::schema;
 %newobject Data_Node::attr;
@@ -68,6 +72,7 @@
 %ignore    Data_Node::swig_deleter;
 
 %shared_ptr(Data_Node_Leaf_List);
+%newobject Data_Node_Leaf_List::value;
 %newobject Data_Node_Leaf_List::schema;
 %newobject Data_Node_Leaf_List::attr;
 %newobject Data_Node_Leaf_List::next;
@@ -100,6 +105,7 @@
 %ignore    Data_Node_Anydata::swig_deleter;
 
 %shared_ptr(Attr);
+%newobject Attr::value;
 %newobject Attr::parent;
 %newobject Attr::next;
 
