@@ -71,6 +71,7 @@
 %ignore    Data_Node::swig_node;
 %ignore    Data_Node::swig_deleter;
 %newobject Data_Node::diff;
+%newobject Data_Node::new_path;
 
 %shared_ptr(Data_Node_Leaf_List);
 %newobject Data_Node_Leaf_List::value;
@@ -89,6 +90,7 @@
 %ignore    Data_Node_Leaf_List::swig_node;
 %ignore    Data_Node_Leaf_List::swig_deleter;
 %newobject Data_Node::diff;
+%newobject Data_Node::new_path;
 
 %shared_ptr(Data_Node_Anydata);
 %newobject Data_Node_Anydata::schema;
@@ -106,6 +108,7 @@
 %ignore    Data_Node_Anydata::swig_node;
 %ignore    Data_Node_Anydata::swig_deleter;
 %newobject Data_Node::diff;
+%newobject Data_Node::new_path;
 
 %shared_ptr(Attr);
 %newobject Attr::value;
