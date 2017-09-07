@@ -219,6 +219,13 @@ S_Difflist Data_Node::diff(S_Data_Node second, int options) {
 
 	return diff ? S_Difflist(new Difflist(diff, _deleter)) : NULL;
 }
+S_Data_Node Data_Node::new_path(S_Context ctx, const char *path, void *value, LYD_ANYDATA_VALUETYPE value_type, int options) {
+	struct lyd_node *node = NULL;
+
+	node = lyd_new_path(_node, ctx->_ctx, path, value, value_type, options);
+
+	return node ? S_Data_Node(new Data_Node(node, _deleter)) : NULL;
+}
 std::vector<S_Data_Node> *Data_Node::tree_for() {
 	auto s_vector = new vector<S_Data_Node>;
 

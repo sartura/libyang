@@ -47,6 +47,7 @@ class Difflist;
 /* used */
 class Schema_Node;
 class Xml_Elem;
+class Context;
 
 class Value
 {
@@ -121,6 +122,7 @@ public:
 	int validate(int options, S_Data_Node var_arg);
 	//int lyd_wd_default(struct lyd_node_leaf_list *node);
 	S_Difflist diff(S_Data_Node second, int options);
+	S_Data_Node new_path(S_Context ctx, const char *path, void *value, LYD_ANYDATA_VALUETYPE value_type, int options);
 
 	/* emulate TREE macro's */
 	std::vector<S_Data_Node> *tree_for();
