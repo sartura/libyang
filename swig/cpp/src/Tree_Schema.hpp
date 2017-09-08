@@ -39,6 +39,20 @@ using namespace std;
 /* defined */
 class Module;
 class Submodule;
+class Type_Info_Binary;
+class Type_Bit;
+class Type_Info_Bits;
+class Type_Info_Dec64;
+class Type_Info_Enum;
+class Type_Info_Enums;
+class Type_Info_Ident;
+class Type_Info_Inst;
+class Type_Info_Num;
+class Type_Info_Lref;
+class Type_Info_Str;
+class Type_Info_Union;
+class Type_Info;
+class Type;
 class Ext_Instance;
 class Schema_Node;
 class Schema_Node_Container;
@@ -146,6 +160,217 @@ private:
 	S_Deleter _deleter;
 };
 
+class Type_Info_Binary
+{
+public:
+	Type_Info_Binary(struct lys_type_info_binary *info_binary, S_Deleter deleter);
+	~Type_Info_Binary();
+	S_Restr length();
+
+private:
+	lys_type_info_binary *_info_binary;
+	S_Deleter _deleter;
+};
+
+class Type_Bit
+{
+public:
+	Type_Bit(struct lys_type_bit *info_bit, S_Deleter deleter);
+	~Type_Bit();
+	const char *name() {return _info_bit->name;};
+	const char *dsc() {return _info_bit->dsc;};
+	const char *ref() {return _info_bit->ref;};
+	uint16_t flags() {return _info_bit->flags;};
+	uint8_t ext_size() {return _info_bit->ext_size;};
+	uint8_t iffeature_size() {return _info_bit->iffeature_size;};
+	uint32_t pos() {return _info_bit->pos;};
+	std::vector<S_Ext_Instance> *ext();
+	//struct lys_iffeature *iffeature; /**< array of if-feature expressions */
+
+private:
+	lys_type_bit *_info_bit;
+	S_Deleter _deleter;
+};
+
+class Type_Info_Bits
+{
+public:
+	Type_Info_Bits(struct lys_type_info_bits *info_bits, S_Deleter deleter);
+	~Type_Info_Bits();
+	S_Type_Bit bit();
+	int count() {return _info_bits->count;};
+
+private:
+	lys_type_info_bits *_info_bits;
+	S_Deleter _deleter;
+};
+
+class Type_Info_Dec64
+{
+public:
+	Type_Info_Dec64(struct lys_type_info_dec64 *info_dec64, S_Deleter deleter);
+	~Type_Info_Dec64();
+	S_Restr range();
+	uint8_t dig() {return _info_dec64->dig;}
+	uint8_t div() {return _info_dec64->div;}
+
+private:
+	lys_type_info_dec64 *_info_dec64;
+	S_Deleter _deleter;
+};
+
+class Type_Enum
+{
+public:
+	Type_Enum(struct lys_type_enum *info_enum, S_Deleter deleter);
+	~Type_Enum();
+	const char *name() {return _info_enum->name;};
+	const char *dsc() {return _info_enum->dsc;};
+	const char *ref() {return _info_enum->ref;};
+	uint16_t flags() {return _info_enum->flags;};
+	uint8_t ext_size() {return _info_enum->ext_size;};
+	uint8_t iffeature_size() {return _info_enum->iffeature_size;};
+	int32_t value() {return _info_enum->value;};
+	std::vector<S_Ext_Instance> *ext();
+	//struct lys_iffeature *iffeature; /**< array of if-feature expressions */
+
+private:
+	lys_type_enum *_info_enum;
+	S_Deleter _deleter;
+};
+
+class Type_Info_Enums
+{
+public:
+	Type_Info_Enums(struct lys_type_info_enums *info_enums, S_Deleter deleter);
+	~Type_Info_Enums();
+	S_Type_Enum enm();
+	int count() {return _info_enums->count;};
+
+private:
+	lys_type_info_enums *_info_enums;
+	S_Deleter _deleter;
+};
+
+class Type_Info_Ident
+{
+public:
+	Type_Info_Ident(struct lys_type_info_ident *info_ident, S_Deleter deleter);
+	~Type_Info_Ident();
+	std::vector<S_Ident> *ref();
+	int count() {return _info_ident->count;};
+
+private:
+	lys_type_info_ident *_info_ident;
+	S_Deleter _deleter;
+};
+
+class Type_Info_Inst
+{
+public:
+	Type_Info_Inst(struct lys_type_info_inst *info_inst, S_Deleter deleter);
+	~Type_Info_Inst();
+	int8_t req() {return _info_inst->req;};
+
+private:
+	lys_type_info_inst *_info_inst;
+	S_Deleter _deleter;
+};
+
+class Type_Info_Num
+{
+public:
+	Type_Info_Num(struct lys_type_info_num *info_num, S_Deleter deleter);
+	~Type_Info_Num();
+	S_Restr range();
+
+private:
+	lys_type_info_num *_info_num;
+	S_Deleter _deleter;
+};
+
+class Type_Info_Lref
+{
+public:
+	Type_Info_Lref(struct lys_type_info_lref *info_lref, S_Deleter deleter);
+	~Type_Info_Lref();
+	const char *path() {return _info_lref->path;};
+	S_Schema_Node_Leaf target();
+	int8_t req() {return _info_lref->req;};
+
+private:
+	lys_type_info_lref *_info_lref;
+	S_Deleter _deleter;
+};
+
+class Type_Info_Str
+{
+public:
+	Type_Info_Str(struct lys_type_info_str *info_str, S_Deleter deleter);
+	~Type_Info_Str();
+	S_Restr length();
+	S_Restr patterns();
+	int pat_count() {return _info_str->pat_count;};
+
+private:
+	lys_type_info_str *_info_str;
+	S_Deleter _deleter;
+};
+
+class Type_Info_Union
+{
+public:
+	Type_Info_Union(struct lys_type_info_union *info_union, S_Deleter deleter);
+	~Type_Info_Union();
+	std::vector<S_Type> *types();
+	int count() {return _info_union->count;};
+	int has_ptr_type() {return _info_union->has_ptr_type;};
+
+private:
+	lys_type_info_union *_info_union;
+	S_Deleter _deleter;
+};
+
+class Type_Info
+{
+public:
+	Type_Info(union lys_type_info info, LY_DATA_TYPE type, S_Deleter deleter);
+	~Type_Info();
+	S_Type_Info_Binary binary();
+	S_Type_Info_Bits bits();
+	S_Type_Info_Dec64 dec64();
+	S_Type_Info_Enums enums();
+	S_Type_Info_Ident ident();
+	S_Type_Info_Inst inst();
+	S_Type_Info_Num num();
+	S_Type_Info_Lref lref();
+	S_Type_Info_Str str();
+	S_Type_Info_Union uni();
+
+private:
+	union lys_type_info _info;
+	LY_DATA_TYPE _type;
+	S_Deleter _deleter;
+};
+
+class Type
+{
+public:
+	Type(struct lys_type *type, S_Deleter deleter);
+	~Type();
+	const char *module_name() {return _type->module_name;};
+	LY_DATA_TYPE base() {return _type->base;};
+	uint8_t ext_size() {return _type->ext_size;};
+	std::vector<S_Ext_Instance> *ext();
+	S_Tpdf der();
+	S_Tpdf parent();
+	S_Type_Info info();
+
+private:
+	struct lys_type *_type;
+	S_Deleter _deleter;
+};
+
 class Ext_Instance
 {
 public:
@@ -245,7 +470,7 @@ public:
 	~Schema_Node_Leaf();
 	S_Set backlinks();
 	S_When when();
-	//struct lys_type type;            /**< YANG data type definition of the leaf (mandatory) */
+	S_Type type();
 	const char *units() {return ((struct lys_node_leaf *)_node)->units;};
 	const char *dflt() {return ((struct lys_node_leaf *)_node)->dflt;};
 	S_Schema_Node child() {return NULL;};
@@ -265,7 +490,7 @@ public:
 	S_When when();
 	S_Set backlinks();
 	std::vector<S_Restr> *must();
-	//struct lys_type type;            /**< YANG data type definition of the leaf (mandatory) */
+	S_Type type();
 	const char *units() {return ((struct lys_node_leaflist *)_node)->units;};
 	vector<S_String> *dflt();
 	uint32_t min() {return ((struct lys_node_leaflist *)_node)->min;};
@@ -497,9 +722,9 @@ public:
 	uint8_t unique_size() {return _deviate->unique_size;};
 	uint32_t min() {return _deviate->min;};
 	uint32_t max() {return _deviate->max;};
-    //struct lys_restr *must;          /**< Properties: must - array of must constraints */
-	//struct lys_unique *unique;       /**< Properties: unique - array of unique statement structures */
-	//struct lys_type *type;           /**< Properties: type - pointer to type in target, type cannot be deleted or added */
+	S_Restr must();
+	S_Unique unique();
+	S_Type type();
 	const char *units() {return _deviate->units;};
 	vector<S_String> *dflt() NEW_STRING_LIST(_deviate, dflt, dflt_size);
 	std::vector<S_Ext_Instance> *ext();
@@ -593,7 +818,7 @@ public:
 	std::vector<S_Ext_Instance> *ext() NEW_P_LIST(_tpdf, ext, ext_size, Ext_Instance);
 	const char *units() {return _tpdf->units;};
 	S_Module module() NEW(_tpdf, module, Module);
-	//struct lys_type type;            /**< base type from which the typedef is derived (mandatory). In case of a special
+	S_Type type();
 	const char *dflt() {return _tpdf->dflt;};
 
 private:

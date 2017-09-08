@@ -299,6 +299,10 @@ int Data_Node_Leaf_List::change_leaf(const char *val_str) {
 int Data_Node_Leaf_List::wd_default() {
 	return lyd_wd_default((struct lyd_node_leaf_list *)_node);
 }
+S_Type Data_Node_Leaf_List::leaf_type() {
+	const struct lys_type *type = lyd_leaf_type((const struct lyd_node_leaf_list *) _node);
+	return S_Type(new Type((struct lys_type *) type, _deleter));
+};
 
 Data_Node_Anydata::Data_Node_Anydata(struct lyd_node *node, S_Deleter deleter) : Data_Node(node, deleter) {
 	_node = node;

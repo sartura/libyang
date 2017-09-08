@@ -91,10 +91,11 @@
 %newobject Data_Node_Leaf_List::find_instance;
 %ignore    Data_Node_Leaf_List::swig_node;
 %ignore    Data_Node_Leaf_List::swig_deleter;
-%newobject Data_Node::diff;
-%newobject Data_Node::new_path;
-%newobject Data_Node::node_module;
-%newobject Data_Node::print_mem;
+%newobject Data_Node_Leaf_List::diff;
+%newobject Data_Node_Leaf_List::new_path;
+%newobject Data_Node_Leaf_List::node_module;
+%newobject Data_Node_Leaf_List::print_mem;
+%newobject Data_Node_Leaf_List::type;
 
 %shared_ptr(Data_Node_Anydata);
 %newobject Data_Node_Anydata::schema;
@@ -111,10 +112,10 @@
 %newobject Data_Node_Anydata::find_instance;
 %ignore    Data_Node_Anydata::swig_node;
 %ignore    Data_Node_Anydata::swig_deleter;
-%newobject Data_Node::diff;
-%newobject Data_Node::new_path;
-%newobject Data_Node::node_module;
-%newobject Data_Node::print_mem;
+%newobject Data_Node_Anydata::diff;
+%newobject Data_Node_Anydata::new_path;
+%newobject Data_Node_Anydata::node_module;
+%newobject Data_Node_Anydata::print_mem;
 
 %shared_ptr(Attr);
 %newobject Attr::value;
@@ -131,6 +132,56 @@
 %newobject Submodule::ctx;
 %newobject Submodule::rev;
 %newobject Submodule::belongsto;
+
+%shared_ptr(Type_Info_Binary);
+%newobject Type_Info_Binary::length;
+
+%shared_ptr(Type_Bit);
+
+%shared_ptr(Type_Info_Bits);
+%newobject Type_Info_Bits::bit;
+
+%shared_ptr(Type_Info_Dec64);
+%newobject Type_Info_Dec64::range;
+
+%shared_ptr(Type_Enum);
+
+%shared_ptr(Type_Info_Enums);
+%newobject Type_Info_Enums::enm;
+
+%shared_ptr(Type_Info_Ident);
+
+%shared_ptr(Type_Info_Inst);
+
+%shared_ptr(Type_Info_Num);
+%newobject Type_Info_Num::range;
+
+%shared_ptr(Type_Info_Lref);
+%newobject Type_Info_Lref::target;
+
+%shared_ptr(Type_Info_Str);
+%newobject Type_Info_Str::length;
+%newobject Type_Info_Str::patterns;
+
+%shared_ptr(Type_Info_Union);
+
+%shared_ptr(Type_Info);
+%newobject Type_Info::binary;
+%newobject Type_Info::bits;
+%newobject Type_Info::dec64;
+%newobject Type_Info::enums;
+%newobject Type_Info::ident;
+%newobject Type_Info::inst;
+%newobject Type_Info::num;
+%newobject Type_Info::lref;
+%newobject Type_Info::str;
+%newobject Type_Info::uni;
+
+%shared_ptr(Type);
+%newobject Type::ext;
+%newobject Type::der;
+%newobject Type::parent;
+%newobject Type::info;
 
 %shared_ptr(Ext_Instance);
 %newobject Ext_Instance::module;
@@ -178,6 +229,7 @@
 %newobject Schema_Node_Leaf::xpath_atomize;
 %ignore    Schema_Node_Leaf::swig_node;
 %ignore    Schema_Node_Leaf::swig_deleter;
+%newobject Schema_Node_Leaf::type;
 
 %shared_ptr(Schema_Node_Leaflist);
 %newobject Schema_Node_Leaflist::parent;
@@ -189,6 +241,7 @@
 %newobject Schema_Node_Leaflist::xpath_atomize;
 %ignore    Schema_Node_Leaflist::swig_node;
 %ignore    Schema_Node_Leaflist::swig_deleter;
+%newobject Schema_Node_Leaf::type;
 
 %shared_ptr(Schema_Node_List);
 %newobject Schema_Node_List::parent;
@@ -302,6 +355,9 @@
 %newobject Refine::module;
 
 %shared_ptr(Deviate);
+%newobject Deviate::must;
+%newobject Deviate::unique;
+%newobject Deviate::type;
 
 %shared_ptr(Deviation);
 %newobject Deviation::orig_node;
@@ -316,6 +372,7 @@
 %newobject Tpdf::module;
 
 %shared_ptr(Tpdf);
+%newobject Tpdf::type;
 
 %shared_ptr(Unique);
 
@@ -351,6 +408,7 @@
 
 %template(vectorS_String) std::vector<S_String>;
 %template(vectorModules) std::vector<S_Module>;
+%template(vectorType) std::vector<S_Type>;
 %template(vectorData_Node) std::vector<S_Data_Node>;
 %template(vectorSchema_Node) std::vector<S_Schema_Node>;
 %template(vectorExt_Instance) std::vector<S_Ext_Instance>;

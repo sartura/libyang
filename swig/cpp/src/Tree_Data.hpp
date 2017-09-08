@@ -127,7 +127,6 @@ public:
 	int unlink() {return lyd_unlink(_node);};
 	S_Attr insert_attr(S_Module module, const char *name, const char *value);
 	S_Module node_module();
-	//const struct lys_type *lyd_leaf_type(const struct lyd_node_leaf_list *leaf);
 	S_String print_mem(LYD_FORMAT format, int options);
 
 	/* emulate TREE macro's */
@@ -158,7 +157,7 @@ public:
 	/* functions */
 	int change_leaf(const char *val_str);
 	int wd_default();
-	//const struct lys_type *lyd_leaf_type(const struct lyd_node_leaf_list *leaf);
+	S_Type leaf_type();
 
 private:
 	struct lyd_node *_node;
