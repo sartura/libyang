@@ -49,6 +49,123 @@ Submodule::~Submodule() {};
 S_Revision Submodule::rev() NEW(_submodule, rev, Revision);
 std::vector<S_Deviation> *Submodule::deviation() NEW_LIST(_submodule, deviation, deviation_size, Deviation);
 
+Type_Info_Binary::Type_Info_Binary(struct lys_type_info_binary *info_binary, S_Deleter deleter) {
+	_info_binary = info_binary;
+	_deleter = deleter;
+};
+Type_Info_Binary::~Type_Info_Binary() {};
+S_Restr Type_Info_Binary::length() {return _info_binary->length ? S_Restr(new Restr(_info_binary->length, _deleter)) : NULL;};
+
+Type_Bit::Type_Bit(struct lys_type_bit *info_bit, S_Deleter deleter) {
+	_info_bit = info_bit;
+	_deleter = deleter;
+};
+Type_Bit::~Type_Bit() {};
+std::vector<S_Ext_Instance> *Type_Bit::ext() NEW_P_LIST(_info_bit, ext, ext_size, Ext_Instance);
+
+Type_Info_Bits::Type_Info_Bits(struct lys_type_info_bits *info_bits, S_Deleter deleter) {
+	_info_bits = info_bits;
+	_deleter = deleter;
+};
+Type_Info_Bits::~Type_Info_Bits() {};
+S_Type_Bit Type_Info_Bits::bit() {return _info_bits->bit ? S_Type_Bit(new Type_Bit(_info_bits->bit, _deleter)) : NULL;};
+
+Type_Info_Dec64::Type_Info_Dec64(struct lys_type_info_dec64 *info_dec64, S_Deleter deleter) {
+	_info_dec64 = info_dec64;
+	_deleter = deleter;
+};
+Type_Info_Dec64::~Type_Info_Dec64() {};
+S_Restr Type_Info_Dec64::range() {return _info_dec64->range ? S_Restr(new Restr(_info_dec64->range, _deleter)) : NULL;};
+
+Type_Enum::Type_Enum(struct lys_type_enum *info_enum, S_Deleter deleter) {
+	_info_enum = info_enum;
+	_deleter = deleter;
+};
+Type_Enum::~Type_Enum() {};
+std::vector<S_Ext_Instance> *Type_Enum::ext() NEW_P_LIST(_info_enum, ext, ext_size, Ext_Instance);
+
+Type_Info_Enums::Type_Info_Enums(struct lys_type_info_enums *info_enums, S_Deleter deleter) {
+	_info_enums = info_enums;
+	_deleter = deleter;
+};
+Type_Info_Enums::~Type_Info_Enums() {};
+S_Type_Enum Type_Info_Enums::enm() {return _info_enums->enm ? S_Type_Enum(new Type_Enum(_info_enums->enm, _deleter)) : NULL;};
+
+Type_Info_Ident::Type_Info_Ident(struct lys_type_info_ident *info_ident, S_Deleter deleter) {
+	_info_ident = info_ident;
+_deleter = deleter;
+};
+Type_Info_Ident::~Type_Info_Ident() {};
+std::vector<S_Ident> *Type_Info_Ident::ref() NEW_P_LIST(_info_ident, ref, count, Ident);
+
+Type_Info_Inst::Type_Info_Inst(struct lys_type_info_inst *info_inst, S_Deleter deleter) {
+	_info_inst = info_inst;
+	_deleter = deleter;
+};
+Type_Info_Inst::~Type_Info_Inst() {};
+
+Type_Info_Num::Type_Info_Num(struct lys_type_info_num *info_num, S_Deleter deleter) {
+	_info_num = info_num;
+	_deleter = deleter;
+};
+Type_Info_Num::~Type_Info_Num() {};
+S_Restr Type_Info_Num::range() {return _info_num->range ? S_Restr(new Restr(_info_num->range, _deleter)) : NULL;};
+
+Type_Info_Lref::Type_Info_Lref(lys_type_info_lref *info_lref, S_Deleter deleter) {
+	_info_lref = info_lref;
+	_deleter = deleter;
+}
+Type_Info_Lref::~Type_Info_Lref() {};
+S_Schema_Node_Leaf Type_Info_Lref::target() {return _info_lref->target ? S_Schema_Node_Leaf(new Schema_Node_Leaf((struct lys_node *)_info_lref->target, _deleter)) : NULL;};
+
+Type_Info_Str::Type_Info_Str(lys_type_info_str *info_str, S_Deleter deleter) {
+	_info_str = info_str;
+	_deleter = deleter;
+}
+Type_Info_Str::~Type_Info_Str() {};
+S_Restr Type_Info_Str::length() {return _info_str->length ? S_Restr(new Restr(_info_str->length, _deleter)) : NULL;};
+S_Restr Type_Info_Str::patterns() {return _info_str->patterns ? S_Restr(new Restr(_info_str->patterns, _deleter)) : NULL;};
+
+Type_Info_Union::Type_Info_Union(lys_type_info_union *info_union, S_Deleter deleter) {
+	_info_union = info_union;
+	_deleter = deleter;
+}
+Type_Info_Union::~Type_Info_Union() {};
+std::vector<S_Type> *Type_Info_Union::types() NEW_LIST(_info_union, types, count, Type);
+
+Type_Info::Type_Info(union lys_type_info info, LY_DATA_TYPE type, S_Deleter deleter) {
+	_info = info;
+	_type = type;
+	_deleter = deleter;
+};
+Type_Info::~Type_Info() {};
+S_Type_Info_Binary Type_Info::binary() {return LY_TYPE_BINARY == _type ? S_Type_Info_Binary(new Type_Info_Binary(&_info.binary, _deleter)) : NULL;};
+S_Type_Info_Bits Type_Info::bits() {return LY_TYPE_BITS == _type ? S_Type_Info_Bits(new Type_Info_Bits(&_info.bits, _deleter)) : NULL;};
+S_Type_Info_Dec64 Type_Info::dec64() {return LY_TYPE_DEC64 == _type ? S_Type_Info_Dec64(new Type_Info_Dec64(&_info.dec64, _deleter)) : NULL;};
+S_Type_Info_Enums Type_Info::enums() {return LY_TYPE_ENUM == _type ? S_Type_Info_Enums(new Type_Info_Enums(&_info.enums, _deleter)) : NULL;};
+S_Type_Info_Ident Type_Info::ident() {return LY_TYPE_IDENT == _type ? S_Type_Info_Ident(new Type_Info_Ident(&_info.ident, _deleter)) : NULL;};
+S_Type_Info_Inst Type_Info::inst() {return LY_TYPE_INST == _type ? S_Type_Info_Inst(new Type_Info_Inst(&_info.inst, _deleter)) : NULL;};
+S_Type_Info_Num Type_Info::num() {
+	if (_type >= LY_TYPE_INT8 && _type <= LY_TYPE_UINT64) {
+		return S_Type_Info_Num(new Type_Info_Num(&_info.num, _deleter));
+	} else {
+		return NULL;
+	}
+};
+S_Type_Info_Lref Type_Info::lref() {return LY_TYPE_LEAFREF == _type ? S_Type_Info_Lref(new Type_Info_Lref(&_info.lref, _deleter)) : NULL;};
+S_Type_Info_Str Type_Info::str() {return LY_TYPE_STRING == _type ? S_Type_Info_Str(new Type_Info_Str(&_info.str, _deleter)) : NULL;};
+S_Type_Info_Union Type_Info::uni() {return LY_TYPE_UNION == _type ? S_Type_Info_Union(new Type_Info_Union(&_info.uni, _deleter)) : NULL;};
+
+Type::Type(struct lys_type *type, S_Deleter deleter) {
+	_type = type;
+	_deleter = deleter;
+};
+Type::~Type() {};
+std::vector<S_Ext_Instance> *Type::ext() NEW_P_LIST(_type, ext, ext_size, Ext_Instance);
+S_Tpdf Type::der() {return _type->der ? S_Tpdf(new Tpdf(_type->der, _deleter)) : NULL;};
+S_Tpdf Type::parent() {return _type->parent ? S_Tpdf(new Tpdf(_type->parent, _deleter)) : NULL;};
+S_Type_Info Type::info() {return S_Type_Info(new Type_Info(_type->info, _type->base, _deleter));};
+
 Ext_Instance::Ext_Instance(lys_ext_instance *ext_instance, S_Deleter deleter) {
 	_ext_instance = ext_instance;
 	_deleter = deleter;
@@ -127,6 +244,7 @@ S_When Schema_Node_Choice::when() NEW_CASTED(lys_node_choice, _node, when, When)
 Schema_Node_Leaf::~Schema_Node_Leaf() {};
 S_Set Schema_Node_Leaf::backlinks() NEW_CASTED(lys_node_leaf, _node, backlinks, Set);
 S_When Schema_Node_Leaf::when() NEW_CASTED(lys_node_leaf, _node, when, When);
+S_Type Schema_Node_Leaf::type() {return S_Type(new Type(&((struct lys_node_leaf *)_node)->type, _deleter));}
 
 Schema_Node_Leaflist::~Schema_Node_Leaflist() {};
 S_Set Schema_Node_Leaflist::backlinks() NEW_CASTED(lys_node_leaflist, _node, backlinks, Set);
@@ -136,6 +254,7 @@ std::vector<S_String> *Schema_Node_Leaflist::dflt() {
 	NEW_STRING_LIST(node, dflt, dflt_size);
 }
 std::vector<S_Restr> *Schema_Node_Leaflist::must() NEW_LIST_CASTED(lys_node_leaflist, _node, must, must_size, Restr);
+S_Type Schema_Node_Leaflist::type() {return S_Type(new Type(&((struct lys_node_leaflist *)_node)->type, _deleter));}
 
 Schema_Node_List::~Schema_Node_List() {};
 S_When Schema_Node_List::when() NEW_CASTED(lys_node_list, _node, when, When);
@@ -213,6 +332,9 @@ Deviate::Deviate(struct lys_deviate *deviate, S_Deleter deleter) {
 }
 Deviate::~Deviate() {};
 std::vector<S_Ext_Instance> *Deviate::ext() NEW_P_LIST(_deviate, ext, ext_size, Ext_Instance);
+S_Restr Deviate::must() {return _deviate->must ? S_Restr(new Restr(_deviate->must, _deleter)) : NULL;};
+S_Unique Deviate::unique() {return _deviate->unique ? S_Unique(new Unique(_deviate->unique, _deleter)) : NULL;};
+S_Type Deviate::type() {return _deviate->type ? S_Type(new Type(_deviate->type, _deleter)) : NULL;}
 
 Deviation::Deviation(struct lys_deviation *deviation, S_Deleter deleter) {
 	_deviation = deviation;
@@ -240,6 +362,7 @@ Tpdf::Tpdf(struct lys_tpdf *tpdf, S_Deleter deleter) {
 	_deleter = deleter;
 }
 Tpdf::~Tpdf() {};
+S_Type Tpdf::type() {return S_Type(new Type(&_tpdf->type, _deleter));}
 
 Unique::Unique(struct lys_unique *unique, S_Deleter deleter) {
 	_unique = unique;
