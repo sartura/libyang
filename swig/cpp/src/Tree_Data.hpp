@@ -48,6 +48,8 @@ class Difflist;
 class Schema_Node;
 class Xml_Elem;
 class Context;
+class Type_Enum;
+class Ident;
 
 class Value
 {
@@ -56,10 +58,12 @@ public:
 	~Value();
 	const char *binary() {LY_TYPE_BINARY == _type ? _value.binary : NULL;};
 	//struct lys_type_bit **bit();
+	//TODO, check size
+	//its size is always the number of defined bits in the schema
 	int8_t bln() {LY_TYPE_BOOL == _type ? _value.bln : throw "wrong type";};
 	int64_t dec64() {LY_TYPE_DEC64 == _type ? _value.dec64 : throw "wrong type";};
-	//struct lys_type_enum *enm;   /**< pointer to the schema definition of the enumeration value */
-	//struct lys_ident *ident;     /**< pointer to the schema definition of the identityref value */
+	S_Type_Enum enm() {LY_TYPE_ENUM == _type ? S_Type_Enum(new Type_Enum(_value.enm, _deleter)) : throw "wrong type";};
+	S_Ident ident() {LY_TYPE_IDENT == _type ? S_Ident(new Ident(_value.ident, _deleter)) : throw "wrong type";};
 	S_Data_Node instance();
 	int8_t int8() {LY_TYPE_INT8 == _type ? _value.int8 : throw "wrong type";};
 	int16_t int16() {LY_TYPE_INT16 == _type ? _value.int16 : throw "wrong type";};
