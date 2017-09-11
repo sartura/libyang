@@ -52,6 +52,8 @@
 
 /* Tree_Data.hpp */
 %shared_ptr(Value);
+%newobject Value::enm;
+%newobject Value::ident;
 %newobject Value::instance;
 %newobject Value::leafref;
 
