@@ -183,6 +183,8 @@
 %newobject Type::parent;
 %newobject Type::info;
 
+%shared_ptr(Iffeature);
+
 %shared_ptr(Ext_Instance);
 %newobject Ext_Instance::module;
 
@@ -421,6 +423,8 @@
 %template(vectorData_Node) std::vector<S_Data_Node>;
 %template(vectorSchema_Node) std::vector<S_Schema_Node>;
 %template(vectorExt_Instance) std::vector<S_Ext_Instance>;
+%template(vectorIffeature) std::vector<S_Iffeature>;
+%template(vectorFeature) std::vector<S_Feature>;
 %template(vectorWhen) std::vector<S_When>;
 %template(vectorRefine) std::vector<S_Refine>;
 %template(vectorXml_Elem) std::vector<S_Xml_Elem>;

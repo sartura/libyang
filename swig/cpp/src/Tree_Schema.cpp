@@ -62,6 +62,7 @@ Type_Bit::Type_Bit(struct lys_type_bit *info_bit, S_Deleter deleter) {
 };
 Type_Bit::~Type_Bit() {};
 std::vector<S_Ext_Instance> *Type_Bit::ext() NEW_P_LIST(_info_bit, ext, ext_size, Ext_Instance);
+std::vector<S_Iffeature> *Type_Bit::iffeature() NEW_LIST(_info_bit, iffeature, iffeature_size, Iffeature);
 
 Type_Info_Bits::Type_Info_Bits(struct lys_type_info_bits *info_bits, S_Deleter deleter) {
 	_info_bits = info_bits;
@@ -83,6 +84,7 @@ Type_Enum::Type_Enum(struct lys_type_enum *info_enum, S_Deleter deleter) {
 };
 Type_Enum::~Type_Enum() {};
 std::vector<S_Ext_Instance> *Type_Enum::ext() NEW_P_LIST(_info_enum, ext, ext_size, Ext_Instance);
+std::vector<S_Iffeature> *Type_Enum::iffeature() NEW_LIST(_info_enum, iffeature, iffeature_size, Iffeature);
 
 Type_Info_Enums::Type_Info_Enums(struct lys_type_info_enums *info_enums, S_Deleter deleter) {
 	_info_enums = info_enums;
@@ -165,6 +167,26 @@ std::vector<S_Ext_Instance> *Type::ext() NEW_P_LIST(_type, ext, ext_size, Ext_In
 S_Tpdf Type::der() {return _type->der ? S_Tpdf(new Tpdf(_type->der, _deleter)) : NULL;};
 S_Tpdf Type::parent() {return _type->parent ? S_Tpdf(new Tpdf(_type->parent, _deleter)) : NULL;};
 S_Type_Info Type::info() {return S_Type_Info(new Type_Info(_type->info, _type->base, _deleter));};
+
+Iffeature::Iffeature(struct lys_iffeature *iffeature, S_Deleter deleter) {
+	_iffeature = iffeature;
+	_deleter = deleter;
+};
+Iffeature::~Iffeature() {};
+std::vector<S_Feature> *Iffeature::features() {
+	auto s_vector = new vector<S_Feature>;
+	if (NULL == s_vector) {
+		return NULL;
+	}
+
+	//TODO check if sizeof can be used
+	for (size_t i = 0; i < sizeof(*_iffeature->features); i++) {
+		s_vector->push_back(S_Feature(new Feature(_iffeature->features[i], _deleter)));
+	}
+
+	return s_vector;
+};
+std::vector<S_Ext_Instance> *Iffeature::ext() NEW_P_LIST(_iffeature, ext, ext_size, Ext_Instance);
 
 Ext_Instance::Ext_Instance(lys_ext_instance *ext_instance, S_Deleter deleter) {
 	_ext_instance = ext_instance;
