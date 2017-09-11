@@ -61,6 +61,7 @@
 #define S_Type_Info_Union        std::shared_ptr<Type_Info_Union>
 #define S_Type_Info              std::shared_ptr<Type_Info>
 #define S_Type                   std::shared_ptr<Type>
+#define S_Iffeature              std::shared_ptr<Iffeature>
 #define S_Ext_Instance           std::shared_ptr<Ext_Instance>
 #define S_Revision               std::shared_ptr<Revision>
 #define S_Schema_Node            std::shared_ptr<Schema_Node>

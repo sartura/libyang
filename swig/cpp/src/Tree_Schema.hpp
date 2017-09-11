@@ -53,6 +53,7 @@ class Type_Info_Str;
 class Type_Info_Union;
 class Type_Info;
 class Type;
+class Iffeature;
 class Ext_Instance;
 class Schema_Node;
 class Schema_Node_Container;
@@ -186,7 +187,7 @@ public:
 	uint8_t iffeature_size() {return _info_bit->iffeature_size;};
 	uint32_t pos() {return _info_bit->pos;};
 	std::vector<S_Ext_Instance> *ext();
-	//struct lys_iffeature *iffeature; /**< array of if-feature expressions */
+	std::vector<S_Iffeature> *iffeature();
 
 private:
 	lys_type_bit *_info_bit;
@@ -233,7 +234,7 @@ public:
 	uint8_t iffeature_size() {return _info_enum->iffeature_size;};
 	int32_t value() {return _info_enum->value;};
 	std::vector<S_Ext_Instance> *ext();
-	//struct lys_iffeature *iffeature; /**< array of if-feature expressions */
+	std::vector<S_Iffeature> *iffeature();
 
 private:
 	lys_type_enum *_info_enum;
@@ -372,6 +373,20 @@ private:
 	S_Deleter _deleter;
 };
 
+class Iffeature {
+public:
+	Iffeature(struct lys_iffeature *iffeature, S_Deleter deleter);
+	~Iffeature();
+	uint8_t *expr() {return _iffeature->expr;};
+	uint8_t ext_size() {return _iffeature->ext_size;};
+	std::vector<S_Feature> *features();
+	std::vector<S_Ext_Instance> *ext();
+
+private:
+	struct lys_iffeature *_iffeature;
+	S_Deleter _deleter;
+};
+
 class Ext_Instance
 {
 public:
@@ -406,7 +421,7 @@ public:
 	uint8_t ext_size() {return _node->ext_size;};
 	uint8_t iffeature_size() {return _node->iffeature_size;};
 	std::vector<S_Ext_Instance> *ext();
-	// struct lys_iffeature *iffeature;
+	std::vector<S_Iffeature> *iffeature() NEW_LIST(_node, iffeature, iffeature_size, Iffeature);
 	S_Module module();
 	LYS_NODE nodetype() {return _node->nodetype;};
 	virtual S_Schema_Node parent();
@@ -710,7 +725,7 @@ public:
 	uint8_t must_size() {return _refine->must_size;};
 	uint8_t dflt_size() {return _refine->dflt_size;};
 	std::vector<S_Ext_Instance> *ext();
-	//struct lys_iffeature *iffeature; /**< array of if-feature expressions */
+	std::vector<S_Iffeature> *iffeature() NEW_LIST(_refine, iffeature, iffeature_size, Iffeature);
 	S_Module module();
 	std::vector<S_Restr> *must();
 	vector<S_String> *dflt() NEW_STRING_LIST(_refine, dflt, dflt_size);
@@ -866,7 +881,7 @@ public:
 	uint8_t ext_size() {return _feature->ext_size;};
 	uint8_t iffeature_size() {return _feature->iffeature_size;};
 	std::vector<S_Ext_Instance> *ext() NEW_P_LIST(_feature, ext, ext_size, Ext_Instance);
-	//struct lys_iffeature *iffeature; /**< array of if-feature expressions */
+	std::vector<S_Iffeature> *iffeature() NEW_LIST(_feature, iffeature, iffeature_size, Iffeature);
 	S_Module module() NEW(_feature, module, Module);
 	S_Set depfeatures() NEW(_feature, depfeatures, Set);
 
@@ -922,7 +937,7 @@ public:
 	uint8_t iffeature_size() {return _ident->iffeature_size;};
 	uint8_t base_size() {return _ident->base_size;};
 	std::vector<S_Ext_Instance> *ext() NEW_P_LIST(_ident, ext, ext_size, Ext_Instance);
-    //struct lys_iffeature *iffeature; /**< array of if-feature expressions */
+	std::vector<S_Iffeature> *iffeature() NEW_LIST(_ident, iffeature, iffeature_size, Iffeature);
 	S_Module module() NEW(_ident, module, Module);
 	std::vector<S_Ident> *base();
 	S_Set der() NEW(_ident, der, Set);
