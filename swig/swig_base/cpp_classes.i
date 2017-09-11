@@ -207,6 +207,8 @@
 %newobject Schema_Node_Container::xpath_atomize;
 %ignore    Schema_Node_Container::swig_node;
 %ignore    Schema_Node_Container::swig_deleter;
+%newobject Schema_Node_Container::must;
+%newobject Schema_Node_Container::tpdf;
 
 %shared_ptr(Schema_Node_Choice);
 %newobject Schema_Node_Choice::parent;
@@ -218,6 +220,7 @@
 %newobject Schema_Node_Choice::xpath_atomize;
 %ignore    Schema_Node_Choice::swig_node;
 %ignore    Schema_Node_Choice::swig_deleter;
+%newobject Schema_Node_Choice::dflt;
 
 %shared_ptr(Schema_Node_Leaf);
 %newobject Schema_Node_Leaf::parent;
@@ -276,6 +279,7 @@
 %newobject Schema_Node_Uses::when;
 %ignore    Schema_Node_Uses::swig_node;
 %ignore    Schema_Node_Uses::swig_deleter;
+%newobject Schema_Node_Uses::grp;
 
 %shared_ptr(Schema_Node_Grp);
 %newobject Schema_Node_Grp::parent;
@@ -351,8 +355,13 @@
 
 %shared_ptr(Refine_Mod_List);
 
+%shared_ptr(Refine_Mod);
+%newobject Refine_Mod::list;
+
 %shared_ptr(Refine);
 %newobject Refine::module;
+%newobject Refine::dflt;
+%newobject Refine::mod;
 
 %shared_ptr(Deviate);
 %newobject Deviate::must;
@@ -422,4 +431,5 @@
 %template(vectorTpdf) std::vector<S_Tpdf>;
 %template(vectorUnique) std::vector<S_Unique>;
 %template(vectorSchema_Node_Leaf) std::vector<S_Schema_Node_Leaf>;
+%template(vectorSchema_Node_Augment) std::vector<S_Schema_Node_Augment>;
 

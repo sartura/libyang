@@ -71,6 +71,7 @@ class Schema_Node_Augment;
 class Substmt;
 class Ext;
 class Refine_Mod_List;
+class Refine_Mod;
 class Refine;
 class Deviate;
 class Deviation;
@@ -404,7 +405,7 @@ public:
 	uint16_t flags() {return _node->flags;};
 	uint8_t ext_size() {return _node->ext_size;};
 	uint8_t iffeature_size() {return _node->iffeature_size;};
-	// struct lys_ext_instance **ext;
+	std::vector<S_Ext_Instance> *ext();
 	// struct lys_iffeature *iffeature;
 	S_Module module();
 	LYS_NODE nodetype() {return _node->nodetype;};
@@ -413,8 +414,7 @@ public:
 	virtual S_Schema_Node next();
 	virtual S_Schema_Node prev();
 	S_Set find_xpath(const char *path);
-	//struct ly_set *lys_xpath_atomize(const struct lys_node *ctx_node, enum lyxp_node_type ctx_node_type,
-    //                             const char *expr, int options);
+	S_Set xpath_atomize(enum lyxp_node_type ctx_node_type, const char *expr, int options);
 	S_Set xpath_atomize(int options);
 	// void *priv;
 
@@ -441,8 +441,8 @@ public:
 	using Schema_Node::Schema_Node;
 	~Schema_Node_Container();
 	S_When when();
-    //struct lys_restr *must;          /**< array of must constraints */
-    //struct lys_tpdf *tpdf;           /**< array of typedefs */
+	S_Restr must();
+	S_Tpdf ptdf();
     const char *presence() {return ((struct lys_node_container *) _node)->presence;};
 
 private:
@@ -456,7 +456,7 @@ public:
 	using Schema_Node::Schema_Node;
 	~Schema_Node_Choice();
 	S_When when();
-	//struct lys_node *dflt;           /**< default case of the choice (optional) */
+	S_Schema_Node dflt();
 
 private:
 	struct lys_node *_node;
@@ -514,7 +514,7 @@ public:
 	S_When when();
 	std::vector<S_Restr> *must();
 	std::vector<S_Tpdf> *tpdf();
-	//std::vector<Schema_Node_Leaf> *keys();
+	std::vector<S_Schema_Node_Leaf> *keys();
 	std::vector<S_Unique> *unique();
 	uint32_t min() {return ((struct lys_node_list *)_node)->min;};
 	uint32_t max() {return ((struct lys_node_list *)_node)->max;};
@@ -547,8 +547,8 @@ public:
 	uint8_t augment_size() {return ((struct lys_node_uses *)_node)->augment_size;};
 	S_When when();
 	std::vector<S_Refine> *refine();
-	//std::vector<S_Schema_Node_Augment> *augment();
-	//S_Schema_Node_Grp *grp() NEW_CASTED(lys_node_uses, _node, grp, Schema_Node_Grp);
+	std::vector<S_Schema_Node_Augment> *augment();
+	S_Schema_Node_Grp grp();
 
 private:
 	struct lys_node *_node;
@@ -681,6 +681,20 @@ private:
 	S_Deleter _deleter;
 };
 
+class Refine_Mod
+{
+public:
+	Refine_Mod(union lys_refine_mod mod, uint16_t target_type, S_Deleter deleter);
+	~Refine_Mod();
+	const char *presence() {return _target_type == LYS_CONTAINER ? _mod.presence : NULL;};
+	S_Refine_Mod_List list();
+
+private:
+	union lys_refine_mod _mod;
+	uint16_t _target_type;
+	S_Deleter _deleter;
+};
+
 class Refine
 {
 public:
@@ -698,9 +712,9 @@ public:
 	std::vector<S_Ext_Instance> *ext();
 	//struct lys_iffeature *iffeature; /**< array of if-feature expressions */
 	S_Module module();
-	//struct lys_restr *must;          /**< array of additional must restrictions to be added to the target */
+	std::vector<S_Restr> *must();
 	vector<S_String> *dflt() NEW_STRING_LIST(_refine, dflt, dflt_size);
-	//union lys_refine_mod mod;        /**< mutually exclusive target modifications according to the possible target_type */
+	S_Refine_Mod mod();
 
 private:
 	struct lys_refine *_refine;
