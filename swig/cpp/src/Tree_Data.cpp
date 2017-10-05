@@ -327,7 +327,7 @@ Difflist::Difflist(struct lyd_difflist *diff, S_Deleter deleter) {
 }
 Difflist::~Difflist() {};
 std::vector<S_Data_Node> *Difflist::first() {
-	int i = 0;
+	unsigned int i = 0;
 	if (NULL == *_diff->first) {
 		return NULL;
 	}
@@ -344,7 +344,7 @@ std::vector<S_Data_Node> *Difflist::first() {
 	return s_vector;
 }
 std::vector<S_Data_Node> *Difflist::second() {
-	int i = 0;
+	unsigned int i = 0;
 	if (NULL == *_diff->second) {
 		return NULL;
 	}
