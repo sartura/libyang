@@ -26,7 +26,7 @@ for folder in folders:
     print(folder)
 print("\n")
 
-module = ctx.get_module("ietf-interfaces", None)
+module = ctx.get_module("ietf-interfaces", None, 0)
 if module is not None:
 	print(module.name())
 else:
