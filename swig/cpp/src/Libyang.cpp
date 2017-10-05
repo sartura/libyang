@@ -42,22 +42,22 @@ Context::Context(ly_ctx *ctx, S_Deleter deleter) {
 	_ctx = ctx;
 	_deleter = deleter;
 }
-Context::Context(const char *search_dir) {
-	_ctx = ly_ctx_new(search_dir);
+Context::Context(const char *search_dir, int options) {
+	_ctx = ly_ctx_new(search_dir, options);
 	if (NULL == _ctx) {
 		throw runtime_error("can not create new context");
 	}
 	_deleter = S_Deleter(new Deleter(_ctx));
 }
-Context::Context(const char *search_dir, const char *path, LYD_FORMAT format) {
-	_ctx = ly_ctx_new_ylpath(search_dir, path, format);
+Context::Context(const char *search_dir, const char *path, LYD_FORMAT format, int options) {
+	_ctx = ly_ctx_new_ylpath(search_dir, path, format, options);
 	if (NULL == _ctx) {
 		throw runtime_error("can not create new context");
 	}
 	_deleter = S_Deleter(new Deleter(_ctx));
 }
-Context::Context(const char *search_dir, LYD_FORMAT format, const char *data) {
-	_ctx = ly_ctx_new_ylmem(search_dir, data, format);
+Context::Context(const char *search_dir, LYD_FORMAT format, const char *data, int options) {
+	_ctx = ly_ctx_new_ylmem(search_dir, data, format, options);
 	if (NULL == _ctx) {
 		throw runtime_error("can not create new context");
 	}
@@ -68,8 +68,8 @@ S_Data_Node Context::info() {
 	struct lyd_node *node = ly_ctx_info(_ctx);
 	return node ? S_Data_Node(new Data_Node(node, _deleter)) : NULL;
 }
-S_Module Context::get_module(const char *name, const char *revision) {
-	const struct lys_module *module = ly_ctx_get_module(_ctx, name, revision);
+S_Module Context::get_module(const char *name, const char *revision, int implemented) {
+	const struct lys_module *module = ly_ctx_get_module(_ctx, name, revision, implemented);
 	return module ? S_Module(new Module((lys_module *) module, _deleter)) : NULL;
 }
 S_Module Context::get_module_older(S_Module module) {
@@ -80,8 +80,8 @@ S_Module Context::load_module(const char *name, const char *revision) {
 	const struct lys_module *module = ly_ctx_load_module(_ctx, name, revision);
 	return module ? S_Module(new Module((lys_module *) module, _deleter)) : NULL;
 }
-S_Module Context::get_module_by_ns(const char *ns, const char *revision) {
-	const struct lys_module *module = ly_ctx_get_module_by_ns(_ctx, ns, revision);
+S_Module Context::get_module_by_ns(const char *ns, const char *revision, int implemented) {
+	const struct lys_module *module = ly_ctx_get_module_by_ns(_ctx, ns, revision, implemented);
 	return module ? S_Module(new Module((lys_module *) module, _deleter)) : NULL;
 }
 vector<S_Module> *Context::get_module_iter() {

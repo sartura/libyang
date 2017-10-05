@@ -46,7 +46,7 @@ int main() {
 		return -1;
 	}
 
-	auto module = ctx->get_module("turing-machine", NULL);
+	auto module = ctx->get_module("turing-machine", NULL, 0);
 	if (NULL != module) {
 		cout << module->name() << endl;
 	} else {
