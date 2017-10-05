@@ -56,7 +56,7 @@ class Value
 public:
 	Value(lyd_val value, uint16_t value_type, S_Deleter deleter);
 	~Value();
-	const char *binary() {LY_TYPE_BINARY == _type ? _value.binary : NULL;};
+	const char *binary() {LY_TYPE_BINARY == _type ? _value.binary : throw "wrong type";};
 	//struct lys_type_bit **bit();
 	//TODO, check size
 	//its size is always the number of defined bits in the schema
@@ -70,7 +70,7 @@ public:
 	int32_t int32() {LY_TYPE_INT32 == _type ? _value.int32 : throw "wrong type";};
 	int64_t int64() {LY_TYPE_INT64 == _type ? _value.int64 : throw "wrong type";};
 	S_Data_Node leafref();
-	const char *string() {LY_TYPE_STRING == _type ? _value.string : NULL;};
+	const char *string() {LY_TYPE_STRING == _type ? _value.string : throw "wrong type";};
 	int8_t uint8() {LY_TYPE_UINT8 == _type ? _value.uint8 : throw "wrong type";};
 	int16_t uint16() {LY_TYPE_UINT16 == _type ? _value.uint16 : throw "wrong type";};
 	int32_t uintu32() {LY_TYPE_UINT32 == _type ? _value.uint32 : throw "wrong type";};
