@@ -93,7 +93,7 @@ public:
     const char *content() {return _elem->content;};
 
 	/* methods */
-	const char *get_attr(const char *name, const char *ns);
+	const char *get_attr(const char *name, const char *ns = NULL);
 	S_Xml_Ns get_ns(const char *prefix);
 	S_String print_mem(int options);
 	//int lyxml_print_fd(int fd, const struct lyxml_elem *elem, int options);

@@ -26,11 +26,11 @@ for folder in folders:
     print(folder)
 print("\n")
 
-module = ctx.get_module("ietf-interfaces", None, 0)
+module = ctx.get_module("ietf-interfaces")
 if module is not None:
 	print(module.name())
 else:
-	module = ctx.load_module("ietf-interfaces", None)
+	module = ctx.load_module("ietf-interfaces")
 	if module is not None:
 		print(module.name())
 

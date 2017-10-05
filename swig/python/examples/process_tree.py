@@ -16,11 +16,11 @@ except Exception as e:
     print("errpath:"+err.errpath())
     print("errapptag:"+err.errapptag())
 
-module = ctx.get_module("turing-machine", None, 0)
+module = ctx.get_module("turing-machine")
 if module is not None:
     print(module.name())
 else:
-    module = ctx.load_module("turing-machine", None)
+    module = ctx.load_module("turing-machine")
 
 try:
     node = ctx.parse_data_path("/etc/sysrepo/data/turing-machine.startup", ly.LYD_XML, ly.LYD_OPT_CONFIG)

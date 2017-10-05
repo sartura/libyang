@@ -46,11 +46,11 @@ int main() {
 		return -1;
 	}
 
-	auto module = ctx->get_module("turing-machine", NULL, 0);
+	auto module = ctx->get_module("turing-machine");
 	if (NULL != module) {
 		cout << module->name() << endl;
 	} else {
-		module = ctx->load_module("turing-machine", NULL);
+		module = ctx->load_module("turing-machine");
 	}
 
 	S_Data_Node node = NULL;

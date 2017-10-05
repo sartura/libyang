@@ -58,11 +58,11 @@ int main() {
 	}
 	cout << endl;
 
-	auto module = ctx->get_module("ietf-interfaces", NULL, 0);
+	auto module = ctx->get_module("ietf-interfaces");
 	if (NULL != module) {
 		cout << module->name() << endl;
 	} else {
-		module = ctx->load_module("ietf-interfaces", NULL);
+		module = ctx->load_module("ietf-interfaces");
 		if (NULL != module) {
 			cout << module->name() << endl;
 		}
