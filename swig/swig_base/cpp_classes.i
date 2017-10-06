@@ -76,6 +76,7 @@
 %newobject Data_Node::new_path;
 %newobject Data_Node::node_module;
 %newobject Data_Node::print_mem;
+%newobject Data_Node::C_lyd_node;
 
 %shared_ptr(Data_Node_Leaf_List);
 %newobject Data_Node_Leaf_List::value;
@@ -98,6 +99,7 @@
 %newobject Data_Node_Leaf_List::node_module;
 %newobject Data_Node_Leaf_List::print_mem;
 %newobject Data_Node_Leaf_List::type;
+%newobject Data_Node::C_lyd_node;
 
 %shared_ptr(Data_Node_Anydata);
 %newobject Data_Node_Anydata::schema;
@@ -118,6 +120,7 @@
 %newobject Data_Node_Anydata::new_path;
 %newobject Data_Node_Anydata::node_module;
 %newobject Data_Node_Anydata::print_mem;
+%newobject Data_Node::C_lyd_node;
 
 %shared_ptr(Attr);
 %newobject Attr::value;

@@ -143,6 +143,9 @@ public:
 
 	friend Set;
 
+	/* for libnetconf2 */
+	struct lyd_node *C_lyd_node() {return _node;};
+
 private:
 	struct lyd_node *_node;
 	S_Deleter _deleter;
