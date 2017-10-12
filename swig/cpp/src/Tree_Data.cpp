@@ -360,3 +360,7 @@ std::vector<S_Data_Node> *Difflist::second() {
 
 	return s_vector;
 }
+
+S_Data_Node create_new_Data_Node(struct lyd_node *node) {
+	return node ? S_Data_Node(new Data_Node(node, NULL)) : NULL;
+}

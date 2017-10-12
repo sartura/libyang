@@ -151,6 +151,8 @@ private:
 	S_Deleter _deleter;
 };
 
+S_Data_Node create_new_Data_Node(struct lyd_node *node);
+
 class Data_Node_Leaf_List : public Data_Node
 {
 public:
