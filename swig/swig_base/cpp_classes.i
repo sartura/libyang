@@ -51,6 +51,8 @@
 
 
 /* Tree_Data.hpp */
+%newobject create_new_Data_Node;
+
 %shared_ptr(Value);
 %newobject Value::enm;
 %newobject Value::ident;
