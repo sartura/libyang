@@ -24,56 +24,64 @@ extern "C" {
 #include "tree_schema.h"
 }
 
-Deleter::Deleter(ly_ctx *ctx, S_Deleter parent) {
-    _v.ctx = ctx;
-    _t = CONTEXT;
-    _parent = parent;
+Deleter::Deleter(ly_ctx *ctx, S_Deleter parent):
+    t(CONTEXT),
+    parent(parent)
+{
+    v.ctx = ctx;
 };
-Deleter::Deleter(struct lyd_node *data, S_Deleter parent) {
-    _v.data = data;
-    _t = DATA_NODE;
-    _parent = parent;
+Deleter::Deleter(struct lyd_node *data, S_Deleter parent):
+    t(DATA_NODE),
+    parent(parent)
+{
+    v.data = data;
 };
-Deleter::Deleter(struct lys_node *schema, S_Deleter parent) {
-    _v.schema = schema;
-    _t = SCHEMA_NODE;
-    _parent = parent;
+Deleter::Deleter(struct lys_node *schema, S_Deleter parent):
+    t(SCHEMA_NODE),
+    parent(parent)
+{
+    v.schema = schema;
 };
-Deleter::Deleter(struct lys_module *module, S_Deleter parent) {
-    _v.module = module;
-    _t = MODULE;
-    _parent = parent;
+Deleter::Deleter(struct lys_module *module, S_Deleter parent):
+    t(MODULE),
+    parent(parent)
+{
+    v.module = module;
 };
-Deleter::Deleter(struct lys_submodule *submodule, S_Deleter parent) {
-    _v.submodule = submodule;
-    _t = SUBMODULE;
-    _parent = parent;
+Deleter::Deleter(struct lys_submodule *submodule, S_Deleter parent):
+    t(SUBMODULE),
+    parent(parent)
+{
+    v.submodule = submodule;
 };
-Deleter::Deleter(S_Context context, struct lyxml_elem *elem, S_Deleter parent) {
-    _context = context;
-    _v.elem = elem;
-    _t = XML;
-    _parent = parent;
+Deleter::Deleter(S_Context context, struct lyxml_elem *elem, S_Deleter parent):
+    t(XML),
+    context(context),
+    parent(parent)
+{
+    v.elem = elem;
 };
-Deleter::Deleter(struct ly_set *set, S_Deleter parent) {
-    _v.set = set;
-    _t = SET;
-    _parent = parent;
+Deleter::Deleter(struct ly_set *set, S_Deleter parent):
+    t(SET),
+    parent(parent)
+{
+    v.set = set;
 }
-Deleter::Deleter(struct lyd_difflist *diff, S_Deleter parent) {
-    _v.diff = diff;
-    _t = DIFFLIST;
-    _parent = parent;
+Deleter::Deleter(struct lyd_difflist *diff, S_Deleter parent):
+    t(DIFFLIST),
+    parent(parent)
+{
+    v.diff = diff;
 }
 Deleter::~Deleter() {
-    switch(_t) {
+    switch(t) {
     case CONTEXT:
-        if (_v.ctx) ly_ctx_destroy(_v.ctx, nullptr);
-        _v.ctx = nullptr;
+        if (v.ctx) ly_ctx_destroy(v.ctx, nullptr);
+        v.ctx = nullptr;
         break;
     case DATA_NODE:
-        if (_v.data) lyd_free(_v.data);
-        _v.data = nullptr;
+        if (v.data) lyd_free(v.data);
+        v.data = nullptr;
         break;
     case SCHEMA_NODE:
         break;
@@ -82,15 +90,15 @@ Deleter::~Deleter() {
     case SUBMODULE:
         break;
     case XML:
-        if (_v.elem) lyxml_free(_context->_ctx, _v.elem);
-        _v.elem = nullptr;
+        if (v.elem) lyxml_free(context->ctx, v.elem);
+        v.elem = nullptr;
         break;
     case SET:
-        if (_v.set) ly_set_free(_v.set);
-        _v.set = nullptr;
+        if (v.set) ly_set_free(v.set);
+        v.set = nullptr;
         break;
     case DIFFLIST:
-        if (_v.diff) lyd_free_diff(_v.diff);
-        _v.diff = nullptr;
+        if (v.diff) lyd_free_diff(v.diff);
+        v.diff = nullptr;
     }
 };
