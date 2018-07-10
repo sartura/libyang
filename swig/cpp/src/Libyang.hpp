@@ -40,15 +40,28 @@ class Schema_Node;
 class Xml_Elem;
 class Deleter;
 
+/** @defgroup cpp C++/Python bindings
+ *  Libyang C++/Python bindings
+ *  @{
+ */
+
+/**
+ * @brief wrapper C++/Python class for struct ly_ctx* 
+ */
 class Context
 {
+//@{
 public:
+    /// constructor for wrapping struct ly_ctx
     Context(struct ly_ctx *ctx, S_Deleter deleter);
+    /// constructor for creating struct ly_ctx
     explicit Context(const char *search_dir = nullptr, int options = 0);
+    /// constructor for creating struct ly_ctx
     Context(const char *search_dir, const char *path, LYD_FORMAT format, int options = 0);
+    /// constructor for creating struct ly_ctx
     Context(const char *search_dir, LYD_FORMAT format, const char *data, int options = 0);
     ~Context();
-    int set_searchdir(const char *search_dir);
+    int set_searchdir(const char *search_dir); /**< set search dir path for the Context */
     void unset_searchdirs(int idx) {return ly_ctx_unset_searchdirs(ctx, idx);};
     std::vector<std::string> *get_searchdirs();
     void set_allimplemented() {return ly_ctx_set_allimplemented(ctx);};
@@ -84,6 +97,7 @@ public:
 private:
     struct ly_ctx *ctx;
     S_Deleter deleter;
+//@}
 };
 
 S_Context create_new_Context(struct ly_ctx *ctx);
