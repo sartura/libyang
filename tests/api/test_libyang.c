@@ -227,6 +227,7 @@ test_ly_ctx_set_searchdir_invalid(void **state)
     ly_ctx_destroy(ctx, NULL);
 }
 
+
 static void
 test_ly_ctx_info(void **state)
 {
@@ -1247,6 +1248,97 @@ test_ly_get_loaded_plugins(void **state)
     }
 }
 
+static void
+test_ly_ctx_internal_modules_count(void **state)
+{
+
+	(void) state;
+	unsigned int internal_modules_count;
+
+	internal_modules_count = ly_ctx_internal_modules_count(ctx);		
+	if(internal_modules_count == 0){
+		fail();
+	}
+
+
+	
+        ctx = ly_ctx_new("INVALID PATH", 0);
+
+
+	internal_modules_count = ly_ctx_internal_modules_count(ctx);
+	if(internal_modules_count != 0){
+		fail();
+	}
+	
+
+
+}
+
+static void
+test_ly_ctx_new_ylpath(void **state)
+{
+
+	
+    char *yang_folder = TESTS_DIR"/api/files";
+    struct lyd_node *node;
+    //char *path;
+    struct ly_ctx *new_ctx;
+    (void) state; /* unused */
+
+    node = ly_ctx_info(ctx);
+    if (!node) {
+        fail();
+    }
+
+    if (ly_ctx_find_path(ctx, yang_folder)) {
+        fail();
+    }
+
+    new_ctx = ly_ctx_new_ylpath(TESTS_DIR"/api/files", TESTS_DIR"/api/files/b.yang", LYD_XML, 0);
+    if (!new_ctx) {
+        fail();
+    }
+
+    lyd_free_withsiblings(node);
+    //free(path);
+    ly_ctx_destroy(new_ctx, NULL);
+
+	
+}
+
+void
+test_ly_ctx_set_allimplemented(void **state){
+
+	(void) state; /* unused */
+    	const struct lys_module *module = NULL;
+	ctx = ly_ctx_new(TESTS_DIR"/api/files/", 0);
+
+    	module = ly_ctx_load_module(ctx, "c", NULL);
+   	 if (!module) {
+       		 fail();
+    	}
+
+	ly_ctx_set_allimplemented(ctx);
+
+	if(!module->imp[0].module){
+
+		
+		fail();
+	
+	}	
+	
+	ly_ctx_unset_allimplemented(ctx);
+	
+	if(module->imp[0].module){
+		fail();
+	
+	}	
+		
+
+}
+
+
+
 int main(void)
 {
     const struct CMUnitTest tests[] = {
@@ -1282,6 +1374,9 @@ int main(void)
         cmocka_unit_test_setup_teardown(test_ly_log_options, setup_f, teardown_f),
         cmocka_unit_test_setup_teardown(test_ly_path_data2schema, setup_f, teardown_f),
         cmocka_unit_test(test_ly_get_loaded_plugins),
+	cmocka_unit_test_setup_teardown(test_ly_ctx_internal_modules_count, setup_f, teardown_f),
+	cmocka_unit_test_setup_teardown(test_ly_ctx_new_ylpath, setup_f, teardown_f),
+	cmocka_unit_test_setup_teardown(test_ly_ctx_set_allimplemented, setup_f, teardown_f),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
