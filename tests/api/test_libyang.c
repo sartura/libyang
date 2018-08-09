@@ -1282,6 +1282,7 @@ test_ly_ctx_new_ylpath(void **state)
     char *yang_folder = TESTS_DIR"/api/files";
     struct lyd_node *node;
     //char *path;
+    char *config_file = TESTS_DIR"/api/files/merge01.xml";
     struct ly_ctx *new_ctx;
     (void) state; /* unused */
 
@@ -1294,7 +1295,7 @@ test_ly_ctx_new_ylpath(void **state)
         fail();
     }
 
-    new_ctx = ly_ctx_new_ylpath(TESTS_DIR"/api/files", TESTS_DIR"/api/files/b.yang", LYD_XML, 0);
+    new_ctx = ly_ctx_new_ylpath(TESTS_DIR"/api/files", config_file, LYD_XML, 0);
     if (!new_ctx) {
         fail();
     }
@@ -1311,25 +1312,31 @@ test_ly_ctx_set_allimplemented(void **state){
 
 	(void) state; /* unused */
     	const struct lys_module *module = NULL;
-	ctx = ly_ctx_new(TESTS_DIR"/api/files/", 0);
+//	ctx = ly_ctx_new(TESTS_DIR"/api/files/", 0);
+//  	module = ly_ctx_load_module(ctx, "x", NULL);
+//	ly_ctx_set_allimplemented(ctx);
+//  	ly_ctx_unset_allimplemented(ctx);
+	module = ly_ctx_load_module(ctx, "y", NULL);
+	
+//  	ly_ctx_unset_allimplemented(ctx);
+	lys_set_disabled(module);
 
-    	module = ly_ctx_load_module(ctx, "c", NULL);
-   	 if (!module) {
-       		 fail();
-    	}
 
-	ly_ctx_set_allimplemented(ctx);
-
-	if(!module->imp[0].module){
+	if(module->implemented != 1){
 
 		
 		fail();
 	
 	}	
-	
+
+//	uint8_t implemented = module->implemented;
+//	ly_ctx_set_allimplemented(ctx);
+
 	ly_ctx_unset_allimplemented(ctx);
+//	module = ly_ctx_load_module(ctx, "b", NULL);
+//	module = ly_ctx_load_module(ctx, "y", NULL);
 	
-	if(module->imp[0].module){
+	if(module->implemented != 1){
 		fail();
 	
 	}	
@@ -1338,6 +1345,99 @@ test_ly_ctx_set_allimplemented(void **state){
 }
 
 
+void
+test_ly_ctx_get_module_set_id(void **state){
+	
+	(void) state;
+	uint16_t set_id=ctx->models.module_set_id;
+	
+
+
+	if(set_id != ly_ctx_get_module_set_id(ctx)){
+		fail();
+	}
+
+}
+
+void
+test_ly_ctx_get_module_iter(void **state){
+	
+	(void) state;
+    	const struct lys_module *first_module = NULL;
+    	const struct lys_module *second_module = NULL;
+	const struct lys_module *iteration = NULL;
+	uint32_t iter_num = 0;
+	uint8_t first_found = 0;
+	uint8_t second_found = 0;
+
+	ctx = ly_ctx_new(TESTS_DIR"/api/files/", 0);
+  	first_module = ly_ctx_load_module(ctx, "x", NULL);
+ 	second_module = ly_ctx_load_module(ctx, "y", NULL);
+	/* enabled modules  */
+	do{
+		
+		iteration = ly_ctx_get_module_iter(ctx, &iter_num);
+		if(iteration==first_module){
+			first_found=1;
+		}
+		if(iteration==second_module){
+			second_found=1;
+		}
+
+		
+	}while(iteration!=NULL);
+
+	if(!second_found){
+		fail();
+	
+	}
+
+
+	if(!first_found){
+		fail();
+	}
+
+	/* disabled modules */
+
+	iter_num = 0;
+	lys_set_disabled(first_module);
+	lys_set_disabled(second_module);
+
+	first_found=0;
+	second_found=0;
+
+	do{
+		
+		iteration = ly_ctx_get_disabled_module_iter(ctx, &iter_num);
+		if(iteration==first_module){
+			first_found=1;
+		}
+		if(iteration==second_module){
+			second_found=1;
+		}
+
+		
+	}while(iteration!=NULL);
+
+	if(!second_found){
+		fail();
+	
+	}
+
+
+	if(!first_found){
+		fail();
+	}
+}
+//TODO ly_ctx_set_trusted
+
+
+void
+test_ly_ctx_set_trusted(void **state){
+	
+	ly_ctx_set_trusted(ctx);
+	
+}
 
 int main(void)
 {
@@ -1377,7 +1477,9 @@ int main(void)
 	cmocka_unit_test_setup_teardown(test_ly_ctx_internal_modules_count, setup_f, teardown_f),
 	cmocka_unit_test_setup_teardown(test_ly_ctx_new_ylpath, setup_f, teardown_f),
 	cmocka_unit_test_setup_teardown(test_ly_ctx_set_allimplemented, setup_f, teardown_f),
-    };
+	cmocka_unit_test_setup_teardown(test_ly_ctx_get_module_set_id, setup_f, teardown_f),
+	cmocka_unit_test_setup_teardown(test_ly_ctx_get_module_iter, setup_f, teardown_f),
+   };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
