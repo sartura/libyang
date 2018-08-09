@@ -1436,7 +1436,22 @@ void
 test_ly_ctx_set_trusted(void **state){
 	
 	ly_ctx_set_trusted(ctx);
+	int flags = ctx->models.flags;
+	flags &= ~0x02;
+	if(ctx->models.flags==flags){
+		fail();
+	}
 	
+	flags= ctx->models.flags;
+	ly_ctx_unset_trusted(ctx);
+	if(ctx->models.flags==flags){
+		fail();
+	}
+	
+
+	
+
+
 }
 
 int main(void)
@@ -1479,6 +1494,7 @@ int main(void)
 	cmocka_unit_test_setup_teardown(test_ly_ctx_set_allimplemented, setup_f, teardown_f),
 	cmocka_unit_test_setup_teardown(test_ly_ctx_get_module_set_id, setup_f, teardown_f),
 	cmocka_unit_test_setup_teardown(test_ly_ctx_get_module_iter, setup_f, teardown_f),
+	cmocka_unit_test_setup_teardown(test_ly_ctx_set_trusted, setup_f, teardown_f),
    };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
