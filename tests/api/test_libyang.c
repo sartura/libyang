@@ -1295,7 +1295,7 @@ test_ly_ctx_new_ylpath(void **state)
         fail();
     }
 
-    new_ctx = ly_ctx_new_ylpath(TESTS_DIR"/api/files", config_file, LYD_XML, 0);
+    new_ctx = ly_ctx_new_ylpath(TESTS_DIR"/api/files", TESTS_DIR"/api/files/a.yin", LYD_XML, 0);
     if (!new_ctx) {
         fail();
     }
@@ -1312,36 +1312,35 @@ test_ly_ctx_set_allimplemented(void **state){
 
 	(void) state; /* unused */
     	const struct lys_module *module = NULL;
-//	ctx = ly_ctx_new(TESTS_DIR"/api/files/", 0);
-//  	module = ly_ctx_load_module(ctx, "x", NULL);
-//	ly_ctx_set_allimplemented(ctx);
-//  	ly_ctx_unset_allimplemented(ctx);
+	
+	/* standard setup */	
 	module = ly_ctx_load_module(ctx, "y", NULL);
+	/* implemented flag should be 0 */
+	if(module->imp->module->implemented == 1){
+		fail();	
+	}
+	ly_ctx_clean(ctx, NULL);
+
+	/* setup with set_allimplement */
+	ly_ctx_set_allimplemented(ctx);
+	module = ly_ctx_load_module(ctx, "y", NULL);
+	/* implemented flag should be 1 */
+	if(module->imp->module->implemented != 1){
+		fail();	
+	}
+
+	ly_ctx_clean(ctx, NULL);
 	
-//  	ly_ctx_unset_allimplemented(ctx);
-	lys_set_disabled(module);
-
-
-	if(module->implemented != 1){
-
-		
-		fail();
-	
-	}	
-
-//	uint8_t implemented = module->implemented;
-//	ly_ctx_set_allimplemented(ctx);
-
+	/* setup with unset_allimplement */
 	ly_ctx_unset_allimplemented(ctx);
-//	module = ly_ctx_load_module(ctx, "b", NULL);
-//	module = ly_ctx_load_module(ctx, "y", NULL);
-	
-	if(module->implemented != 1){
+	module=ly_ctx_load_module(ctx, "y", NULL);
+	/* implemented flag should be 0 */
+	if(module->imp->module->implemented == 1){
+
+		
 		fail();
 	
 	}	
-		
-
 }
 
 
@@ -1429,22 +1428,24 @@ test_ly_ctx_get_module_iter(void **state){
 		fail();
 	}
 }
-//TODO ly_ctx_set_trusted
 
 
 void
 test_ly_ctx_set_trusted(void **state){
-	
-	ly_ctx_set_trusted(ctx);
+
+	(void) state;
 	int flags = ctx->models.flags;
-	flags &= ~0x02;
+	/* raising flag for trusted  */
+	ly_ctx_set_trusted(ctx);
+	/* Checking for changes in context  */
 	if(ctx->models.flags==flags){
 		fail();
 	}
 	
-	flags= ctx->models.flags;
+	/* lowering the flag for trusted  */
 	ly_ctx_unset_trusted(ctx);
-	if(ctx->models.flags==flags){
+	/* Checking whether the the context has returned to previous state  */
+	if(ctx->models.flags!=flags){
 		fail();
 	}
 	
@@ -1453,6 +1454,187 @@ test_ly_ctx_set_trusted(void **state){
 
 
 }
+
+void
+test_ly_ctx_get_node(void **state){
+
+	(void) state;
+	const struct lys_node *node = NULL;
+
+	module = ly_ctx_load_module(ctx, "y", NULL);
+	
+	/* Test with a valid path */
+	node = ly_ctx_get_node(ctx, NULL, "/b:x/b:bubba", 0);
+	if(!node){
+		fail();
+	}
+
+	/* Test with an invalid path */
+	node = ly_ctx_get_node(ctx, NULL, "INVALID PATH", 0);
+	if(node){
+		fail();
+	}
+}
+
+void
+test_ly_ctx_find_path(void **state){
+	
+	(void) state;
+	const struct ly_set *set = NULL;
+
+	set = ly_ctx_find_path(ctx, "/b:*");
+
+	/* Test with a valid path  */
+	if(!set){
+		fail();
+	}
+
+	set = ly_ctx_find_path(ctx, "INVALID PATH");
+	
+	/* Test with an invalid path  */
+	if(set){
+		fail();
+	}
+	
+
+}
+
+void
+test_ly_ctx_destroy(void **state){
+	(void) state;
+	const struct ly_ctx *new_ctx = NULL;
+
+	if(new_ctx){
+		fail();
+	}
+
+	new_ctx=ly_ctx_new(TESTS_DIR"/api/files", 0);
+	/* Making sure that the context has internal modules  */
+	if(!new_ctx->internal_module_count){
+		fail();
+	}
+
+	ly_ctx_destroy(new_ctx, NULL);
+
+	/* Checking if the funcion has cleared the internal structure  */
+	if(new_ctx->internal_module_count){
+		fail();
+	}
+}
+
+void
+test_ly_path_xml2json(void **state){
+	(void) state;
+	const char path = "api.files*";
+	const struct xyxml_elem *xml = NULL;
+	char xml_path = NULL;
+	char *mem;
+	const struct ly_node *node = NULL;
+
+	node = ly_ctx_info(ctx);
+	if (!node) {
+       		 fail();
+    	}
+
+
+	if (lyd_print_mem(&mem, node, LYD_XML, LYP_WITHSIBLINGS)) {
+        	fail();
+   	}
+
+	xml = lyxml_parse_mem(ctx, mem, LYXML_PARSE_NOMIXEDCONTENT);	
+	if(!mem){
+		fail();
+	}	
+
+	if(!xml){
+		fail();
+	}
+
+	xml_path= ly_path_xml2json(ctx, "/c", xml);
+
+	if(!xml_path){
+		fail();
+	}
+
+//	xml = lyxml_parse_path(ctx, "INVALID FILE", 0);
+
+	xml_path= ly_path_xml2json(ctx, "INVALID PATH", xml);
+	
+	if(xml_path){
+		fail();
+	}
+	
+}
+
+void
+test_ly_set_dup(void **state){
+
+	(void) state;
+	const struct ly_set *first_set= NULL;
+	const struct ly_set *second_set = NULL;
+
+
+	/* Creating the first set */
+	first_set = ly_set_new();
+
+	if(!first_set){
+		fail();
+	}
+
+	/* Duplicating the first set onto the second  */
+	second_set = ly_set_dup(first_set);
+	if(!second_set){
+		fail();
+	}
+
+}
+
+void
+test_ly_set_merge(void **state){
+	
+	(void) state;
+	const struct ly_set *first_set=NULL;
+	const struct ly_set *second_set=NULL;
+	const struct ly_node *node=NULL;
+
+	node = ly_ctx_get_node(ctx, NULL, "/b:x/b:bubba", 0);
+
+	first_set = ly_set_new();
+	second_set =  ly_set_new();
+	/* Adding a node to the second set to later see whether the merge was successful*/
+	ly_set_add(second_set, node, 0);
+
+	/* Check if both sets are set */
+	if(!first_set || !second_set){
+		fail();
+	}
+
+	/* Check if the merge is successful  */
+	if(ly_set_merge(first_set, second_set, LY_SET_OPT_USEASLIST)){
+		fail();
+	}
+
+	/* Check if the first set got the node from the second set */
+	if(ly_set_contains(first_set, node)!=-1){
+		fail();
+	}
+
+	/* Check that the second set is clear */
+	if(ly_set_contains(second_set, node)==-1){
+		fail();
+	}
+
+}
+
+
+
+//TODO 
+//test_ly_ctx_set_module_data_clb
+//test_ly_ctx_set_module_data_clb
+//test_set_priv_dup_clb
+
+
+
 
 int main(void)
 {
@@ -1495,6 +1677,12 @@ int main(void)
 	cmocka_unit_test_setup_teardown(test_ly_ctx_get_module_set_id, setup_f, teardown_f),
 	cmocka_unit_test_setup_teardown(test_ly_ctx_get_module_iter, setup_f, teardown_f),
 	cmocka_unit_test_setup_teardown(test_ly_ctx_set_trusted, setup_f, teardown_f),
+	cmocka_unit_test_setup_teardown(test_ly_ctx_get_node, setup_f, teardown_f),
+	cmocka_unit_test_setup_teardown(test_ly_ctx_find_path, setup_f, teardown_f),
+	cmocka_unit_test_setup_teardown(test_ly_ctx_destroy, setup_f, teardown_f),
+	cmocka_unit_test_setup_teardown(test_ly_path_xml2json, setup_f, teardown_f),
+	cmocka_unit_test_setup_teardown(test_ly_set_dup, setup_f, teardown_f),
+
    };
 
     return cmocka_run_group_tests(tests, NULL, NULL);
