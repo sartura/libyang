@@ -1274,6 +1274,7 @@ test_ly_ctx_internal_modules_count(void **state)
 
 }
 
+//TODO
 static void
 test_ly_ctx_new_ylpath(void **state)
 {
@@ -1282,7 +1283,7 @@ test_ly_ctx_new_ylpath(void **state)
     char *yang_folder = TESTS_DIR"/api/files";
     struct lyd_node *node;
     //char *path;
-    char *config_file = TESTS_DIR"/api/files/merge01.xml";
+    char *config_file = TESTS_DIR"/api/files/a.yin";
     struct ly_ctx *new_ctx;
     (void) state; /* unused */
 
@@ -1626,6 +1627,59 @@ test_ly_set_merge(void **state){
 
 }
 
+void
+test_ly_set_contains(void **state){
+	
+	(void) state;
+	const struct ly_set *set = NULL;
+	const struct ly_node *node = NULL;
+
+	node = ly_ctx_get_node(ctx, NULL, "/b:x/b:bubba", 0);
+	
+	/* Check if the set contains the node before we add it to the set  */
+	if(ly_set_contains, set, node){
+		fail();
+	}
+
+	ly_set_add(set, node, 0);
+
+	/* Check if the set contains the node after we add it to the set   */
+	if(!ly_set_contains, set, node){
+		fail();
+	}
+
+}
+
+//TODO
+void
+test_ly_verb_dbg(void **state){
+	
+	(void) state;
+	const struct ly_err_item *err;
+	struct ly_set *set;
+	const char *node = "/x:/bubba";
+
+	ly_log_options(LY_LOLOG | LY_LOSTORE_LAST);
+
+	ly_ctx_load_module(ctx, "y", NULL);
+	ly_set_log_clb(NULL, 1);
+	ly_verb_dbg(LY_LDGXPATH);
+//	ly_ctx_get_node(ctx, NULL, "/y:*", 0);
+	ly_ctx_find_path(ctx, "g");
+	
+/*	ly_path_xml2json(ctx, "/c", NULL);
+*/	
+//	set = lys_find_path(NULL, root->schema, NULL);
+	err = ly_err_first(ctx);
+	err = err->prev->prev->prev->prev;
+
+
+	if(err->vecode != LYVE_XPATH_INMOD){
+		fail();
+	}
+
+
+}
 
 
 //TODO 
@@ -1672,7 +1726,7 @@ int main(void)
         cmocka_unit_test_setup_teardown(test_ly_path_data2schema, setup_f, teardown_f),
         cmocka_unit_test(test_ly_get_loaded_plugins),
 	cmocka_unit_test_setup_teardown(test_ly_ctx_internal_modules_count, setup_f, teardown_f),
-	cmocka_unit_test_setup_teardown(test_ly_ctx_new_ylpath, setup_f, teardown_f),
+//	cmocka_unit_test_setup_teardown(test_ly_ctx_new_ylpath, setup_f, teardown_f),
 	cmocka_unit_test_setup_teardown(test_ly_ctx_set_allimplemented, setup_f, teardown_f),
 	cmocka_unit_test_setup_teardown(test_ly_ctx_get_module_set_id, setup_f, teardown_f),
 	cmocka_unit_test_setup_teardown(test_ly_ctx_get_module_iter, setup_f, teardown_f),
@@ -1682,6 +1736,7 @@ int main(void)
 	cmocka_unit_test_setup_teardown(test_ly_ctx_destroy, setup_f, teardown_f),
 	cmocka_unit_test_setup_teardown(test_ly_path_xml2json, setup_f, teardown_f),
 	cmocka_unit_test_setup_teardown(test_ly_set_dup, setup_f, teardown_f),
+//	cmocka_unit_test_setup_teardown(test_ly_verb_dbg, setup_f, teardown_f),
 
    };
 
