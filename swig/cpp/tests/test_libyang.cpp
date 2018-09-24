@@ -51,7 +51,7 @@ TEST(test_ly_ctx_new)
         ASSERT_EQ(2, list->size());
     } catch( const std::exception& e ) {
         mt::printFailed(e.what(), stdout);
-        return;
+        throw;
     }
 }
 
@@ -81,7 +81,7 @@ TEST(test_ly_ctx_get_searchdirs)
         ASSERT_EQ(yang_folder, list->at(0));
     } catch( const std::exception& e ) {
         mt::printFailed(e.what(), stdout);
-        return;
+        throw;
     }
 }
 
@@ -109,7 +109,7 @@ TEST(test_ly_ctx_set_searchdir)
         ASSERT_EQ(new_yang_folder, list->at(0));
     } catch( const std::exception& e ) {
         mt::printFailed(e.what(), stdout);
-        return;
+        throw;
     }
 }
 
@@ -142,7 +142,7 @@ TEST(test_ly_ctx_info)
         ASSERT_EQ(LYD_VAL_OK, info->validity());
     } catch( const std::exception& e ) {
         mt::printFailed(e.what(), stdout);
-        return;
+        throw;
     }
 }
 
@@ -200,7 +200,7 @@ TEST(test_ly_ctx_load_get_module)
         ASSERT_STREQ(revision, module->rev()->date());
     } catch( const std::exception& e ) {
         mt::printFailed(e.what(), stdout);
-        return;
+        throw;
     }
 }
 
@@ -230,7 +230,7 @@ TEST(test_ly_ctx_get_module_older)
         ASSERT_STREQ(revision_older, module_older->rev()->date());
     } catch( const std::exception& e ) {
         mt::printFailed(e.what(), stdout);
-        return;
+        throw;
     }
 }
 
@@ -253,7 +253,7 @@ TEST(test_ly_ctx_get_module_by_ns)
         ASSERT_STREQ(module_name, module->name());
     } catch( const std::exception& e ) {
         mt::printFailed(e.what(), stdout);
-        return;
+        throw;
     }
 }
 
@@ -280,7 +280,7 @@ TEST(test_ly_ctx_clean)
         ASSERT_NULL(module);
     } catch( const std::exception& e ) {
         mt::printFailed(e.what(), stdout);
-        return;
+        throw;
     }
 }
 
@@ -305,7 +305,7 @@ TEST(test_ly_ctx_parse_module_path)
         ASSERT_STREQ(module_name2, module->name());
     } catch( const std::exception& e ) {
         mt::printFailed(e.what(), stdout);
-        return;
+        throw;
     }
 }
 
@@ -342,7 +342,7 @@ TEST(test_ly_ctx_get_submodule)
         ASSERT_STREQ(sub_name, submodule->name());
     } catch( const std::exception& e ) {
         mt::printFailed(e.what(), stdout);
-        return;
+        throw;
     }
 }
 
@@ -367,7 +367,7 @@ TEST(test_ly_ctx_get_submodule2)
         ASSERT_STREQ(sub_name, submodule->name());
     } catch( const std::exception& e ) {
         mt::printFailed(e.what(), stdout);
-        return;
+        throw;
     }
 }
 
@@ -393,7 +393,7 @@ TEST(test_ly_ctx_find_path)
         S_Set(new Set());
     } catch( const std::exception& e ) {
         mt::printFailed(e.what(), stdout);
-        return;
+        throw;
     }
 }
 
