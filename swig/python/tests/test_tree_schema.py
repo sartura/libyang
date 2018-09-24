@@ -552,5 +552,46 @@ class TestUM(unittest.TestCase):
         except Exception as e:
             self.fail(e)
 
+    def test_ly_module_data_instatiables(self):
+        yang_folder = config.TESTS_DIR + "/api/files"
+        module_name = "b"
+
+        try:
+            ctx = ly.Context(yang_folder)
+            self.assertIsNotNone(ctx)
+
+            module = ctx.load_module(module_name)
+            self.assertIsNotNone(module)
+            self.assertEqual(module_name, module.name())
+
+            list = module.data_instantiables(0)
+            self.assertIsNotNone(list)
+            self.assertEqual(1, len(list))
+
+        except Exception as e:
+            self.fail(e)
+
+    def test_ly_schema_child_instatiables(self):
+        yang_folder = config.TESTS_DIR + "/api/files"
+        module_name = "b"
+
+        try:
+            ctx = ly.Context(yang_folder)
+            self.assertIsNotNone(ctx)
+
+            module = ctx.load_module(module_name)
+            self.assertIsNotNone(module)
+            self.assertEqual(module_name, module.name())
+
+            list = module.data_instantiables(0)
+            self.assertIsNotNone(list)
+            self.assertEqual(1, len(list))
+            child_list = list.front().child_instantiables(0)
+            self.assertIsNotNone(child_list)
+            self.assertEqual(3, len(child_list))
+
+        except Exception as e:
+            self.fail(e)
+
 if __name__ == '__main__':
     unittest.main()
