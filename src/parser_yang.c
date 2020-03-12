@@ -1535,8 +1535,10 @@ yang_fill_deviate_default(struct ly_ctx *ctx, struct lys_deviate *deviate, struc
     struct lys_node_choice *choice;
     struct lys_node_leaf *leaf;
     struct lys_node_leaflist *llist;
+    enum int_log_opts prev_ilo;
     int rc, i, j;
     unsigned int u;
+    const char *orig_dflt;
 
     u = strlen(value);
     if (dev_target->nodetype == LYS_CHOICE) {
@@ -1570,11 +1572,24 @@ yang_fill_deviate_default(struct ly_ctx *ctx, struct lys_deviate *deviate, struc
     } else if (dev_target->nodetype == LYS_LEAF) {
         leaf = (struct lys_node_leaf *)dev_target;
         if (deviate->mod == LY_DEVIATE_DEL) {
-            if (!leaf->dflt || !ly_strequal(leaf->dflt, value, 1)) {
+            orig_dflt = NULL;
+            if (leaf->dflt) {
+                /* transform back into the original value */
+                ly_ilo_change(NULL, ILO_IGNORE, &prev_ilo, NULL);
+                orig_dflt = transform_json2schema(leaf->module, leaf->dflt);
+                ly_ilo_restore(NULL, prev_ilo, NULL, 0);
+                if (!orig_dflt) {
+                    orig_dflt = lydict_insert(ctx, leaf->dflt, 0);
+                }
+            }
+            if (!orig_dflt || !ly_strequal(orig_dflt, value, 1)) {
                 LOGVAL(ctx, LYE_INARG, LY_VLOG_NONE, NULL, value, "default");
                 LOGVAL(ctx, LYE_SPEC, LY_VLOG_NONE, NULL, "Value differs from the target being deleted.");
+                lydict_remove(ctx, orig_dflt);
                 goto error;
             }
+            lydict_remove(ctx, orig_dflt);
+
             /* remove value */
             lydict_remove(ctx, leaf->dflt);
             leaf->dflt = NULL;
@@ -1601,7 +1616,20 @@ yang_fill_deviate_default(struct ly_ctx *ctx, struct lys_deviate *deviate, struc
         if (deviate->mod == LY_DEVIATE_DEL) {
             /* find and remove the value in target list */
             for (i = 0; i < llist->dflt_size; i++) {
-                if (llist->dflt[i] && ly_strequal(llist->dflt[i], value, 1)) {
+                orig_dflt = NULL;
+                if (llist->dflt[i]) {
+                    /* transform back into the original value */
+                    ly_ilo_change(NULL, ILO_IGNORE, &prev_ilo, NULL);
+                    orig_dflt = transform_json2schema(llist->module, llist->dflt[i]);
+                    ly_ilo_restore(NULL, prev_ilo, NULL, 0);
+                    if (!orig_dflt) {
+                        orig_dflt = lydict_insert(ctx, llist->dflt[i], 0);
+                    }
+                }
+
+                if (orig_dflt && ly_strequal(orig_dflt, value, 1)) {
+                    lydict_remove(ctx, orig_dflt);
+
                     /* match, remove the value */
                     lydict_remove(llist->module->ctx, llist->dflt[i]);
                     llist->dflt[i] = NULL;
@@ -1618,6 +1646,7 @@ yang_fill_deviate_default(struct ly_ctx *ctx, struct lys_deviate *deviate, struc
                     }
                     break;
                 }
+                lydict_remove(ctx, orig_dflt);
             }
             if (i == llist->dflt_size) {
                 LOGVAL(ctx, LYE_INARG, LY_VLOG_NONE, NULL, value, "default");
@@ -4027,17 +4056,6 @@ static int
 yang_check_rpc_action(struct lys_module *module, struct lys_node_rpc_action *rpc, struct lys_node **child,
                       int options, struct unres_schema *unres)
 {
-    struct lys_node *node;
-
-    if (rpc->nodetype == LYS_ACTION) {
-        for (node = rpc->parent; node; node = lys_parent(node)) {
-            if ((node->nodetype & (LYS_RPC | LYS_ACTION | LYS_NOTIF))
-                    || ((node->nodetype == LYS_LIST) && !((struct lys_node_list *)node)->keys)) {
-                LOGVAL(module->ctx, LYE_INPAR, LY_VLOG_LYS, rpc->parent, strnodetype(node->nodetype), "action");
-                goto error;
-            }
-        }
-    }
     if (yang_check_typedef(module, (struct lys_node *)rpc, unres)) {
         goto error;
     }

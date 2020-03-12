@@ -2156,7 +2156,8 @@ resolve_descendant_schema_nodeid(const char *nodeid, const struct lys_node *star
     while (1) {
         sibling = NULL;
         while ((sibling = lys_getnext(sibling, start_parent, module,
-                LYS_GETNEXT_WITHCHOICE | LYS_GETNEXT_WITHCASE | LYS_GETNEXT_PARENTUSES | LYS_GETNEXT_NOSTATECHECK))) {
+                LYS_GETNEXT_WITHCHOICE | LYS_GETNEXT_WITHCASE | LYS_GETNEXT_WITHINOUT | LYS_GETNEXT_PARENTUSES
+                | LYS_GETNEXT_NOSTATECHECK))) {
             r = schema_nodeid_siblingcheck(sibling, module, mod_name, mod_name_len, name, nam_len);
             if (r == 0) {
                 if (!id[0]) {
@@ -3530,6 +3531,9 @@ check_default(struct lys_type *type, const char **value, struct lys_module *modu
         case LY_TYPE_IDENT:
             if (lys_main_module(base_tpdf->type.parent->module)->implemented) {
                 goto cleanup;
+            } else if ((type->base == LY_TYPE_IDENT) || (type->base == LY_TYPE_INST)) {
+                /* impossible to check with a non-implemented module */
+                goto cleanup;
             } else {
                 /* check the default value from typedef, but use also the typedef's module
                  * due to possible searching in imported modules which is expected in
@@ -3638,7 +3642,7 @@ check_default(struct lys_type *type, const char **value, struct lys_module *modu
             }
         }
     } else {
-        if (!lyp_parse_value(type, &node.value_str, NULL, &node, NULL, module, 1, 1, 0)) {
+        if (!lyp_parse_value(type, &node.value_str, NULL, &node, NULL, module, 1, 1)) {
             /* possible forward reference */
             ret = EXIT_FAILURE;
             if (base_tpdf) {
@@ -4430,7 +4434,7 @@ repeat:
         sleaf = sleaf->type.info.lref.target;
         goto repeat;
     } else {
-        if (!lyp_parse_value(&sleaf->type, &leaf.value_str, NULL, &leaf, NULL, NULL, 0, 0, 0)) {
+        if (!lyp_parse_value(&sleaf->type, &leaf.value_str, NULL, &leaf, NULL, NULL, 0, 0)) {
             ret = -1;
             goto finish;
         }
@@ -4879,6 +4883,22 @@ resolve_augment(struct lys_node_augment *aug, struct lys_node *uses, struct unre
             sub->next = NULL;
             sub->parent = (struct lys_node*)c;
         }
+    }
+
+    LY_TREE_DFS_BEGIN(aug->child, next, sub) {
+        if (sub->nodetype == LYS_ACTION) {
+            /* we need to check parents */
+            for (sub = aug->target; sub; sub = lys_parent(sub)) {
+                if ((sub->nodetype & (LYS_RPC | LYS_ACTION | LYS_NOTIF))
+                        || ((sub->nodetype == LYS_LIST) && !((struct lys_node_list *)sub)->keys)) {
+                    LOGVAL(ctx, LYE_INPAR, LY_VLOG_LYS, aug->target, strnodetype(sub->nodetype), "action");
+                    LOGVAL(ctx, LYE_INRESOLV, LY_VLOG_LYS, aug, "augment", aug->target_name);
+                    return -1;
+                }
+            }
+            break;
+        }
+        LY_TREE_DFS_END(aug->child, next, sub);
     }
 
     if (!aug->child) {
@@ -6046,13 +6066,16 @@ resolve_identref(struct lys_type *type, const char *ident_name, struct lyd_node 
                     break;
                 }
             }
+        } else {
+            LOGWRN(ctx, "Identity \"%s\" has no derived identities, identityref with this base can never be instatiated.",
+                   cur->name);
         }
     }
     if (found == type->info.ident.count) {
         /* match found for all bases */
         cur = der;
         goto match;
-    } else if (found) {
+    } else {
         LOGVAL(ctx, LYE_SPEC, node ? LY_VLOG_LYD : LY_VLOG_NONE, node, "Identityref value is not derived from all its bases.");
         goto fail;
     }
@@ -7866,16 +7889,7 @@ check_instid_ext_dep(const struct lys_node *sleaf, const char *json_instid)
     return 0;
 }
 
-/**
- * @brief Resolve instance-identifier in JSON data format. Logs directly.
- *
- * @param[in] data Data node where the path is used
- * @param[in] path Instance-identifier node value.
- * @param[in,out] ret Resolved instance or NULL.
- *
- * @return 0 on success (even if unresolved and \p ret is NULL), -1 on error.
- */
-static int
+int
 resolve_instid(struct lyd_node *data, const char *path, int req_inst, struct lyd_node **ret)
 {
     int i = 0, j, parsed, cur_idx;
@@ -8002,7 +8016,7 @@ error:
     return -1;
 }
 
-static int
+int
 resolve_leafref(struct lyd_node_leaf_list *leaf, const char *path, int req_inst, struct lyd_node **ret)
 {
     struct lyxp_set xp_set;
@@ -8097,7 +8111,7 @@ resolve_union(struct lyd_node_leaf_list *leaf, struct lys_type *type, int store,
                     } else {
                         /* valid unresolved */
                         ly_ilo_restore(NULL, prev_ilo, NULL, 0);
-                        if (!lyp_parse_value(t, &leaf->value_str, NULL, leaf, NULL, NULL, 1, 0, 0)) {
+                        if (!lyp_parse_value(t, &leaf->value_str, NULL, leaf, NULL, NULL, 1, 0)) {
                             return -1;
                         }
                         ly_ilo_change(NULL, ILO_IGNORE, &prev_ilo, NULL);
@@ -8145,7 +8159,7 @@ resolve_union(struct lyd_node_leaf_list *leaf, struct lys_type *type, int store,
             }
             break;
         default:
-            if (lyp_parse_value(t, &leaf->value_str, NULL, leaf, NULL, NULL, store, 0, 0)) {
+            if (lyp_parse_value(t, &leaf->value_str, NULL, leaf, NULL, NULL, store, 0)) {
                 success = 1;
             }
             break;
@@ -8237,7 +8251,7 @@ resolve_unres_data_item(struct lyd_node *node, enum UNRES_ITEM type, int ignore_
             } else {
                 /* valid unresolved */
                 if (!(leaf->value_flags & LY_VALUE_UNRES)) {
-                    if (!lyp_parse_value(&sleaf->type, &leaf->value_str, NULL, leaf, NULL, NULL, 1, 0, 0)) {
+                    if (!lyp_parse_value(&sleaf->type, &leaf->value_str, NULL, leaf, NULL, NULL, 1, 0)) {
                         return -1;
                     }
                 }

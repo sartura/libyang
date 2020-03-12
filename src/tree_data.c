@@ -1255,7 +1255,7 @@ _lyd_new_leaf(struct lyd_node *parent, const struct lys_node *schema, const char
 
     /* resolve the type correctly (after it was connected to parent cause of log) */
     if (!lyp_parse_value(&((struct lys_node_leaf *)ret->schema)->type, &((struct lyd_node_leaf_list *)ret)->value_str,
-                         NULL, (struct lyd_node_leaf_list *)ret, NULL, NULL, 1, dflt, 0)) {
+                         NULL, (struct lyd_node_leaf_list *)ret, NULL, NULL, 1, dflt)) {
         lyd_free(ret);
         return NULL;
     }
@@ -1339,7 +1339,7 @@ lyd_change_leaf(struct lyd_node_leaf_list *leaf, const char *val_str)
 {
     FUN_IN;
 
-    const char *backup;
+    const char *backup, *new_val;
     int val_change, dflt_change;
     struct lyd_node *parent;
 
@@ -1349,24 +1349,24 @@ lyd_change_leaf(struct lyd_node_leaf_list *leaf, const char *val_str)
     }
 
     backup = leaf->value_str;
-    leaf->value_str = lydict_insert(leaf->schema->module->ctx, val_str ? val_str : "", 0);
-    /* leaf->value is erased by lyp_parse_value() */
+    new_val = lydict_insert(leaf->schema->module->ctx, val_str ? val_str : "", 0);
 
     /* parse the type correctly, makes the value canonical if needed */
-    if (!lyp_parse_value(&((struct lys_node_leaf *)leaf->schema)->type, &leaf->value_str, NULL, leaf, NULL, NULL, 1, 0, 0)) {
+    if (!lyp_parse_value(&((struct lys_node_leaf *)leaf->schema)->type, &new_val, NULL, leaf, NULL, NULL, 1, 0)) {
         lydict_remove(leaf->schema->module->ctx, backup);
         return -1;
     }
 
-    if (!strcmp(backup, leaf->value_str)) {
+    if (!strcmp(backup, new_val)) {
         /* the value remains the same */
         val_change = 0;
     } else {
         val_change = 1;
     }
 
-    /* value is correct, remove backup */
-    lydict_remove(leaf->schema->module->ctx, backup);
+    /* value is correct, replace it */
+    lydict_remove(leaf->schema->module->ctx, leaf->value_str);
+    leaf->value_str = new_val;
 
     /* clear the default flag, the value is different */
     if (leaf->dflt) {
@@ -1627,7 +1627,7 @@ lyd_make_canonical(const struct lys_node *schema, const char *val_str, int val_s
 
     /* parse the value into a fake leaf */
     if (!lyp_parse_value(&((struct lys_node_leaf *)node->schema)->type, &((struct lyd_node_leaf_list *)node)->value_str,
-                         NULL, (struct lyd_node_leaf_list *)node, NULL, NULL, 1, 0, 0)) {
+                         NULL, (struct lyd_node_leaf_list *)node, NULL, NULL, 1, 0)) {
         lyd_free(node);
         return NULL;
     }
@@ -2437,7 +2437,7 @@ lyd_get_schema_inctx(const struct lyd_node *node, struct ly_ctx *ctx)
 
 /* both target and source were validated */
 static void
-lyd_merge_node_update(struct lyd_node *target, struct lyd_node *source)
+lyd_merge_node_update(struct lyd_node *target, struct lyd_node *source, int options)
 {
     struct ly_ctx *ctx;
     struct lyd_node_leaf_list *trg_leaf, *src_leaf;
@@ -2446,6 +2446,11 @@ lyd_merge_node_update(struct lyd_node *target, struct lyd_node *source)
 
     assert(target->schema->nodetype & (LYS_LEAF | LYS_ANYDATA));
     ctx = target->schema->module->ctx;
+
+    if (source->dflt && (options & LYD_OPT_EXPLICIT)) {
+        /* keep the target node whatever it is */
+        return;
+    }
 
     if (ctx == source->schema->module->ctx) {
         /* source and targets are in the same context */
@@ -2458,7 +2463,7 @@ lyd_merge_node_update(struct lyd_node *target, struct lyd_node *source)
             trg_leaf->value_type = src_leaf->value_type;
             if (trg_leaf->value_type == LY_TYPE_LEAFREF) {
                 lyp_parse_value(&((struct lys_node_leaf *)trg_leaf->schema)->type, &trg_leaf->value_str,
-                                NULL, trg_leaf, NULL, NULL, 1, src_leaf->dflt, 0);
+                                NULL, trg_leaf, NULL, NULL, 1, src_leaf->dflt);
             } else {
                 lyd_free_value(trg_leaf->value, trg_leaf->value_type, trg_leaf->value_flags,
                                &((struct lys_node_leaf *)trg_leaf->schema)->type, trg_leaf->value_str, NULL, NULL, NULL);
@@ -2522,7 +2527,7 @@ lyd_merge_node_update(struct lyd_node *target, struct lyd_node *source)
                 break;
             case LY_TYPE_LEAFREF:
                 lyp_parse_value(&((struct lys_node_leaf *)trg_leaf->schema)->type, &trg_leaf->value_str,
-                                NULL, trg_leaf, NULL, NULL, 1, trg_leaf->dflt, 0);
+                                NULL, trg_leaf, NULL, NULL, 1, trg_leaf->dflt);
                 break;
             case LY_TYPE_INST:
                 trg_leaf->value.instance = NULL;
@@ -2539,7 +2544,7 @@ lyd_merge_node_update(struct lyd_node *target, struct lyd_node *source)
                  * a different context, searching for the type and duplicating the data is almost as same as resolving
                  * the string value, so due to a simplicity, parse the value for the duplicated leaf */
                 lyp_parse_value(&((struct lys_node_leaf *)trg_leaf->schema)->type, &trg_leaf->value_str, NULL,
-                                trg_leaf, NULL, NULL, 1, trg_leaf->dflt, 1);
+                                trg_leaf, NULL, NULL, 1, trg_leaf->dflt);
                 break;
             default:
                 trg_leaf->value = src_leaf->value;
@@ -2702,16 +2707,6 @@ lyd_merge_parent_children(struct lyd_node *target, struct lyd_node *source, int 
             src_elem;
             src_elem = src_next) {
 
-            /* it won't get inserted in this case */
-            if (src_elem->dflt && (options & LYD_OPT_EXPLICIT)) {
-                if (src_elem == src) {
-                    /* we are done with this subtree in this case */
-                    break;
-                }
-                trg_child = (struct lyd_node *)1;
-                goto src_skip;
-            }
-
             ret = 0;
 
 #ifdef LY_ENABLED_CACHE
@@ -2769,7 +2764,7 @@ lyd_merge_parent_children(struct lyd_node *target, struct lyd_node *source, int 
 
             if (ret > 0) {
                 if (trg_child->schema->nodetype & (LYS_LEAF | LYS_ANYDATA)) {
-                    lyd_merge_node_update(trg_child, src_elem);
+                    lyd_merge_node_update(trg_child, src_elem, options);
                 } else if (ret == 2) {
                     clear_flag = 1;
                 }
@@ -2788,7 +2783,6 @@ lyd_merge_parent_children(struct lyd_node *target, struct lyd_node *source, int 
                 src_next = src_elem->child;
                 trg_parent = trg_child;
             } else {
-src_skip:
                 /* no children (or the whole subtree will be inserted), try siblings */
                 if (src_elem == src) {
                     /* we are done with this subtree */
@@ -2883,7 +2877,7 @@ lyd_merge_siblings(struct lyd_node *target, struct lyd_node *source, int options
                 case LYS_LEAF:
                 case LYS_ANYXML:
                 case LYS_ANYDATA:
-                    lyd_merge_node_update(trg, src);
+                    lyd_merge_node_update(trg, src, options);
                     break;
                 case LYS_LEAFLIST:
                     /* it's already there, nothing to do */
@@ -5279,7 +5273,7 @@ repeat:
         sleaf = sleaf->type.info.lref.target;
         goto repeat;
     } else {
-        if (!lyp_parse_value(&sleaf->type, &leaf.value_str, NULL, &leaf, NULL, NULL, 0, 0, 0)) {
+        if (!lyp_parse_value(&sleaf->type, &leaf.value_str, NULL, &leaf, NULL, NULL, 0, 0)) {
             ret = EXIT_FAILURE;
             goto cleanup;
         }
@@ -5323,7 +5317,7 @@ lyd_dup_attr(struct ly_ctx *ctx, struct lyd_node *parent, struct lyd_attr *attr)
         break;
     case LY_TYPE_LEAFREF:
         lyp_parse_value(*((struct lys_type **)lys_ext_complex_get_substmt(LY_STMT_TYPE, ret->annotation, NULL)),
-                             &ret->value_str, NULL, NULL, ret, NULL, 1, 0, 0);
+                             &ret->value_str, NULL, NULL, ret, NULL, 1, 0);
         break;
     case LY_TYPE_INST:
         ret->value.instance = NULL;
@@ -5340,7 +5334,7 @@ lyd_dup_attr(struct ly_ctx *ctx, struct lyd_node *parent, struct lyd_attr *attr)
          * a different context, searching for the type and duplicating the data is almost as same as resolving
          * the string value, so due to a simplicity, parse the value for the duplicated leaf */
         lyp_parse_value(*((struct lys_type **)lys_ext_complex_get_substmt(LY_STMT_TYPE, ret->annotation, NULL)),
-                             &ret->value_str, NULL, NULL, ret, NULL, 1, 0, 0);
+                             &ret->value_str, NULL, NULL, ret, NULL, 1, 0);
         break;
     default:
         ret->value = attr->value;
@@ -5487,7 +5481,7 @@ _lyd_dup_node(const struct lyd_node *node, const struct lys_node *schema, struct
             new_leaf->value.string = new_leaf->value_str;
             break;
         case LY_TYPE_LEAFREF:
-            lyp_parse_value(&sleaf->type, &new_leaf->value_str, NULL, new_leaf, NULL, NULL, 1, node->dflt, 0);
+            lyp_parse_value(&sleaf->type, &new_leaf->value_str, NULL, new_leaf, NULL, NULL, 1, node->dflt);
             break;
         case LY_TYPE_INST:
             new_leaf->value.instance = NULL;
@@ -5503,7 +5497,7 @@ _lyd_dup_node(const struct lyd_node *node, const struct lys_node *schema, struct
             /* in case of duplicating bits (no matter if in the same context or not) or enum and identityref into
              * a different context, searching for the type and duplicating the data is almost as same as resolving
              * the string value, so due to a simplicity, parse the value for the duplicated leaf */
-            if (!lyp_parse_value(&sleaf->type, &new_leaf->value_str, NULL, new_leaf, NULL, NULL, 1, node->dflt, 0)) {
+            if (!lyp_parse_value(&sleaf->type, &new_leaf->value_str, NULL, new_leaf, NULL, NULL, 1, node->dflt)) {
                 goto error;
             }
             break;
@@ -6075,7 +6069,7 @@ lyd_insert_attr(struct lyd_node *parent, const struct lys_module *mod, const cha
     a->name = lydict_insert(ctx, name, 0);
     a->value_str = lydict_insert(ctx, value, 0);
     if (!lyp_parse_value(*((struct lys_type **)lys_ext_complex_get_substmt(LY_STMT_TYPE, a->annotation, NULL)),
-                         &a->value_str, NULL, NULL, a, NULL, 1, 0, 0)) {
+                         &a->value_str, NULL, NULL, a, NULL, 1, 0)) {
         lyd_free_attr(ctx, NULL, a, 0);
         return NULL;
     }

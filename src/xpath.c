@@ -3615,6 +3615,7 @@ xpath_deref(struct lyxp_set **args, uint16_t UNUSED(arg_count), struct lyd_node 
 {
     struct lyd_node_leaf_list *leaf;
     struct lys_node_leaf *sleaf;
+    struct lyd_node *target;
     int ret = EXIT_SUCCESS;
 
     if (options & LYXP_SNODE_ALL) {
@@ -3649,13 +3650,18 @@ xpath_deref(struct lyxp_set **args, uint16_t UNUSED(arg_count), struct lyd_node 
         if ((sleaf->nodetype & (LYS_LEAF | LYS_LEAFLIST))
                 && ((sleaf->type.base == LY_TYPE_LEAFREF) || (sleaf->type.base == LY_TYPE_INST))) {
             if (leaf->value_flags & LY_VALUE_UNRES) {
-                /* this is bad */
-                LOGVAL(local_mod->ctx, LYE_SPEC, LY_VLOG_LYD, args[0]->val.nodes[0].node,
-                       "Trying to dereference an unresolved leafref or instance-identifier.");
-                return -1;
+                /* this means that the target may exist except it cannot be stored in the value */
+                if (sleaf->type.base == LY_TYPE_LEAFREF) {
+                    resolve_leafref(leaf, sleaf->type.info.lref.path, -1, &target);
+                } else {
+                    resolve_instid((struct lyd_node *)leaf, leaf->value_str, -1, &target);
+                }
+            } else {
+                /* works for both leafref and instid */
+                target = leaf->value.leafref;
             }
-            /* works for both leafref and instid */
-            set_insert_node(set, leaf->value.leafref, 0, LYXP_NODE_ELEM, 0);
+
+            set_insert_node(set, target, 0, LYXP_NODE_ELEM, 0);
         }
     }
 
@@ -5375,6 +5381,7 @@ static const struct lyd_node *
 moveto_get_root(const struct lyd_node *cur_node, int options, enum lyxp_node_type *root_type)
 {
     const struct lyd_node *root;
+    const struct lys_node *op;
 
     if (!cur_node) {
         return NULL;
@@ -5388,7 +5395,9 @@ moveto_get_root(const struct lyd_node *cur_node, int options, enum lyxp_node_typ
         return root;
     }
 
-    if (cur_node->schema->flags & LYS_CONFIG_W) {
+    for (op = cur_node->schema; op && !(op->nodetype & (LYS_RPC | LYS_ACTION | LYS_NOTIF)); op = lys_parent(op));
+
+    if (!op && (cur_node->schema->flags & LYS_CONFIG_W)) {
         *root_type = LYXP_NODE_ROOT_CONFIG;
     } else {
         *root_type = LYXP_NODE_ROOT;
@@ -5403,14 +5412,16 @@ moveto_get_root(const struct lyd_node *cur_node, int options, enum lyxp_node_typ
 static const struct lys_node *
 moveto_snode_get_root(const struct lys_node *cur_node, int options, enum lyxp_node_type *root_type)
 {
-    const struct lys_node *root;
+    const struct lys_node *root, *op;
 
     assert(cur_node && root_type);
+
+    for (op = cur_node; op && !(op->nodetype & (LYS_RPC | LYS_ACTION | LYS_NOTIF)); op = lys_parent(op));
 
     if (options & LYXP_SNODE) {
         /* general root that can access everything */
         *root_type = LYXP_NODE_ROOT;
-    } else if (cur_node->flags & LYS_CONFIG_W) {
+    } else if (!op && (cur_node->flags & LYS_CONFIG_W)) {
         *root_type = LYXP_NODE_ROOT_CONFIG;
     } else {
         *root_type = LYXP_NODE_ROOT;
