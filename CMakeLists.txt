@@ -102,7 +102,7 @@ if(ENABLE_COVERAGE)
 endif()
 
 set(CMAKE_C_FLAGS         "${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_COVERAGE} -Wall -Wextra -Wno-missing-field-initializers -std=c99")
-set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
+set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG -fstack-protector-strong --param=ssp-buffer-size=4 -ffunction-sections -fdata-sections -D_FORTIFY_SOURCE=2")
 set(CMAKE_C_FLAGS_PACKAGE "-g -O2 -DNDEBUG")
 set(CMAKE_C_FLAGS_DEBUG   "-g -O0")
 
@@ -290,7 +290,7 @@ find_package(Threads REQUIRED)
 if(ENABLE_STATIC)
     target_link_libraries(yang -Wl,--whole-archive ${CMAKE_THREAD_LIBS_INIT} -Wl,--no-whole-archive)
 else()
-    target_link_libraries(yang ${CMAKE_THREAD_LIBS_INIT})
+    target_link_libraries(yang -Wl,--gc-sections ${CMAKE_THREAD_LIBS_INIT})
 endif(ENABLE_STATIC)
 
 # find PCRE2 library
