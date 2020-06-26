@@ -1,9 +1,9 @@
 /**
  * @file tree_data.c
  * @author Radek Krejci <rkrejci@cesnet.cz>
- * @brief Schema tree implementation
+ * @brief Data tree functions
  *
- * Copyright (c) 2015 - 2018 CESNET, z.s.p.o.
+ * Copyright (c) 2015 - 2020 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -1340,18 +1340,18 @@ lyd_insert_node(struct lyd_node *parent, struct lyd_node **first_sibling, struct
     if (parent) {
         if (node->schema && (node->schema->flags & LYS_KEY)) {
             /* it is key and we need to insert it at the correct place */
-            anchor = lyd_get_prev_key_anchor(lyd_node_children(parent), node->schema);
+            anchor = lyd_get_prev_key_anchor(lyd_node_children(parent, 0), node->schema);
             if (anchor) {
                 lyd_insert_after_node(anchor, node);
-            } else if (lyd_node_children(parent)) {
-                lyd_insert_before_node(lyd_node_children(parent), node);
+            } else if (lyd_node_children(parent, 0)) {
+                lyd_insert_before_node(lyd_node_children(parent, 0), node);
             } else {
                 lyd_insert_last_node(parent, node);
             }
 
             /* hash list if all its keys were added */
             assert(parent->schema->nodetype == LYS_LIST);
-            anchor = lyd_node_children(parent);
+            anchor = lyd_node_children(parent, 0);
             has_keys = 1;
             while ((skey = lys_getnext(skey, parent->schema, NULL, 0)) && (skey->flags & LYS_KEY)) {
                 if (!anchor || (anchor->schema != skey)) {
@@ -1423,7 +1423,7 @@ lyd_insert(struct lyd_node *parent, struct lyd_node *node)
 {
     struct lyd_node *iter;
 
-    LY_CHECK_ARG_RET(NULL, parent, node, !(parent->schema->nodetype & LYD_NODE_INNER), LY_EINVAL);
+    LY_CHECK_ARG_RET(NULL, parent, node, parent->schema->nodetype & LYD_NODE_INNER, LY_EINVAL);
 
     LY_CHECK_RET(lyd_insert_check_schema(parent->schema, node->schema));
 
@@ -1875,7 +1875,7 @@ lyd_compare(const struct lyd_node *node1, const struct lyd_node *node2, int opti
             if (!(node1->schema->flags & LYS_KEYLESS) && !(options & LYD_COMPARE_FULL_RECURSION)) {
                 /* lists with keys, their equivalence is based on their keys */
                 for (struct lysc_node *key = ((struct lysc_node_list*)node1->schema)->child;
-                        key && key->nodetype == LYS_LEAF && (key->flags & LYS_KEY);
+                        key && (key->flags & LYS_KEY);
                         key = key->next) {
                     if (lyd_compare(iter1, iter2, options)) {
                         return LY_ENOT;
@@ -2051,7 +2051,7 @@ lyd_dup_recursive(const struct lyd_node *node, struct lyd_node *parent, struct l
             /* always duplicate keys of a list */
             child = orig->child;
             for (struct lysc_node *key = ((struct lysc_node_list *)dup->schema)->child;
-                    key && key->nodetype == LYS_LEAF && (key->flags & LYS_KEY);
+                    key && (key->flags & LYS_KEY);
                     key = key->next) {
                 if (!child) {
                     /* possibly not keys are present in filtered tree */
@@ -2097,7 +2097,6 @@ lyd_dup_recursive(const struct lyd_node *node, struct lyd_node *parent, struct l
 
     /* insert */
     lyd_insert_node(parent, first, dup);
-    lyd_insert_hash(dup);
 
     if (dup_p) {
         *dup_p = dup;
@@ -2270,12 +2269,7 @@ lyd_merge_sibling_r(struct lyd_node **first_trg, struct lyd_node *parent_trg, co
             lyd_free_tree(dup_src);
         } else {
             /* check descendants, recursively */
-            LY_LIST_FOR_SAFE(lyd_node_children(sibling_src), tmp, child_src) {
-                if ((child_src->schema->nodetype == LYS_LEAF) && (child_src->schema->flags & LYS_KEY)) {
-                    /* skip keys */
-                    continue;
-                }
-
+            LY_LIST_FOR_SAFE(LYD_CHILD(sibling_src), tmp, child_src) {
                 LY_CHECK_RET(lyd_merge_sibling_r(lyd_node_children_p(match_trg), match_trg, &child_src, options));
             }
         }
@@ -2384,7 +2378,7 @@ lyd_path_list_predicate(const struct lyd_node *node, char **buffer, size_t *bufl
     char quot;
     LY_ERR rc;
 
-    for (key = lyd_node_children(node); key && (key->schema->flags & LYS_KEY); key = key->next) {
+    for (key = lyd_node_children(node, 0); key && (key->schema->flags & LYS_KEY); key = key->next) {
         val = lyd_value2str((struct lyd_node_term *)key, &dynamic);
         len = 1 + strlen(key->schema->name) + 2 + strlen(val) + 2;
         rc = lyd_path_str_enlarge(buffer, buflen, *bufused + len, is_static);
@@ -2627,7 +2621,7 @@ lyd_find_sibling_next2(const struct lyd_node *first, const struct lysc_node *sch
             /* compare all set keys */
             LY_ARRAY_FOR(predicates, u) {
                 /* find key */
-                rc = lyd_find_sibling_val(lyd_node_children(node), predicates[u].key, NULL, 0, (struct lyd_node **)&term);
+                rc = lyd_find_sibling_val(lyd_node_children(node, 0), predicates[u].key, NULL, 0, (struct lyd_node **)&term);
                 if (rc == LY_ENOTFOUND) {
                     /* all keys must always exist */
                     LOGINT_RET(schema->module->ctx);

@@ -88,7 +88,7 @@ struct lysc_node;
 
 #define LYD_TREE_DFS_END(START, NEXT, ELEM) \
     /* select element for the next run - children first */ \
-    (NEXT) = lyd_node_children((struct lyd_node*)ELEM); \
+    (NEXT) = lyd_node_children((struct lyd_node*)ELEM, 0); \
     if (!(NEXT)) { \
         /* no children */ \
         if ((ELEM) == (struct lyd_node*)(START)) { \
@@ -517,13 +517,23 @@ struct lyd_node_opaq {
 //#define LYD_OPT_DATA_TEMPLATE 0x1000000 /**< Data represents YANG data template. */
 
 /**
+ * @defgroup children_options Children traversal options.
+ * @ingroup datatree
+ */
+
+#define LYD_CHILDREN_SKIP_KEYS  0x01    /**< If list children are returned, skip its keys. */
+
+/** @} children_options */
+
+/**
  * @brief Get the node's children list if any.
  *
  * Decides the node's type and in case it has a children list, returns it.
  * @param[in] node Node to check.
+ * @param[in] options Bitmask of options, see @ref
  * @return Pointer to the first child node (if any) of the \p node.
  */
-struct lyd_node *lyd_node_children(const struct lyd_node *node);
+struct lyd_node *lyd_node_children(const struct lyd_node *node, int options);
 
 /**
  * @brief Get the owner module of the data node. It is the module of the top-level schema node. Generally,
@@ -1019,7 +1029,7 @@ LY_ERR lyd_compare(const struct lyd_node *node1, const struct lyd_node *node2, i
 
 #define LYD_DUP_RECURSIVE    0x01  /**< Duplicate not just the node but also all the children. Note that
                                         list's keys are always duplicated. */
-#define LYD_DUP_NO_ATTR      0x02  /**< Do not duplicate attributes of any node. */
+#define LYD_DUP_NO_META      0x02  /**< Do not duplicate metadata of any node. */
 #define LYD_DUP_WITH_PARENTS 0x04  /**< If a nested node is being duplicated, duplicate also all the parents.
                                         Keys are also duplicated for lists. Return value does not change! */
 #define LYD_DUP_WITH_SIBLINGS 0x08 /**< Duplicate also all the sibling of the given node. */
