@@ -5,7 +5,7 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
     message(FATAL_ERROR "In-source build is not allowed. Please make a standalone build directory and run CMake from there. You may need to remove CMakeCache.txt.")
 endif()
 
-project(libyang C)
+project(libyang C CXX)
 
 include(GNUInstallDirs)
 include(CheckSymbolExists)
@@ -45,6 +45,7 @@ endif()
 option(ENABLE_COVERAGE "Build code coverage report from tests" OFF)
 
 option(ENABLE_FUZZ_TARGETS "Build target programs suitable for fuzzing with AFL" OFF)
+option(ENABLE_DEEPSTATE "Build deepstate target programs suitable for fuzzing and symbolic execution" OFF)
 #option(ENABLE_CALLGRIND_TESTS "Build performance tests to be run with callgrind" OFF)
 
 #option(ENABLE_CACHE "Enable data caching for schemas and hash tables for data (time-efficient at the cost of increased space-complexity)" ON)

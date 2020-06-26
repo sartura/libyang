@@ -152,7 +152,6 @@ typedef enum {
 struct lyd_value {
     const char *original;           /**< Original string representation of the value. It is never NULL, but (canonical) string representation
                                          of the value should be always obtained via the type's printer callback (lyd_value::realtype::plugin::print). */
-    union {
         int8_t boolean;              /**< 0 as false, 1 as true */
         int64_t dec64;               /**< decimal64: value = dec64 / 10^fraction-digits  */
         int8_t int8;                 /**< 8-bit signed integer */
@@ -183,8 +182,6 @@ struct lyd_value {
         struct ly_path *target;          /**< Instance-identifier's target path. */
 
         void *ptr;                   /**< generic data type structure used to store the data */
-    };  /**< The union is just a list of shorthands to possible values stored by a type's plugin. libyang itself uses the lyd_value::realtype
-             plugin's callbacks to work with the data. */
 
     struct lysc_type *realtype;      /**< pointer to the real type of the data stored in the value structure. This type can differ from the type
                                           in the schema node of the data node since the type's store plugin can use other types/plugins for
@@ -287,7 +284,7 @@ struct ly_attr {
  * @return Pointer to the YANG schema identified by the provided prefix or NULL if no mapping found.
  */
 typedef const struct lys_module *(*ly_clb_resolve_prefix)(const struct ly_ctx *ctx, const char *prefix, size_t prefix_len,
-                                                          void *private);
+                                                          void *priv);
 
 /**
  * @brief Callback provided by the data/schema printers to type plugins to resolve (format-specific) mapping between YANG module of a data object
@@ -301,7 +298,7 @@ typedef const struct lys_module *(*ly_clb_resolve_prefix)(const struct ly_ctx *c
  * @param[in] private Internal data needed by the callback.
  * @return String representing prefix for the object of the given YANG module @p mod.
  */
-typedef const char *(*ly_clb_get_prefix)(const struct lys_module *mod, void *private);
+typedef const char *(*ly_clb_get_prefix)(const struct lys_module *mod, void *priv);
 
 /**
  * @brief Generic structure for a data node.

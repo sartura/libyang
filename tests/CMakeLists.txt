@@ -50,6 +50,10 @@ endfunction(ly_add_utest)
 
 add_subdirectory(utests)
 
+if(ENABLE_DEEPSTATE)
+	add_subdirectory(deepstate)
+endif()
+
 if(ENABLE_COVERAGE)
     # Destination
     set(COVERAGE_DIR        "${CMAKE_BINARY_DIR}/tests/code_coverage/")
