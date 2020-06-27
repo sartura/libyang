@@ -32,8 +32,8 @@ int LLVMFuzzerTestOneInput(uint8_t const *buf, size_t len)
 		fprintf(stderr, "Out of memory\n");
 		return 0;
 	}
-	data[len] = 0;
 	memcpy(data, buf, len);
+	data[len] = 0;
 
 	mod = calloc(1, sizeof *mod);
 	if (mod == NULL) {

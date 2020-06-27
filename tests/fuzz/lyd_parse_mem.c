@@ -48,6 +48,7 @@ int LLVMFuzzerTestOneInput(uint8_t const *buf, size_t len)
             "type leafref {path /int8; require-instance true;}"
             "type union { type identityref {base defs:interface-type;} type instance-identifier {require-instance true;} }"
             "type string {length 1..20;}}}}";
+    	char *data = NULL;
 
 	LY_ERR err;
 
@@ -65,7 +66,17 @@ int LLVMFuzzerTestOneInput(uint8_t const *buf, size_t len)
 	lys_parse_mem(ctx, schema_a, LYS_IN_YANG);
 	lys_parse_mem(ctx, schema_b, LYS_IN_YANG);
 
-	lyd_parse_mem(ctx, buf, LYD_XML, LYD_VALOPT_DATA_ONLY);
+	data = malloc(len + 1);
+	if (data == NULL) {
+		return 0;
+	}
+	memcpy(data, buf, len);
+	data[len] = 0;
+
+	lyd_parse_mem(ctx, data, LYD_XML, LYD_VALOPT_DATA_ONLY);
 	ly_ctx_destroy(ctx, NULL);
+
+	free(data);
+
 	return 0;
 }
