@@ -1103,7 +1103,8 @@ lys_search_localfile(const char * const *searchpaths, int cwd, const char *name,
 {
     size_t len, flen, match_len = 0, dir_len;
     int i, implicit_cwd = 0, ret = EXIT_FAILURE;
-    char *wd, *wn = NULL;
+    char *wn = NULL;
+    char wd[PATH_MAX] = {0};
     DIR *dir = NULL;
     struct dirent *file;
     char *match_name = NULL;
@@ -1123,18 +1124,13 @@ lys_search_localfile(const char * const *searchpaths, int cwd, const char *name,
 
     len = strlen(name);
     if (cwd) {
-        wd = get_current_dir_name();
-        if (!wd) {
-            LOGMEM(NULL);
-            goto cleanup;
-        } else {
-            /* add implicit current working directory (./) to be searched,
-             * this directory is not searched recursively */
-            if (ly_set_add(dirs, wd, 0) == -1) {
-                goto cleanup;
-            }
-            implicit_cwd = 1;
-        }
+	    getcwd(wd, PATH_MAX);
+	    /* add implicit current working directory (./) to be searched,
+	     * this directory is not searched recursively */
+	    if (ly_set_add(dirs, wd, 0) == -1) {
+		goto cleanup;
+	    }
+	    implicit_cwd = 1;
     }
     if (searchpaths) {
         for (i = 0; searchpaths[i]; i++) {
@@ -1143,24 +1139,20 @@ lys_search_localfile(const char * const *searchpaths, int cwd, const char *name,
                 implicit_cwd = 0;
                 continue;
             }
-            wd = strdup(searchpaths[i]);
-            if (!wd) {
-                LOGMEM(NULL);
-                goto cleanup;
-            } else if (ly_set_add(dirs, wd, 0) == -1) {
+
+	    strncpy(wd, searchpaths[i], PATH_MAX);
+            if (ly_set_add(dirs, wd, 0) == -1) {
                 goto cleanup;
             }
         }
     }
-    wd = NULL;
 
     /* start searching */
     while (dirs->count) {
-        free(wd);
         free(wn); wn = NULL;
 
         dirs->count--;
-        wd = (char *)dirs->objs[dirs->count];
+	strncpy(wd, dirs->objs[dirs->count], PATH_MAX);
         dirs->objs[dirs->count] = NULL;
         LOGVRB("Searching for \"%s\" in %s.", name, wd);
 
@@ -1279,7 +1271,6 @@ success:
 
 cleanup:
     free(wn);
-    free(wd);
     if (dir) {
         closedir(dir);
     }
