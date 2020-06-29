@@ -405,7 +405,7 @@ lyxml_parse_value(struct lyxml_ctx *xmlctx, char endchar, char **value, size_t *
     size_t size = 0; /* size of the output buffer */
     void *p;
     uint32_t n;
-    size_t u;
+    size_t u = 0;
     int ws = 1;
 
     assert(xmlctx);
@@ -430,7 +430,7 @@ lyxml_parse_value(struct lyxml_ctx *xmlctx, char endchar, char **value, size_t *
             /* allocate enough for the offset and next character,
              * we will need 4 bytes at most since we support only the predefined
              * (one-char) entities and character references */
-            if (len + offset + 4 >= size) {
+            while (len + offset + 4 >= size) {
                 buf = ly_realloc(buf, size + BUFSIZE_STEP);
                 LY_CHECK_ERR_RET(!buf, LOGMEM(ctx), LY_EMEM);
                 size += BUFSIZE_STEP;
