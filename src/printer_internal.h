@@ -46,12 +46,14 @@ struct ly_out {
         } clb;           /**< printer callback for LY_OUT_CALLBACK type */
     } method;            /**< type-specific information about the output */
 
-    char *buffered;      /**< additional buffer for holes, used only for LYB data format */
-    size_t buf_len;      /**< number of used bytes in the additional buffer for holes, used only for LYB data format */
-    size_t buf_size;     /**< allocated size of the buffer for holes, used only for LYB data format */
-    size_t hole_count;   /**< hole counter, used only for LYB data format */
+    /* LYB only */
+    char *buffered;      /**< additional buffer for holes */
+    size_t buf_len;      /**< number of used bytes in the additional buffer for holes */
+    size_t buf_size;     /**< allocated size of the buffer for holes */
+    size_t hole_count;   /**< hole counter */
 
-    size_t printed;      /**< Number of printed bytes */
+    size_t printed;      /**< Total number of printed bytes */
+    size_t func_printed; /**< Number of bytes printed by the last function */
 
     const struct ly_ctx *ctx;   /**< libyang context for error logging */
     LY_ERR status;       /**< current status of the printer */
@@ -123,7 +125,7 @@ LY_ERR yang_print_compiled_node(struct ly_out *out, const struct lysc_node *node
 LY_ERR yin_print_parsed(struct ly_out *out, const struct lys_module *module);
 
 /**
- * @brief XML printer of the YANG data.
+ * @brief XML printer of YANG data.
  *
  * @param[in] out Output specification.
  * @param[in] root The root element of the (sub)tree to print.
@@ -131,6 +133,16 @@ LY_ERR yin_print_parsed(struct ly_out *out, const struct lys_module *module);
  * @return LY_ERR value, number of the printed bytes is updated in lyout::printed.
  */
 LY_ERR xml_print_data(struct ly_out *out, const struct lyd_node *root, int options);
+
+/**
+ * @brief LYB printer of YANG data.
+ *
+ * @param[in] out Output structure.
+ * @param[in] root The root element of the (sub)tree to print.
+ * @param[in] options [Data printer flags](@ref dataprinterflags).
+ * @return LY_ERR value, number of the printed bytes is updated in lyout::printed.
+ */
+LY_ERR lyb_print_data(struct ly_out *out, const struct lyd_node *root, int options);
 
 /**
  * @brief Check whether a node value equals to its default one.
@@ -171,10 +183,9 @@ ssize_t ly_write_skip(struct ly_out *out, size_t len, size_t *position);
  * @param[in] buf Memory buffer with the data to print.
  * @param[in] len Length of the data to print in the @p buf. Not that the length must correspond
  * to the len value specified in the corresponding ly_write_skip() call.
- * @return The number of bytes prepared for write. The number of the printed bytes is updated in lyout::printed
- * only in case the data are really written into the output.
- * @return Negative value in case of error, absolute value of the return code maps to LY_ERR value.
+ * @return LY_SUCCESS on success.
+ * @return LY_ERR value in case of error.
  */
-ssize_t ly_write_skipped(struct ly_out *out, size_t position, const char *buf, size_t len);
+LY_ERR ly_write_skipped(struct ly_out *out, size_t position, const char *buf, size_t len);
 
 #endif /* LY_PRINTER_INTERNAL_H_ */

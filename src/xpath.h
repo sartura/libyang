@@ -16,6 +16,7 @@
 #define LY_XPATH_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #include "config.h"
 #include "log.h"
@@ -255,6 +256,7 @@ struct lyxp_set {
         const struct lysc_node *ctx_scnode;
     };
     enum lyxp_node_type root_type;
+    const struct lysc_node *context_op;
     const struct lys_module *local_mod;
     const struct lyd_node *tree;
     LYD_FORMAT format;

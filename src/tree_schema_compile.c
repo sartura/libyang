@@ -23,6 +23,7 @@
 #include <string.h>
 
 #include "common.h"
+#include "compat.h"
 #include "context.h"
 #include "dict.h"
 #include "log.h"
@@ -52,9 +53,9 @@ static LY_ERR lys_compile_ext(struct lysc_ctx *ctx, struct lysp_ext_instance *ex
 
 #define COMPILE_ARRAY_GOTO(CTX, ARRAY_P, ARRAY_C, ITER, FUNC, RET, GOTO) \
     if (ARRAY_P) { \
-        LY_ARRAY_CREATE_GOTO((CTX)->ctx, ARRAY_C, LY_ARRAY_SIZE(ARRAY_P), RET, GOTO); \
-        LY_ARRAY_SIZE_TYPE __array_offset = LY_ARRAY_SIZE(ARRAY_C); \
-        for (ITER = 0; ITER < LY_ARRAY_SIZE(ARRAY_P); ++ITER) { \
+        LY_ARRAY_CREATE_GOTO((CTX)->ctx, ARRAY_C, LY_ARRAY_COUNT(ARRAY_P), RET, GOTO); \
+        LY_ARRAY_COUNT_TYPE __array_offset = LY_ARRAY_COUNT(ARRAY_C); \
+        for (ITER = 0; ITER < LY_ARRAY_COUNT(ARRAY_P); ++ITER) { \
             LY_ARRAY_INCREMENT(ARRAY_C); \
             RET = FUNC(CTX, &(ARRAY_P)[ITER], &(ARRAY_C)[ITER + __array_offset]); \
             LY_CHECK_GOTO(RET != LY_SUCCESS, GOTO); \
@@ -63,9 +64,9 @@ static LY_ERR lys_compile_ext(struct lysc_ctx *ctx, struct lysp_ext_instance *ex
 
 #define COMPILE_ARRAY1_GOTO(CTX, ARRAY_P, ARRAY_C, PARENT, ITER, FUNC, USES_STATUS, RET, GOTO) \
     if (ARRAY_P) { \
-        LY_ARRAY_CREATE_GOTO((CTX)->ctx, ARRAY_C, LY_ARRAY_SIZE(ARRAY_P), RET, GOTO); \
-        LY_ARRAY_SIZE_TYPE __array_offset = LY_ARRAY_SIZE(ARRAY_C); \
-        for (ITER = 0; ITER < LY_ARRAY_SIZE(ARRAY_P); ++ITER) { \
+        LY_ARRAY_CREATE_GOTO((CTX)->ctx, ARRAY_C, LY_ARRAY_COUNT(ARRAY_P), RET, GOTO); \
+        LY_ARRAY_COUNT_TYPE __array_offset = LY_ARRAY_COUNT(ARRAY_C); \
+        for (ITER = 0; ITER < LY_ARRAY_COUNT(ARRAY_P); ++ITER) { \
             LY_ARRAY_INCREMENT(ARRAY_C); \
             RET = FUNC(CTX, &(ARRAY_P)[ITER], PARENT, &(ARRAY_C)[ITER + __array_offset], USES_STATUS); \
             LY_CHECK_GOTO(RET != LY_SUCCESS, GOTO); \
@@ -74,8 +75,8 @@ static LY_ERR lys_compile_ext(struct lysc_ctx *ctx, struct lysp_ext_instance *ex
 
 #define COMPILE_EXTS_GOTO(CTX, EXTS_P, EXT_C, PARENT, PARENT_TYPE, RET, GOTO) \
     if (EXTS_P) { \
-        LY_ARRAY_CREATE_GOTO((CTX)->ctx, EXT_C, LY_ARRAY_SIZE(EXTS_P), RET, GOTO); \
-        for (LY_ARRAY_SIZE_TYPE __exts_iter = 0, __array_offset = LY_ARRAY_SIZE(EXT_C); __exts_iter < LY_ARRAY_SIZE(EXTS_P); ++__exts_iter) { \
+        LY_ARRAY_CREATE_GOTO((CTX)->ctx, EXT_C, LY_ARRAY_COUNT(EXTS_P), RET, GOTO); \
+        for (LY_ARRAY_COUNT_TYPE __exts_iter = 0, __array_offset = LY_ARRAY_COUNT(EXT_C); __exts_iter < LY_ARRAY_COUNT(EXTS_P); ++__exts_iter) { \
             LY_ARRAY_INCREMENT(EXT_C); \
             RET = lys_compile_ext(CTX, &(EXTS_P)[__exts_iter], &(EXT_C)[__exts_iter + __array_offset], PARENT, PARENT_TYPE, NULL); \
             LY_CHECK_GOTO(RET != LY_SUCCESS, GOTO); \
@@ -84,9 +85,9 @@ static LY_ERR lys_compile_ext(struct lysc_ctx *ctx, struct lysp_ext_instance *ex
 
 #define COMPILE_ARRAY_UNIQUE_GOTO(CTX, ARRAY_P, ARRAY_C, ITER, FUNC, RET, GOTO) \
     if (ARRAY_P) { \
-        LY_ARRAY_CREATE_GOTO((CTX)->ctx, ARRAY_C, LY_ARRAY_SIZE(ARRAY_P), RET, GOTO); \
-        LY_ARRAY_SIZE_TYPE __array_offset = LY_ARRAY_SIZE(ARRAY_C); \
-        for (ITER = 0; ITER < LY_ARRAY_SIZE(ARRAY_P); ++ITER) { \
+        LY_ARRAY_CREATE_GOTO((CTX)->ctx, ARRAY_C, LY_ARRAY_COUNT(ARRAY_P), RET, GOTO); \
+        LY_ARRAY_COUNT_TYPE __array_offset = LY_ARRAY_COUNT(ARRAY_C); \
+        for (ITER = 0; ITER < LY_ARRAY_COUNT(ARRAY_P); ++ITER) { \
             LY_ARRAY_INCREMENT(ARRAY_C); \
             RET = FUNC(CTX, &(ARRAY_P)[ITER], ARRAY_C, &(ARRAY_C)[ITER + __array_offset]); \
             LY_CHECK_GOTO(RET != LY_SUCCESS, GOTO); \
@@ -104,7 +105,7 @@ static LY_ERR lys_compile_ext(struct lysc_ctx *ctx, struct lysp_ext_instance *ex
 #define COMPILE_MEMBER_ARRAY_GOTO(CTX, MEMBER_P, ARRAY_C, FUNC, RET, GOTO) \
     if (MEMBER_P) { \
         LY_ARRAY_CREATE_GOTO((CTX)->ctx, ARRAY_C, 1, RET, GOTO); \
-        LY_ARRAY_SIZE_TYPE __array_offset = LY_ARRAY_SIZE(ARRAY_C); \
+        LY_ARRAY_COUNT_TYPE __array_offset = LY_ARRAY_COUNT(ARRAY_C); \
         LY_ARRAY_INCREMENT(ARRAY_C); \
         RET = FUNC(CTX, MEMBER_P, &(ARRAY_C)[__array_offset]); \
         LY_CHECK_GOTO(RET != LY_SUCCESS, GOTO); \
@@ -112,7 +113,7 @@ static LY_ERR lys_compile_ext(struct lysc_ctx *ctx, struct lysp_ext_instance *ex
 
 #define COMPILE_CHECK_UNIQUENESS_ARRAY(CTX, ARRAY, MEMBER, EXCL, STMT, IDENT) \
     if (ARRAY) { \
-        for (LY_ARRAY_SIZE_TYPE u__ = 0; u__ < LY_ARRAY_SIZE(ARRAY); ++u__) { \
+        for (LY_ARRAY_COUNT_TYPE u__ = 0; u__ < LY_ARRAY_COUNT(ARRAY); ++u__) { \
             if (&(ARRAY)[u__] != EXCL && (void*)((ARRAY)[u__].MEMBER) == (void*)(IDENT)) { \
                 LOGVAL((CTX)->ctx, LY_VLOG_STR, (CTX)->path, LY_VCODE_DUPIDENT, IDENT, STMT); \
                 return LY_EVALID; \
@@ -122,7 +123,7 @@ static LY_ERR lys_compile_ext(struct lysc_ctx *ctx, struct lysp_ext_instance *ex
 
 #define COMPILE_CHECK_UNIQUENESS_PARRAY(CTX, ARRAY, MEMBER, EXCL, STMT, IDENT) \
     if (ARRAY) { \
-        for (LY_ARRAY_SIZE_TYPE u__ = 0; u__ < LY_ARRAY_SIZE(ARRAY); ++u__) { \
+        for (LY_ARRAY_COUNT_TYPE u__ = 0; u__ < LY_ARRAY_COUNT(ARRAY); ++u__) { \
             if (&(ARRAY)[u__] != EXCL && (void*)((ARRAY)[u__]->MEMBER) == (void*)(IDENT)) { \
                 LOGVAL((CTX)->ctx, LY_VLOG_STR, (CTX)->path, LY_VCODE_DUPIDENT, IDENT, STMT); \
                 return LY_EVALID; \
@@ -277,11 +278,11 @@ static struct lysc_pattern**
 lysc_patterns_dup(struct ly_ctx *ctx, struct lysc_pattern **orig)
 {
     struct lysc_pattern **dup = NULL;
-    LY_ARRAY_SIZE_TYPE u;
+    LY_ARRAY_COUNT_TYPE u;
 
     assert(orig);
 
-    LY_ARRAY_CREATE_RET(ctx, dup, LY_ARRAY_SIZE(orig), NULL);
+    LY_ARRAY_CREATE_RET(ctx, dup, LY_ARRAY_COUNT(orig), NULL);
     LY_ARRAY_FOR(orig, u) {
         dup[u] = lysc_pattern_dup(orig[u]);
         LY_ARRAY_INCREMENT(dup);
@@ -308,9 +309,9 @@ lysc_range_dup(struct ly_ctx *ctx, const struct lysc_range *orig)
     dup = calloc(1, sizeof *dup);
     LY_CHECK_ERR_RET(!dup, LOGMEM(ctx), NULL);
     if (orig->parts) {
-        LY_ARRAY_CREATE_GOTO(ctx, dup->parts, LY_ARRAY_SIZE(orig->parts), ret, cleanup);
-        LY_ARRAY_SIZE(dup->parts) = LY_ARRAY_SIZE(orig->parts);
-        memcpy(dup->parts, orig->parts, LY_ARRAY_SIZE(dup->parts) * sizeof *dup->parts);
+        LY_ARRAY_CREATE_GOTO(ctx, dup->parts, LY_ARRAY_COUNT(orig->parts), ret, cleanup);
+        LY_ARRAY_COUNT(dup->parts) = LY_ARRAY_COUNT(orig->parts);
+        memcpy(dup->parts, orig->parts, LY_ARRAY_COUNT(dup->parts) * sizeof *dup->parts);
     }
     DUP_STRING(ctx, orig->eapptag, dup->eapptag);
     DUP_STRING(ctx, orig->emsg, dup->emsg);
@@ -420,7 +421,7 @@ static struct lysc_feature *
 lys_feature_find(struct lys_module *mod, const char *name, size_t len)
 {
     size_t i;
-    LY_ARRAY_SIZE_TYPE u;
+    LY_ARRAY_COUNT_TYPE u;
     struct lysc_feature *f, *flist;
 
     for (i = 0; i < len; ++i) {
@@ -439,7 +440,7 @@ lys_feature_find(struct lys_module *mod, const char *name, size_t len)
         /* module is implemented so there is already the compiled schema */
         flist = mod->compiled->features;
     } else {
-        flist = mod->off_features;
+        flist = mod->dis_features;
     }
     LY_ARRAY_FOR(flist, u) {
         f = &flist[u];
@@ -501,7 +502,7 @@ lys_compile_ext(struct lysc_ctx *ctx, struct lysp_ext_instance *ext_p, struct ly
     LY_ERR ret = LY_EVALID;
     const char *name;
     size_t u;
-    LY_ARRAY_SIZE_TYPE v;
+    LY_ARRAY_COUNT_TYPE v;
     const char *prefixed_name = NULL;
 
     DUP_STRING(ctx->ctx, ext_p->argument, ext->argument);
@@ -526,7 +527,8 @@ lys_compile_ext(struct lysc_ctx *ctx, struct lysp_ext_instance *ext_p, struct ly
             LY_ARRAY_FOR(ctx->mod_def->compiled->imports, v) {
                 if (!ly_strncmp(ctx->mod_def->compiled->imports[v].module->ns, ext_p->name, u - 1)) {
                     char *s;
-                    asprintf(&s, "%s:%s", ctx->mod_def->compiled->imports[v].prefix, &ext_p->name[u]);
+                    LY_CHECK_ERR_GOTO(asprintf(&s, "%s:%s", ctx->mod_def->compiled->imports[v].prefix, &ext_p->name[u]) == -1,
+                                      ret = LY_EMEM, cleanup);
                     prefixed_name = lydict_insert_zc(ctx->ctx, s);
                     u = strlen(ctx->mod_def->compiled->imports[v].prefix) + 1; /* add semicolon */
                     break;
@@ -909,7 +911,7 @@ done:
 static LY_ERR
 lys_compile_import(struct lysc_ctx *ctx, struct lysp_import *imp_p, struct lysc_import *imp)
 {
-    struct lys_module *mod = NULL;
+    const struct lys_module *mod = NULL;
     LY_ERR ret = LY_SUCCESS;
 
     DUP_STRING(ctx->ctx, imp_p->prefix, imp->prefix);
@@ -926,16 +928,18 @@ lys_compile_import(struct lysc_ctx *ctx, struct lysp_import *imp_p, struct lysc_
             if (ly_in_new_filepath(imp->module->filepath, 0, &in)) {
                 LOGINT(ctx->ctx);
             } else {
-                mod = lys_parse(ctx->ctx, in, !strcmp(&imp->module->filepath[strlen(imp->module->filepath - 4)], ".yin") ? LYS_IN_YIN : LYS_IN_YANG);
+                LY_CHECK_RET(lys_parse(ctx->ctx, in, !strcmp(&imp->module->filepath[strlen(imp->module->filepath - 4)],
+                                                             ".yin") ? LYS_IN_YIN : LYS_IN_YANG, &mod));
                 if (mod != imp->module) {
-                    LOGERR(ctx->ctx, LY_EINT, "Filepath \"%s\" of the module \"%s\" does not match.", imp->module->filepath, imp->module->name);
+                    LOGERR(ctx->ctx, LY_EINT, "Filepath \"%s\" of the module \"%s\" does not match.",
+                           imp->module->filepath, imp->module->name);
                     mod = NULL;
                 }
             }
             ly_in_free(in, 1);
         }
         if (!mod) {
-            if (lysp_load_module(ctx->ctx, imp->module->name, imp->module->revision, 0, 1, &mod)) {
+            if (lysp_load_module(ctx->ctx, imp->module->name, imp->module->revision, 0, 1, (struct lys_module **)&mod)) {
                 LOGERR(ctx->ctx, LY_ENOTFOUND, "Unable to reload \"%s\" module to import it into \"%s\", source data not found.",
                        imp->module->name, ctx->mod->name);
                 return LY_ENOTFOUND;
@@ -947,36 +951,52 @@ done:
     return ret;
 }
 
-/**
- * @brief Compile information from the identity statement
- *
- * The backlinks to the identities derived from this one are supposed to be filled later via lys_compile_identity_bases().
- *
- * @param[in] ctx Compile context.
- * @param[in] ident_p The parsed identity statement structure.
- * @param[in] idents List of so far compiled identities to check the name uniqueness.
- * @param[in,out] ident Prepared (empty) compiled identity structure to fill.
- * @return LY_ERR value.
- */
-static LY_ERR
-lys_compile_identity(struct lysc_ctx *ctx, struct lysp_ident *ident_p, struct lysc_ident *idents, struct lysc_ident *ident)
+LY_ERR
+lys_identity_precompile(struct lysc_ctx *ctx_sc, struct ly_ctx *ctx, struct lys_module *module,
+                        struct lysp_ident *identities_p, struct lysc_ident **identities)
 {
-    unsigned int u;
+    LY_ARRAY_COUNT_TYPE offset = 0, u, v;
+    struct lysc_ctx context = {0};
     LY_ERR ret = LY_SUCCESS;
 
-    lysc_update_path(ctx, NULL, ident_p->name);
+    assert(ctx_sc || ctx);
 
-    COMPILE_CHECK_UNIQUENESS_ARRAY(ctx, idents, name, ident, "identity", ident_p->name);
-    DUP_STRING(ctx->ctx, ident_p->name, ident->name);
-    DUP_STRING(ctx->ctx, ident_p->dsc, ident->dsc);
-    DUP_STRING(ctx->ctx, ident_p->ref, ident->ref);
-    ident->module = ctx->mod;
-    COMPILE_ARRAY_GOTO(ctx, ident_p->iffeatures, ident->iffeatures, u, lys_compile_iffeature, ret, done);
-    /* backlings (derived) can be added no sooner than when all the identities in the current module are present */
-    COMPILE_EXTS_GOTO(ctx, ident_p->exts, ident->exts, ident, LYEXT_PAR_IDENT, ret, done);
-    ident->flags = ident_p->flags;
+    if (!ctx_sc) {
+        context.ctx = ctx;
+        context.mod = module;
+        context.path_len = 1;
+        context.path[0] = '/';
+        ctx_sc = &context;
+    }
 
-    lysc_update_path(ctx, NULL, NULL);
+    if (!identities_p) {
+        return LY_SUCCESS;
+    }
+    if (*identities) {
+        offset = LY_ARRAY_COUNT(*identities);
+    }
+
+    lysc_update_path(ctx_sc, NULL, "{identity}");
+    LY_ARRAY_CREATE_RET(ctx_sc->ctx, *identities, LY_ARRAY_COUNT(identities_p), LY_EMEM);
+    LY_ARRAY_FOR(identities_p, u) {
+        lysc_update_path(ctx_sc, NULL, identities_p[u].name);
+
+        LY_ARRAY_INCREMENT(*identities);
+        COMPILE_CHECK_UNIQUENESS_ARRAY(ctx_sc, *identities, name, &(*identities)[offset + u], "identity", identities_p[u].name);
+        DUP_STRING(ctx_sc->ctx, identities_p[u].name, (*identities)[offset + u].name);
+        DUP_STRING(ctx_sc->ctx, identities_p[u].dsc, (*identities)[offset + u].dsc);
+        DUP_STRING(ctx_sc->ctx, identities_p[u].ref, (*identities)[offset + u].ref);
+        (*identities)[offset + u].module = ctx_sc->mod;
+        COMPILE_ARRAY_GOTO(ctx_sc, identities_p[u].iffeatures, (*identities)[offset + u].iffeatures, v,
+                           lys_compile_iffeature, ret, done);
+        /* backlinks (derived) can be added no sooner than when all the identities in the current module are present */
+        COMPILE_EXTS_GOTO(ctx_sc, identities_p[u].exts, (*identities)[offset + u].exts, &(*identities)[offset + u],
+                          LYEXT_PAR_IDENT, ret, done);
+        (*identities)[offset + u].flags = identities_p[u].flags;
+
+        lysc_update_path(ctx_sc, NULL, NULL);
+    }
+    lysc_update_path(ctx_sc, NULL, NULL);
 done:
     return ret;
 }
@@ -996,7 +1016,7 @@ static LY_ERR
 lys_compile_identity_circular_check(struct lysc_ctx *ctx, struct lysc_ident *ident, struct lysc_ident **derived)
 {
     LY_ERR ret = LY_EVALID;
-    LY_ARRAY_SIZE_TYPE u, v;
+    LY_ARRAY_COUNT_TYPE u, v;
     struct ly_set recursion = {0};
     struct lysc_ident *drv;
 
@@ -1004,7 +1024,7 @@ lys_compile_identity_circular_check(struct lysc_ctx *ctx, struct lysc_ident *ide
         return LY_SUCCESS;
     }
 
-    for (u = 0; u < LY_ARRAY_SIZE(derived); ++u) {
+    for (u = 0; u < LY_ARRAY_COUNT(derived); ++u) {
         if (ident == derived[u]) {
             LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_REFERENCE,
                    "Identity \"%s\" is indirectly derived from itself.", ident->name);
@@ -1018,7 +1038,7 @@ lys_compile_identity_circular_check(struct lysc_ctx *ctx, struct lysc_ident *ide
         if (!drv->derived) {
             continue;
         }
-        for (u = 0; u < LY_ARRAY_SIZE(drv->derived); ++u) {
+        for (u = 0; u < LY_ARRAY_COUNT(drv->derived); ++u) {
             if (ident == drv->derived[u]) {
                 LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_REFERENCE,
                        "Identity \"%s\" is indirectly derived from itself.", ident->name);
@@ -1043,27 +1063,28 @@ cleanup:
  *
  * @param[in] ctx Compile context, not only for logging but also to get the current module to resolve prefixes.
  * @param[in] bases_p Array of names (including prefix if necessary) of base identities.
- * @param[in] ident Referencing identity to work with.
+ * @param[in] ident Referencing identity to work with, NULL for identityref.
  * @param[in] bases Array of bases of identityref to fill in.
  * @return LY_ERR value.
  */
 static LY_ERR
-lys_compile_identity_bases(struct lysc_ctx *ctx, struct lys_module *context_module, const char **bases_p,  struct lysc_ident *ident, struct lysc_ident ***bases)
+lys_compile_identity_bases(struct lysc_ctx *ctx, struct lys_module *context_module, const char **bases_p,
+                           struct lysc_ident *ident, struct lysc_ident ***bases)
 {
-    LY_ARRAY_SIZE_TYPE u, v;
+    LY_ARRAY_COUNT_TYPE u, v;
     const char *s, *name;
     struct lys_module *mod;
-    struct lysc_ident **idref;
+    struct lysc_ident **idref, *identities;
 
     assert(ident || bases);
 
-    if (LY_ARRAY_SIZE(bases_p) > 1 && ctx->mod_def->version < 2) {
+    if (LY_ARRAY_COUNT(bases_p) > 1 && ctx->mod_def->version < 2) {
         LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_SYNTAX_YANG,
                "Multiple bases in %s are allowed only in YANG 1.1 modules.", ident ? "identity" : "identityref type");
         return LY_EVALID;
     }
 
-    for (u = 0; u < LY_ARRAY_SIZE(bases_p); ++u) {
+    LY_ARRAY_FOR(bases_p, u) {
         s = strchr(bases_p[u], ':');
         if (s) {
             /* prefixed identity */
@@ -1083,27 +1104,31 @@ lys_compile_identity_bases(struct lysc_ctx *ctx, struct lys_module *context_modu
             }
             return LY_EVALID;
         }
+
         idref = NULL;
-        if (mod->compiled && mod->compiled->identities) {
-            for (v = 0; v < LY_ARRAY_SIZE(mod->compiled->identities); ++v) {
-                if (!strcmp(name, mod->compiled->identities[v].name)) {
-                    if (ident) {
-                        if (ident == &mod->compiled->identities[v]) {
-                            LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_REFERENCE,
-                                   "Identity \"%s\" is derived from itself.", ident->name);
-                            return LY_EVALID;
-                        }
-                        LY_CHECK_RET(lys_compile_identity_circular_check(ctx, &mod->compiled->identities[v], ident->derived));
-                        /* we have match! store the backlink */
-                        LY_ARRAY_NEW_RET(ctx->ctx, mod->compiled->identities[v].derived, idref, LY_EMEM);
-                        *idref = ident;
-                    } else {
-                        /* we have match! store the found identity */
-                        LY_ARRAY_NEW_RET(ctx->ctx, *bases, idref, LY_EMEM);
-                        *idref = &mod->compiled->identities[v];
+        if (mod->compiled) {
+            identities = mod->compiled->identities;
+        } else {
+            identities = mod->dis_identities;
+        }
+        LY_ARRAY_FOR(identities, v) {
+            if (!strcmp(name, identities[v].name)) {
+                if (ident) {
+                    if (ident == &identities[v]) {
+                        LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_REFERENCE,
+                               "Identity \"%s\" is derived from itself.", ident->name);
+                        return LY_EVALID;
                     }
-                    break;
+                    LY_CHECK_RET(lys_compile_identity_circular_check(ctx, &identities[v], ident->derived));
+                    /* we have match! store the backlink */
+                    LY_ARRAY_NEW_RET(ctx->ctx, identities[v].derived, idref, LY_EMEM);
+                    *idref = ident;
+                } else {
+                    /* we have match! store the found identity */
+                    LY_ARRAY_NEW_RET(ctx->ctx, *bases, idref, LY_EMEM);
+                    *idref = &identities[v];
                 }
+                break;
             }
         }
         if (!idref || !(*idref)) {
@@ -1130,9 +1155,10 @@ lys_compile_identity_bases(struct lysc_ctx *ctx, struct lys_module *context_modu
 static LY_ERR
 lys_compile_identities_derived(struct lysc_ctx *ctx, struct lysp_ident *idents_p, struct lysc_ident *idents)
 {
-    LY_ARRAY_SIZE_TYPE u;
+    LY_ARRAY_COUNT_TYPE u;
 
-    for (u = 0; u < LY_ARRAY_SIZE(idents_p); ++u) {
+    lysc_update_path(ctx, NULL, "{identity}");
+    for (u = 0; u < LY_ARRAY_COUNT(idents_p); ++u) {
         if (!idents_p[u].bases) {
             continue;
         }
@@ -1140,13 +1166,15 @@ lys_compile_identities_derived(struct lysc_ctx *ctx, struct lysp_ident *idents_p
         LY_CHECK_RET(lys_compile_identity_bases(ctx, idents[u].module, idents_p[u].bases, &idents[u], NULL));
         lysc_update_path(ctx, NULL, NULL);
     }
+    lysc_update_path(ctx, NULL, NULL);
     return LY_SUCCESS;
 }
 
 LY_ERR
-lys_feature_precompile(struct lysc_ctx *ctx_sc, struct ly_ctx *ctx, struct lys_module *module, struct lysp_feature *features_p, struct lysc_feature **features)
+lys_feature_precompile(struct lysc_ctx *ctx_sc, struct ly_ctx *ctx, struct lys_module *module,
+                       struct lysp_feature *features_p, struct lysc_feature **features)
 {
-    LY_ARRAY_SIZE_TYPE offset = 0, u;
+    LY_ARRAY_COUNT_TYPE offset = 0, u;
     struct lysc_ctx context = {0};
 
     assert(ctx_sc || ctx);
@@ -1163,11 +1191,11 @@ lys_feature_precompile(struct lysc_ctx *ctx_sc, struct ly_ctx *ctx, struct lys_m
         return LY_SUCCESS;
     }
     if (*features) {
-        offset = LY_ARRAY_SIZE(*features);
+        offset = LY_ARRAY_COUNT(*features);
     }
 
     lysc_update_path(ctx_sc, NULL, "{feature}");
-    LY_ARRAY_CREATE_RET(ctx_sc->ctx, *features, LY_ARRAY_SIZE(features_p), LY_EMEM);
+    LY_ARRAY_CREATE_RET(ctx_sc->ctx, *features, LY_ARRAY_COUNT(features_p), LY_EMEM);
     LY_ARRAY_FOR(features_p, u) {
         lysc_update_path(ctx_sc, NULL, features_p[u].name);
 
@@ -1202,7 +1230,7 @@ static LY_ERR
 lys_compile_feature_circular_check(struct lysc_ctx *ctx, struct lysc_feature *feature, struct lysc_feature **depfeatures)
 {
     LY_ERR ret = LY_EVALID;
-    LY_ARRAY_SIZE_TYPE u, v;
+    LY_ARRAY_COUNT_TYPE u, v;
     struct ly_set recursion = {0};
     struct lysc_feature *drv;
 
@@ -1210,7 +1238,7 @@ lys_compile_feature_circular_check(struct lysc_ctx *ctx, struct lysc_feature *fe
         return LY_SUCCESS;
     }
 
-    for (u = 0; u < LY_ARRAY_SIZE(depfeatures); ++u) {
+    for (u = 0; u < LY_ARRAY_COUNT(depfeatures); ++u) {
         if (feature == depfeatures[u]) {
             LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_REFERENCE,
                    "Feature \"%s\" is indirectly referenced from itself.", feature->name);
@@ -1224,7 +1252,7 @@ lys_compile_feature_circular_check(struct lysc_ctx *ctx, struct lysc_feature *fe
         if (!drv->depfeatures) {
             continue;
         }
-        for (u = 0; u < LY_ARRAY_SIZE(drv->depfeatures); ++u) {
+        for (u = 0; u < LY_ARRAY_COUNT(drv->depfeatures); ++u) {
             if (feature == drv->depfeatures[u]) {
                 LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_REFERENCE,
                        "Feature \"%s\" is indirectly referenced from itself.", feature->name);
@@ -1253,7 +1281,7 @@ cleanup:
 static LY_ERR
 lys_feature_precompile_finish(struct lysc_ctx *ctx, struct lysp_feature *feature_p, struct lysc_feature *features)
 {
-    LY_ARRAY_SIZE_TYPE u, v, x;
+    LY_ARRAY_COUNT_TYPE u, v, x;
     struct lysc_feature *feature, **df;
     LY_ERR ret = LY_SUCCESS;
 
@@ -1271,9 +1299,9 @@ lys_feature_precompile_finish(struct lysc_ctx *ctx, struct lysp_feature *feature
         COMPILE_EXTS_GOTO(ctx, feature_p->exts, feature->exts, feature, LYEXT_PAR_FEATURE, ret, done);
         COMPILE_ARRAY_GOTO(ctx, feature_p->iffeatures, feature->iffeatures, u, lys_compile_iffeature, ret, done);
         if (feature->iffeatures) {
-            for (u = 0; u < LY_ARRAY_SIZE(feature->iffeatures); ++u) {
+            for (u = 0; u < LY_ARRAY_COUNT(feature->iffeatures); ++u) {
                 if (feature->iffeatures[u].features) {
-                    for (v = 0; v < LY_ARRAY_SIZE(feature->iffeatures[u].features); ++v) {
+                    for (v = 0; v < LY_ARRAY_COUNT(feature->iffeatures[u].features); ++v) {
                         /* check for circular dependency - direct reference first,... */
                         if (feature == feature->iffeatures[u].features[v]) {
                             LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_REFERENCE,
@@ -1304,35 +1332,35 @@ lys_feature_precompile_finish(struct lysc_ctx *ctx, struct lysp_feature *feature
  * @brief Revert compiled list of features back to the precompiled state.
  *
  * Function is needed in case the compilation failed and the schema is expected to revert back to the non-compiled status.
- * The features are supposed to be stored again as off_features in ::lys_module structure.
+ * The features are supposed to be stored again as dis_features in ::lys_module structure.
  *
  * @param[in] ctx Compilation context.
  * @param[in] mod The module structure still holding the compiled (but possibly not finished, only the list of compiled features is taken) schema
- * and supposed to hold the off_features list.
+ * and supposed to hold the dis_features list.
  */
 static void
 lys_feature_precompile_revert(struct lysc_ctx *ctx, struct lys_module *mod)
 {
-    LY_ARRAY_SIZE_TYPE u, v;
+    LY_ARRAY_COUNT_TYPE u, v;
 
-    /* keep the off_features list until the complete lys_module is freed */
-    mod->off_features = mod->compiled->features;
+    /* keep the dis_features list until the complete lys_module is freed */
+    mod->dis_features = mod->compiled->features;
     mod->compiled->features = NULL;
 
-    /* in the off_features list, remove all the parts (from finished compiling process)
+    /* in the dis_features list, remove all the parts (from finished compiling process)
      * which may points into the data being freed here */
-    LY_ARRAY_FOR(mod->off_features, u) {
-        LY_ARRAY_FOR(mod->off_features[u].iffeatures, v) {
-            lysc_iffeature_free(ctx->ctx, &mod->off_features[u].iffeatures[v]);
+    LY_ARRAY_FOR(mod->dis_features, u) {
+        LY_ARRAY_FOR(mod->dis_features[u].iffeatures, v) {
+            lysc_iffeature_free(ctx->ctx, &mod->dis_features[u].iffeatures[v]);
         }
-        LY_ARRAY_FREE(mod->off_features[u].iffeatures);
-        mod->off_features[u].iffeatures = NULL;
+        LY_ARRAY_FREE(mod->dis_features[u].iffeatures);
+        mod->dis_features[u].iffeatures = NULL;
 
-        LY_ARRAY_FOR(mod->off_features[u].exts, v) {
-            lysc_ext_instance_free(ctx->ctx, &(mod->off_features[u].exts)[v]);
+        LY_ARRAY_FOR(mod->dis_features[u].exts, v) {
+            lysc_ext_instance_free(ctx->ctx, &(mod->dis_features[u].exts)[v]);
         }
-        LY_ARRAY_FREE(mod->off_features[u].exts);
-        mod->off_features[u].exts = NULL;
+        LY_ARRAY_FREE(mod->dis_features[u].exts);
+        mod->dis_features[u].exts = NULL;
     }
 }
 
@@ -1469,7 +1497,7 @@ range_part_minmax(struct lysc_ctx *ctx, struct lysc_range_part *part, int max, i
     }
     if (!valcopy && base_range) {
         if (max) {
-            part->max_64 = base_range->parts[LY_ARRAY_SIZE(base_range->parts) - 1].max_64;
+            part->max_64 = base_range->parts[LY_ARRAY_COUNT(base_range->parts) - 1].max_64;
         } else {
             part->min_64 = base_range->parts[0].min_64;
         }
@@ -1626,7 +1654,7 @@ lys_compile_type_range(struct lysc_ctx *ctx, struct lysp_restr *range_p, LY_DATA
     const char *expr;
     struct lysc_range_part *parts = NULL, *part;
     int range_expected = 0, uns;
-    LY_ARRAY_SIZE_TYPE parts_done = 0, u, v;
+    LY_ARRAY_COUNT_TYPE parts_done = 0, u, v;
 
     assert(range);
     assert(range_p);
@@ -1641,7 +1669,7 @@ lys_compile_type_range(struct lysc_ctx *ctx, struct lysp_restr *range_p, LY_DATA
                        "Invalid %s restriction - unexpected end of the expression after \"..\" (%s).",
                        length_restr ? "length" : "range", range_p->arg);
                 goto cleanup;
-            } else if (!parts || parts_done == LY_ARRAY_SIZE(parts)) {
+            } else if (!parts || parts_done == LY_ARRAY_COUNT(parts)) {
                 LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_SYNTAX_YANG,
                        "Invalid %s restriction - unexpected end of the expression (%s).",
                        length_restr ? "length" : "range", range_p->arg);
@@ -1676,7 +1704,7 @@ lys_compile_type_range(struct lysc_ctx *ctx, struct lysp_restr *range_p, LY_DATA
             while (isspace(*expr)) {
                 expr++;
             }
-            if (!parts || LY_ARRAY_SIZE(parts) == parts_done) {
+            if (!parts || LY_ARRAY_COUNT(parts) == parts_done) {
                 LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_SYNTAX_YANG,
                        "Invalid %s restriction - unexpected \"..\" without a lower bound.", length_restr ? "length" : "range");
                 goto cleanup;
@@ -1686,12 +1714,12 @@ lys_compile_type_range(struct lysc_ctx *ctx, struct lysp_restr *range_p, LY_DATA
         } else if (isdigit(*expr) || (*expr == '-') || (*expr == '+')) {
             /* number */
             if (range_expected) {
-                part = &parts[LY_ARRAY_SIZE(parts) - 1];
+                part = &parts[LY_ARRAY_COUNT(parts) - 1];
                 LY_CHECK_GOTO(range_part_minmax(ctx, part, 1, part->min_64, basetype, 0, length_restr, frdigits, NULL, &expr), cleanup);
                 range_expected = 0;
             } else {
                 LY_ARRAY_NEW_GOTO(ctx->ctx, parts, part, ret, cleanup);
-                LY_CHECK_GOTO(range_part_minmax(ctx, part, 0, parts_done ? parts[LY_ARRAY_SIZE(parts) - 2].max_64 : 0,
+                LY_CHECK_GOTO(range_part_minmax(ctx, part, 0, parts_done ? parts[LY_ARRAY_COUNT(parts) - 2].max_64 : 0,
                                                 basetype, parts_done ? 0 : 1, length_restr, frdigits, NULL, &expr), cleanup);
                 part->max_64 = part->min_64;
             }
@@ -1708,12 +1736,12 @@ lys_compile_type_range(struct lysc_ctx *ctx, struct lysp_restr *range_p, LY_DATA
                 goto cleanup;
             }
             if (range_expected) {
-                part = &parts[LY_ARRAY_SIZE(parts) - 1];
+                part = &parts[LY_ARRAY_COUNT(parts) - 1];
                 LY_CHECK_GOTO(range_part_minmax(ctx, part, 1, part->min_64, basetype, 0, length_restr, frdigits, base_range, NULL), cleanup);
                 range_expected = 0;
             } else {
                 LY_ARRAY_NEW_GOTO(ctx->ctx, parts, part, ret, cleanup);
-                LY_CHECK_GOTO(range_part_minmax(ctx, part, 1, parts_done ? parts[LY_ARRAY_SIZE(parts) - 2].max_64 : 0,
+                LY_CHECK_GOTO(range_part_minmax(ctx, part, 1, parts_done ? parts[LY_ARRAY_COUNT(parts) - 2].max_64 : 0,
                                                 basetype, parts_done ? 0 : 1, length_restr, frdigits, base_range, NULL), cleanup);
                 part->min_64 = part->max_64;
             }
@@ -1747,7 +1775,7 @@ lys_compile_type_range(struct lysc_ctx *ctx, struct lysp_restr *range_p, LY_DATA
             ret = LY_EINT;
             goto cleanup;
         }
-        for (u = v = 0; u < parts_done && v < LY_ARRAY_SIZE(base_range->parts); ++u) {
+        for (u = v = 0; u < parts_done && v < LY_ARRAY_COUNT(base_range->parts); ++u) {
             if ((uns && parts[u].min_u64 < base_range->parts[v].min_u64) || (!uns && parts[u].min_64 < base_range->parts[v].min_64)) {
                 goto baseerror;
             }
@@ -2094,7 +2122,7 @@ lys_compile_type_patterns(struct lysc_ctx *ctx, struct lysp_restr *patterns_p,
                           struct lysc_pattern **base_patterns, struct lysc_pattern ***patterns)
 {
     struct lysc_pattern **pattern;
-    LY_ARRAY_SIZE_TYPE u;
+    LY_ARRAY_COUNT_TYPE u;
     LY_ERR ret = LY_SUCCESS;
 
     /* first, copy the patterns from the base type */
@@ -2173,7 +2201,7 @@ lys_compile_type_enums(struct lysc_ctx *ctx, struct lysp_type_enum *enums_p, LY_
                        struct lysc_type_bitenum_item *base_enums, struct lysc_type_bitenum_item **enums)
 {
     LY_ERR ret = LY_SUCCESS;
-    LY_ARRAY_SIZE_TYPE u, v, match = 0;
+    LY_ARRAY_COUNT_TYPE u, v, match = 0;
     int32_t value = 0;
     uint32_t position = 0;
     struct lysc_type_bitenum_item *e, storage;
@@ -2197,7 +2225,7 @@ lys_compile_type_enums(struct lysc_ctx *ctx, struct lysp_type_enum *enums_p, LY_
                     break;
                 }
             }
-            if (v == LY_ARRAY_SIZE(base_enums)) {
+            if (v == LY_ARRAY_COUNT(base_enums)) {
                 LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_SYNTAX_YANG,
                        "Invalid %s - derived type adds new item \"%s\".",
                        basetype == LY_TYPE_ENUM ? "enumeration" : "bits", e->name);
@@ -2214,7 +2242,7 @@ lys_compile_type_enums(struct lysc_ctx *ctx, struct lysp_type_enum *enums_p, LY_
                     value = e->value + 1;
                 }
                 /* check collision with other values */
-                for (v = 0; v < LY_ARRAY_SIZE(*enums) - 1; ++v) {
+                for (v = 0; v < LY_ARRAY_COUNT(*enums) - 1; ++v) {
                     if (e->value == (*enums)[v].value) {
                         LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_SYNTAX_YANG,
                                "Invalid enumeration - value %d collide in items \"%s\" and \"%s\".",
@@ -2246,7 +2274,7 @@ lys_compile_type_enums(struct lysc_ctx *ctx, struct lysp_type_enum *enums_p, LY_
                     position = (uint32_t)e->value + 1;
                 }
                 /* check collision with other values */
-                for (v = 0; v < LY_ARRAY_SIZE(*enums) - 1; ++v) {
+                for (v = 0; v < LY_ARRAY_COUNT(*enums) - 1; ++v) {
                     if (e->value == (*enums)[v].value) {
                         LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_SYNTAX_YANG,
                                "Invalid bits - position %u collide in items \"%s\" and \"%s\".",
@@ -2399,7 +2427,7 @@ lys_compile_leafref_features_validate(const struct lysc_node *refnode, const str
 {
     LY_ERR ret = LY_EVALID;
     const struct lysc_node *iter;
-    LY_ARRAY_SIZE_TYPE u, v, count;
+    LY_ARRAY_COUNT_TYPE u, v, count;
     struct ly_set features = {0};
 
     for (iter = refnode; iter; iter = iter->parent) {
@@ -2756,18 +2784,18 @@ lys_compile_type_(struct lysc_ctx *ctx, struct lysp_node *context_node_p, uint16
                 return LY_EVALID;
             }
             /* compile the type */
-            LY_ARRAY_CREATE_RET(ctx->ctx, un->types, LY_ARRAY_SIZE(type_p->types), LY_EVALID);
-            for (LY_ARRAY_SIZE_TYPE u = 0, additional = 0; u < LY_ARRAY_SIZE(type_p->types); ++u) {
+            LY_ARRAY_CREATE_RET(ctx->ctx, un->types, LY_ARRAY_COUNT(type_p->types), LY_EVALID);
+            for (LY_ARRAY_COUNT_TYPE u = 0, additional = 0; u < LY_ARRAY_COUNT(type_p->types); ++u) {
                 LY_CHECK_RET(lys_compile_type(ctx, context_node_p, context_flags, context_mod, context_name,
                                               &type_p->types[u], &un->types[u + additional], NULL));
                 if (un->types[u + additional]->basetype == LY_TYPE_UNION) {
                     /* add space for additional types from the union subtype */
                     un_aux = (struct lysc_type_union *)un->types[u + additional];
-                    LY_ARRAY_RESIZE_ERR_RET(ctx->ctx, un->types, (*((uint64_t*)(type_p->types) - 1)) + additional + LY_ARRAY_SIZE(un_aux->types) - 1,
+                    LY_ARRAY_RESIZE_ERR_RET(ctx->ctx, un->types, (*((uint64_t*)(type_p->types) - 1)) + additional + LY_ARRAY_COUNT(un_aux->types) - 1,
                                             lysc_type_free(ctx->ctx, (struct lysc_type*)un_aux), LY_EMEM);
 
                     /* copy subtypes of the subtype union */
-                    for (LY_ARRAY_SIZE_TYPE v = 0; v < LY_ARRAY_SIZE(un_aux->types); ++v) {
+                    for (LY_ARRAY_COUNT_TYPE v = 0; v < LY_ARRAY_COUNT(un_aux->types); ++v) {
                         if (un_aux->types[v]->basetype == LY_TYPE_LEAFREF) {
                             /* duplicate the whole structure because of the instance-specific path resolving for realtype */
                             un->types[u + additional] = calloc(1, sizeof(struct lysc_type_leafref));
@@ -3154,7 +3182,7 @@ lys_compile_node_uniqness(struct lysc_ctx *ctx, const struct lysc_node *children
                           const struct lysc_notif *notifs, const char *name, void *exclude)
 {
     const struct lysc_node *iter;
-    LY_ARRAY_SIZE_TYPE u;
+    LY_ARRAY_COUNT_TYPE u;
 
     LY_LIST_FOR(children, iter) {
         if (iter != exclude && iter->module == ctx->mod && !strcmp(name, iter->name)) {
@@ -3409,7 +3437,7 @@ lys_compile_node_type(struct lysc_ctx *ctx, struct lysp_node *context_node, stru
         /* store to validate the path in the current context at the end of schema compiling when all the nodes are present */
         ly_set_add(&ctx->leafrefs, leaf, 0);
     } else if (leaf->type->basetype == LY_TYPE_UNION) {
-        LY_ARRAY_SIZE_TYPE u;
+        LY_ARRAY_COUNT_TYPE u;
         LY_ARRAY_FOR(((struct lysc_type_union*)leaf->type)->types, u) {
             if (((struct lysc_type_union*)leaf->type)->types[u]->basetype == LY_TYPE_LEAFREF) {
                 /* store to validate the path in the current context at the end of schema compiling when all the nodes are present */
@@ -3505,7 +3533,7 @@ lys_compile_node_leaflist(struct lysc_ctx *ctx, struct lysp_node *node_p, struct
 {
     struct lysp_node_leaflist *llist_p = (struct lysp_node_leaflist*)node_p;
     struct lysc_node_leaflist *llist = (struct lysc_node_leaflist*)node;
-    LY_ARRAY_SIZE_TYPE u, v;
+    LY_ARRAY_COUNT_TYPE u, v;
     LY_ERR ret = LY_SUCCESS;
 
     COMPILE_ARRAY_GOTO(ctx, llist_p->musts, llist->musts, u, lys_compile_must, ret, done);
@@ -3531,8 +3559,8 @@ lys_compile_node_leaflist(struct lysc_ctx *ctx, struct lysp_node *node_p, struct
 
     if (llist_p->dflts) {
         llist->dflts = NULL; /* reset the temporary llist_p->dflts */
-        LY_ARRAY_CREATE_GOTO(ctx->ctx, llist->dflts_mods, LY_ARRAY_SIZE(llist_p->dflts), ret, done);
-        LY_ARRAY_CREATE_GOTO(ctx->ctx, llist->dflts, LY_ARRAY_SIZE(llist_p->dflts), ret, done);
+        LY_ARRAY_CREATE_GOTO(ctx->ctx, llist->dflts_mods, LY_ARRAY_COUNT(llist_p->dflts), ret, done);
+        LY_ARRAY_CREATE_GOTO(ctx->ctx, llist->dflts, LY_ARRAY_COUNT(llist_p->dflts), ret, done);
         LY_ARRAY_FOR(llist_p->dflts, u) {
             struct ly_err_item *err = NULL;
             LY_ARRAY_INCREMENT(llist->dflts_mods);
@@ -3561,10 +3589,10 @@ lys_compile_node_leaflist(struct lysc_ctx *ctx, struct lysp_node *node_p, struct
         }
         llist->flags |= LYS_SET_DFLT;
     }
-    if ((llist->flags & LYS_CONFIG_W) && llist->dflts && LY_ARRAY_SIZE(llist->dflts)) {
+    if ((llist->flags & LYS_CONFIG_W) && llist->dflts && LY_ARRAY_COUNT(llist->dflts)) {
         /* configuration data values must be unique - so check the default values */
         LY_ARRAY_FOR(llist->dflts, u) {
-            for (v = u + 1; v < LY_ARRAY_SIZE(llist->dflts); ++v) {
+            for (v = u + 1; v < LY_ARRAY_COUNT(llist->dflts); ++v) {
                 if (!llist->type->plugin->compare(llist->dflts[u], llist->dflts[v])) {
                     int dynamic = 0;
                     const char *val = llist->type->plugin->print(llist->dflts[v], LYD_XML, lys_get_prefix, llist->dflts_mods[v], &dynamic);
@@ -3607,11 +3635,11 @@ lys_compile_node_list_unique(struct lysc_ctx *ctx, struct lys_module *context_mo
     struct lysc_node *parent;
     const char *keystr, *delim;
     size_t len;
-    LY_ARRAY_SIZE_TYPE v;
+    LY_ARRAY_COUNT_TYPE v;
     int config;
     uint16_t flags;
 
-    for (v = 0; v < LY_ARRAY_SIZE(uniques); ++v) {
+    for (v = 0; v < LY_ARRAY_COUNT(uniques); ++v) {
         config = -1;
         LY_ARRAY_NEW_RET(ctx->ctx, list->uniques, unique, LY_EMEM);
         keystr = uniques[v];
@@ -4029,7 +4057,8 @@ done:
 }
 
 /**
- * @brief Connect the node into the siblings list and check its name uniqueness.
+ * @brief Connect the node into the siblings list and check its name uniqueness. Also,
+ * keep specific order of augments targetting the same node.
  *
  * @param[in] ctx Compile context
  * @param[in] parent Parent node holding the children list, in case of node from a choice's case,
@@ -4041,7 +4070,8 @@ done:
 static LY_ERR
 lys_compile_node_connect(struct lysc_ctx *ctx, struct lysc_node *parent, struct lysc_node *node)
 {
-    struct lysc_node **children;
+    struct lysc_node **children, *start, *end;
+    const struct lys_module *mod;
 
     if (node->nodetype == LYS_CASE) {
         children = (struct lysc_node**)&((struct lysc_node_choice*)parent)->cases;
@@ -4058,10 +4088,32 @@ lys_compile_node_connect(struct lysc_ctx *ctx, struct lysc_node *parent, struct 
              * the first child of each case must be referenced from the case node. So the node is
              * actually always already inserted in case it is the first children - so here such
              * a situation actually corresponds to the first branch */
-            /* insert at the end of the parent's children list */
-            (*children)->prev->next = node;
-            node->prev = (*children)->prev;
-            (*children)->prev = node;
+            if (((*children)->prev->module != (*children)->module) && (node->module != (*children)->module)
+                    && (strcmp((*children)->prev->module->name, node->module->name) > 0)) {
+                /* some augments are already connected and we are connecting new ones,
+                 * keep module name order and insert the node into the children list */
+                end = (*children);
+                do {
+                    end = end->prev;
+                    mod = end->module;
+                    while (end->prev->module == mod) {
+                        end = end->prev;
+                    }
+                } while ((end->prev->module != (*children)->module) && (end->prev->module != node->module)
+                        && (strcmp(mod->name, node->module->name) > 0));
+
+                /* we have the last existing node after our node, easily get the first before and connect it */
+                start = end->prev;
+                start->next = node;
+                node->next = end;
+                end->prev = node;
+                node->prev = start;
+            } else {
+                /* insert at the end of the parent's children list */
+                (*children)->prev->next = node;
+                node->prev = (*children)->prev;
+                (*children)->prev = node;
+            }
 
             /* check the name uniqueness */
             if (lys_compile_node_uniqness(ctx, *children, lysc_node_actions(parent),
@@ -4261,7 +4313,7 @@ lys_compile_mandatory_parents(struct lysc_node *parent, int add)
 static void
 lys_compile_augment_sort_(struct lysp_augment *aug_p, struct lysp_augment **result)
 {
-    LY_ARRAY_SIZE_TYPE v;
+    LY_ARRAY_COUNT_TYPE v;
     size_t len;
 
     len = strlen(aug_p->nodeid);
@@ -4269,9 +4321,9 @@ lys_compile_augment_sort_(struct lysp_augment *aug_p, struct lysp_augment **resu
         if (strlen(result[v]->nodeid) <= len) {
             continue;
         }
-        if (v < LY_ARRAY_SIZE(result)) {
+        if (v < LY_ARRAY_COUNT(result)) {
             /* move the rest of array */
-            memmove(&result[v + 1], &result[v], (LY_ARRAY_SIZE(result) - v) * sizeof *result);
+            memmove(&result[v + 1], &result[v], (LY_ARRAY_COUNT(result) - v) * sizeof *result);
             break;
         }
     }
@@ -4296,17 +4348,17 @@ LY_ERR
 lys_compile_augment_sort(struct lysc_ctx *ctx, struct lysp_augment *aug_p, struct lysp_include *inc_p, struct lysp_augment ***augments)
 {
     struct lysp_augment **result = NULL;
-    LY_ARRAY_SIZE_TYPE u, v, count = 0;
+    LY_ARRAY_COUNT_TYPE u, v, count = 0;
 
     assert(augments);
 
     /* get count of the augments in module and all its submodules */
     if (aug_p) {
-        count += LY_ARRAY_SIZE(aug_p);
+        count += LY_ARRAY_COUNT(aug_p);
     }
     LY_ARRAY_FOR(inc_p, u) {
         if (inc_p[u].submodule->augments) {
-            count += LY_ARRAY_SIZE(inc_p[u].submodule->augments);
+            count += LY_ARRAY_COUNT(inc_p[u].submodule->augments);
         }
     }
 
@@ -4348,14 +4400,15 @@ lys_compile_augment_sort(struct lysc_ctx *ctx, struct lysp_augment *aug_p, struc
 LY_ERR
 lys_compile_augment(struct lysc_ctx *ctx, struct lysp_augment *aug_p, const struct lysc_node *parent)
 {
-    LY_ERR ret = LY_SUCCESS;
+    LY_ERR ret = LY_SUCCESS, rc;
     struct lysp_node *node_p, *case_node_p;
     struct lysc_node *target; /* target target of the augment */
     struct lysc_node *node;
     struct lysc_when **when, *when_shared;
+    struct lys_module **aug_mod;
     int allow_mandatory = 0;
     uint16_t flags = 0;
-    unsigned int u;
+    LY_ARRAY_COUNT_TYPE u, v;
     int opt_prev = ctx->options;
 
     lysc_update_path(ctx, NULL, "{augment}");
@@ -4486,8 +4539,22 @@ lys_compile_augment(struct lysc_ctx *ctx, struct lysp_augment *aug_p, const stru
         }
     }
 
+    /* add this module into the target module augmented_by, if not there already */
+    rc = LY_SUCCESS;
+    LY_ARRAY_FOR(target->module->compiled->augmented_by, v) {
+        if (target->module->compiled->augmented_by[v] == ctx->mod) {
+            rc = LY_EEXIST;
+            break;
+        }
+    }
+    if (!rc) {
+        LY_ARRAY_NEW_GOTO(ctx->ctx, target->module->compiled->augmented_by, aug_mod, ret, error);
+        *aug_mod = ctx->mod;
+    }
+
     lysc_update_path(ctx, NULL, NULL);
     lysc_update_path(ctx, NULL, NULL);
+
 error:
     ctx->options = opt_prev;
     return ret;
@@ -4595,7 +4662,7 @@ lys_compile_uses(struct lysc_ctx *ctx, struct lysp_node_uses *uses_p, struct lys
          .prev = (struct lysc_node*)&context_node_fake,
          .actions = NULL, .notifs = NULL};
     struct lysp_grp *grp = NULL;
-    LY_ARRAY_SIZE_TYPE u, v;
+    LY_ARRAY_COUNT_TYPE u, v;
     uint32_t grp_stack_count;
     int found;
     const char *id, *name, *prefix;
@@ -4608,7 +4675,7 @@ lys_compile_uses(struct lysc_ctx *ctx, struct lysp_node_uses *uses_p, struct lys
     struct ly_set refined = {0};
     struct lysc_when **when, *when_shared;
     struct lysp_augment **augments = NULL;
-    LY_ARRAY_SIZE_TYPE actions_index = 0, notifs_index = 0;
+    LY_ARRAY_COUNT_TYPE actions_index = 0, notifs_index = 0;
     struct lysc_notif **notifs = NULL;
     struct lysc_action **actions = NULL;
 
@@ -4642,7 +4709,7 @@ lys_compile_uses(struct lysc_ctx *ctx, struct lysp_node_uses *uses_p, struct lys
         /* search in top-level groupings of the main module ... */
         grp = mod->parsed->groupings;
         if (grp) {
-            for (u = 0; !found && u < LY_ARRAY_SIZE(grp); ++u) {
+            for (u = 0; !found && u < LY_ARRAY_COUNT(grp); ++u) {
                 if (!strcmp(grp[u].name, name)) {
                     grp = &grp[u];
                     found = 1;
@@ -4651,10 +4718,10 @@ lys_compile_uses(struct lysc_ctx *ctx, struct lysp_node_uses *uses_p, struct lys
         }
         if (!found && mod->parsed->includes) {
             /* ... and all the submodules */
-            for (u = 0; !found && u < LY_ARRAY_SIZE(mod->parsed->includes); ++u) {
+            for (u = 0; !found && u < LY_ARRAY_COUNT(mod->parsed->includes); ++u) {
                 grp = mod->parsed->includes[u].submodule->groupings;
                 if (grp) {
-                    for (v = 0; !found && v < LY_ARRAY_SIZE(grp); ++v) {
+                    for (v = 0; !found && v < LY_ARRAY_COUNT(grp); ++v) {
                         if (!strcmp(grp[v].name, name)) {
                             grp = &grp[v];
                             found = 1;
@@ -4746,26 +4813,26 @@ lys_compile_uses(struct lysc_ctx *ctx, struct lysp_node_uses *uses_p, struct lys
     /* compile actions */
     actions = parent ? lysc_node_actions_p(parent) : &ctx->mod->compiled->rpcs;
     if (actions) {
-        actions_index = *actions ? LY_ARRAY_SIZE(*actions) : 0;
+        actions_index = *actions ? LY_ARRAY_COUNT(*actions) : 0;
         COMPILE_ARRAY1_GOTO(ctx, grp->actions, *actions, parent, u, lys_compile_action, 0, ret, cleanup);
         if (*actions && (uses_p->augments || uses_p->refines)) {
             /* but for augment and refine, we need to separate the compiled grouping's actions to avoid modification of others */
-            LY_ARRAY_CREATE_GOTO(ctx->ctx, context_node_fake.actions, LY_ARRAY_SIZE(*actions) - actions_index, ret, cleanup);
-            LY_ARRAY_SIZE(context_node_fake.actions) = LY_ARRAY_SIZE(*actions) - actions_index;
-            memcpy(context_node_fake.actions, &(*actions)[actions_index], LY_ARRAY_SIZE(context_node_fake.actions) * sizeof **actions);
+            LY_ARRAY_CREATE_GOTO(ctx->ctx, context_node_fake.actions, LY_ARRAY_COUNT(*actions) - actions_index, ret, cleanup);
+            LY_ARRAY_COUNT(context_node_fake.actions) = LY_ARRAY_COUNT(*actions) - actions_index;
+            memcpy(context_node_fake.actions, &(*actions)[actions_index], LY_ARRAY_COUNT(context_node_fake.actions) * sizeof **actions);
         }
     }
 
     /* compile notifications */
     notifs = parent ? lysc_node_notifs_p(parent) : &ctx->mod->compiled->notifs;
     if (notifs) {
-        notifs_index = *notifs ? LY_ARRAY_SIZE(*notifs) : 0;
+        notifs_index = *notifs ? LY_ARRAY_COUNT(*notifs) : 0;
         COMPILE_ARRAY1_GOTO(ctx, grp->notifs, *notifs, parent, u, lys_compile_notif, 0, ret, cleanup);
         if (*notifs && (uses_p->augments || uses_p->refines)) {
             /* but for augment and refine, we need to separate the compiled grouping's notification to avoid modification of others */
-            LY_ARRAY_CREATE_GOTO(ctx->ctx, context_node_fake.notifs, LY_ARRAY_SIZE(*notifs) - notifs_index, ret, cleanup);
-            LY_ARRAY_SIZE(context_node_fake.notifs) = LY_ARRAY_SIZE(*notifs) - notifs_index;
-            memcpy(context_node_fake.notifs, &(*notifs)[notifs_index], LY_ARRAY_SIZE(context_node_fake.notifs) * sizeof **notifs);
+            LY_ARRAY_CREATE_GOTO(ctx->ctx, context_node_fake.notifs, LY_ARRAY_COUNT(*notifs) - notifs_index, ret, cleanup);
+            LY_ARRAY_COUNT(context_node_fake.notifs) = LY_ARRAY_COUNT(*notifs) - notifs_index;
+            memcpy(context_node_fake.notifs, &(*notifs)[notifs_index], LY_ARRAY_COUNT(context_node_fake.notifs) * sizeof **notifs);
         }
     }
 
@@ -4791,10 +4858,10 @@ lys_compile_uses(struct lysc_ctx *ctx, struct lysp_node_uses *uses_p, struct lys
 
         /* default value */
         if (rfn->dflts) {
-            if ((node->nodetype != LYS_LEAFLIST) && LY_ARRAY_SIZE(rfn->dflts) > 1) {
+            if ((node->nodetype != LYS_LEAFLIST) && LY_ARRAY_COUNT(rfn->dflts) > 1) {
                 LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_SEMANTICS,
-                       "Invalid refine of default - %s cannot hold %"LY_PRI_ARRAY_SIZE_TYPE" default values.",
-                       lys_nodetype2str(node->nodetype), LY_ARRAY_SIZE(rfn->dflts));
+                       "Invalid refine of default - %s cannot hold %"LY_PRI_ARRAY_COUNT_TYPE" default values.",
+                       lys_nodetype2str(node->nodetype), LY_ARRAY_COUNT(rfn->dflts));
                 goto cleanup;
             }
             if (!(node->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_CHOICE))) {
@@ -4859,8 +4926,8 @@ lys_compile_uses(struct lysc_ctx *ctx, struct lysp_node_uses *uses_p, struct lys
                 llist->dflts_mods = NULL;
 
                 /* create the new set of the default values */
-                LY_ARRAY_CREATE_GOTO(ctx->ctx, llist->dflts_mods, LY_ARRAY_SIZE(rfn->dflts), ret, cleanup);
-                LY_ARRAY_CREATE_GOTO(ctx->ctx, llist->dflts, LY_ARRAY_SIZE(rfn->dflts), ret, cleanup);
+                LY_ARRAY_CREATE_GOTO(ctx->ctx, llist->dflts_mods, LY_ARRAY_COUNT(rfn->dflts), ret, cleanup);
+                LY_ARRAY_CREATE_GOTO(ctx->ctx, llist->dflts, LY_ARRAY_COUNT(rfn->dflts), ret, cleanup);
                 LY_ARRAY_FOR(rfn->dflts, u) {
                     struct ly_err_item *err = NULL;
                     LY_ARRAY_INCREMENT(llist->dflts_mods);
@@ -5060,11 +5127,11 @@ cleanup:
     if (uses_p->augments || uses_p->refines) {
         /* return back actions and notifications in case they were separated for augment/refine processing */
         if (context_node_fake.actions) {
-            memcpy(&(*actions)[actions_index], context_node_fake.actions, LY_ARRAY_SIZE(context_node_fake.actions) * sizeof **actions);
+            memcpy(&(*actions)[actions_index], context_node_fake.actions, LY_ARRAY_COUNT(context_node_fake.actions) * sizeof **actions);
             LY_ARRAY_FREE(context_node_fake.actions);
         }
         if (context_node_fake.notifs) {
-            memcpy(&(*notifs)[notifs_index], context_node_fake.notifs, LY_ARRAY_SIZE(context_node_fake.notifs) * sizeof **notifs);
+            memcpy(&(*notifs)[notifs_index], context_node_fake.notifs, LY_ARRAY_COUNT(context_node_fake.notifs) * sizeof **notifs);
             LY_ARRAY_FREE(context_node_fake.notifs);
         }
     }
@@ -5093,13 +5160,13 @@ lys_compile_grouping_pathlog(struct lysc_ctx *ctx, struct lysp_node *node, char 
 
         switch (iter->nodetype) {
         case LYS_USES:
-            asprintf(&id, "{uses='%s'}", iter->name);
+            LY_CHECK_RET(asprintf(&id, "{uses='%s'}", iter->name) == -1, -1);
             break;
         case LYS_GROUPING:
-            asprintf(&id, "{grouping='%s'}", iter->name);
+            LY_CHECK_RET(asprintf(&id, "{grouping='%s'}", iter->name) == -1, -1);
             break;
         case LYS_AUGMENT:
-            asprintf(&id, "{augment='%s'}", iter->name);
+            LY_CHECK_RET(asprintf(&id, "{augment='%s'}", iter->name) == -1, -1);
             break;
         default:
             id = strdup(iter->name);
@@ -5499,7 +5566,7 @@ lys_compile_deviations(struct lysc_ctx *ctx, struct lysp_module *mod_p)
     struct lysp_deviate_add *d_add;
     struct lysp_deviate_del *d_del;
     struct lysp_deviate_rpl *d_rpl;
-    LY_ARRAY_SIZE_TYPE u, v, x, y, z;
+    LY_ARRAY_COUNT_TYPE u, v, x, y, z;
     struct lysc_deviation {
         const char *nodeid;
         struct lysc_node *target;      /* target node of the deviation */
@@ -5581,9 +5648,9 @@ lys_compile_deviations(struct lysc_ctx *ctx, struct lysp_module *mod_p)
     }
 
 #define DEV_CHECK_CARDINALITY(ARRAY, MAX, PROPERTY) \
-    if (LY_ARRAY_SIZE(ARRAY) > MAX) { \
-        LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_SEMANTICS, "Invalid deviation of %s with too many (%"LY_PRI_ARRAY_SIZE_TYPE") %s properties.", \
-               lys_nodetype2str(devs[u]->target->nodetype), LY_ARRAY_SIZE(ARRAY), PROPERTY); \
+    if (LY_ARRAY_COUNT(ARRAY) > MAX) { \
+        LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_SEMANTICS, "Invalid deviation of %s with too many (%"LY_PRI_ARRAY_COUNT_TYPE") %s properties.", \
+               lys_nodetype2str(devs[u]->target->nodetype), LY_ARRAY_COUNT(ARRAY), PROPERTY); \
         goto cleanup; \
     }
 
@@ -5634,7 +5701,7 @@ lys_compile_deviations(struct lysc_ctx *ctx, struct lysp_module *mod_p)
         LY_ARRAY_FOR(((TYPE)devs[u]->target)->ARRAY_TRG, y) { \
             if (!strcmp(((TYPE)devs[u]->target)->ARRAY_TRG[y]VALMEMBER_CMP, d_del->ARRAY_DEV[x]VALMEMBER)) { break; } \
         } \
-        if (y == LY_ARRAY_SIZE(((TYPE)devs[u]->target)->ARRAY_TRG)) { \
+        if (y == LY_ARRAY_COUNT(((TYPE)devs[u]->target)->ARRAY_TRG)) { \
             LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_REFERENCE, \
                    "Invalid deviation deleting \"%s\" property \"%s\" which does not match any of the target's property values.", \
                    PROPERTY, d_del->ARRAY_DEV[x]VALMEMBER); \
@@ -5644,9 +5711,9 @@ lys_compile_deviations(struct lysc_ctx *ctx, struct lysp_module *mod_p)
         DELFUNC(ctx->ctx, DELFUNC_DEREF((TYPE)devs[u]->target)->ARRAY_TRG[y]); \
         memmove(&((TYPE)devs[u]->target)->ARRAY_TRG[y], \
                 &((TYPE)devs[u]->target)->ARRAY_TRG[y + 1], \
-                (LY_ARRAY_SIZE(((TYPE)devs[u]->target)->ARRAY_TRG) - y) * (sizeof *((TYPE)devs[u]->target)->ARRAY_TRG)); \
+                (LY_ARRAY_COUNT(((TYPE)devs[u]->target)->ARRAY_TRG) - y) * (sizeof *((TYPE)devs[u]->target)->ARRAY_TRG)); \
     } \
-    if (!LY_ARRAY_SIZE(((TYPE)devs[u]->target)->ARRAY_TRG)) { \
+    if (!LY_ARRAY_COUNT(((TYPE)devs[u]->target)->ARRAY_TRG)) { \
         LY_ARRAY_FREE(((TYPE)devs[u]->target)->ARRAY_TRG); \
         ((TYPE)devs[u]->target)->ARRAY_TRG = NULL; \
     }
@@ -5673,9 +5740,9 @@ lys_compile_deviations(struct lysc_ctx *ctx, struct lysp_module *mod_p)
 
         /* not-supported */
         if (devs[u]->not_supported) {
-            if (LY_ARRAY_SIZE(devs[u]->deviates) > 1) {
-                LOGWRN(ctx->ctx, "Useless multiple (%"LY_PRI_ARRAY_SIZE_TYPE") deviates on node \"%s\" since the node is not-supported.",
-                       LY_ARRAY_SIZE(devs[u]->deviates), devs[u]->nodeid);
+            if (LY_ARRAY_COUNT(devs[u]->deviates) > 1) {
+                LOGWRN(ctx->ctx, "Useless multiple (%"LY_PRI_ARRAY_COUNT_TYPE") deviates on node \"%s\" since the node is not-supported.",
+                       LY_ARRAY_COUNT(devs[u]->deviates), devs[u]->nodeid);
             }
 
 #define REMOVE_NONDATA(ARRAY, TYPE, GETFUNC, FREEFUNC) \
@@ -5687,9 +5754,9 @@ lys_compile_deviations(struct lysc_ctx *ctx, struct lysp_module *mod_p)
     LY_ARRAY_FOR(ARRAY, x) { \
         if (&ARRAY[x] == (TYPE*)devs[u]->target) { break; } \
     } \
-    if (x < LY_ARRAY_SIZE(ARRAY)) { \
+    if (x < LY_ARRAY_COUNT(ARRAY)) { \
         FREEFUNC(ctx->ctx, &ARRAY[x]); \
-        memmove(&ARRAY[x], &ARRAY[x + 1], (LY_ARRAY_SIZE(ARRAY) - (x + 1)) * sizeof *ARRAY); \
+        memmove(&ARRAY[x], &ARRAY[x + 1], (LY_ARRAY_COUNT(ARRAY) - (x + 1)) * sizeof *ARRAY); \
         LY_ARRAY_DECREMENT(ARRAY); \
     }
 
@@ -5820,10 +5887,10 @@ lys_compile_deviations(struct lysc_ctx *ctx, struct lysp_module *mod_p)
                             llist->dflts_mods = NULL;
                         }
                         /* add new default value(s) */
-                        LY_ARRAY_CREATE_GOTO(ctx->ctx, llist->dflts_mods, LY_ARRAY_SIZE(d_add->dflts), ret, cleanup);
-                        LY_ARRAY_CREATE_GOTO(ctx->ctx, llist->dflts, LY_ARRAY_SIZE(d_add->dflts), ret, cleanup);
-                        for (x = y = LY_ARRAY_SIZE(llist->dflts);
-                                x < LY_ARRAY_SIZE(d_add->dflts) + y; ++x) {
+                        LY_ARRAY_CREATE_GOTO(ctx->ctx, llist->dflts_mods, LY_ARRAY_COUNT(d_add->dflts), ret, cleanup);
+                        LY_ARRAY_CREATE_GOTO(ctx->ctx, llist->dflts, LY_ARRAY_COUNT(d_add->dflts), ret, cleanup);
+                        for (x = y = LY_ARRAY_COUNT(llist->dflts);
+                                x < LY_ARRAY_COUNT(d_add->dflts) + y; ++x) {
                             LY_ARRAY_INCREMENT(llist->dflts_mods);
                             llist->dflts_mods[x] = ctx->mod_def;
                             LY_ARRAY_INCREMENT(llist->dflts);
@@ -6011,19 +6078,19 @@ lys_compile_deviations(struct lysc_ctx *ctx, struct lysp_module *mod_p)
                                 /* complete match - remove the unique */
                                 LY_ARRAY_DECREMENT(list->uniques);
                                 LY_ARRAY_FREE(list->uniques[z]);
-                                memmove(&list->uniques[z], &list->uniques[z + 1], (LY_ARRAY_SIZE(list->uniques) - z) * (sizeof *list->uniques));
+                                memmove(&list->uniques[z], &list->uniques[z + 1], (LY_ARRAY_COUNT(list->uniques) - z) * (sizeof *list->uniques));
                                 --z;
                                 break;
                             }
                         }
-                        if (!list->uniques || z == LY_ARRAY_SIZE(list->uniques)) {
+                        if (!list->uniques || z == LY_ARRAY_COUNT(list->uniques)) {
                             LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_REFERENCE,
                                    "Invalid deviation deleting \"unique\" property \"%s\" which does not match any of the target's property values.",
                                    d_del->uniques[x]);
                             goto cleanup;
                         }
                     }
-                    if (!LY_ARRAY_SIZE(list->uniques)) {
+                    if (!LY_ARRAY_COUNT(list->uniques)) {
                         LY_ARRAY_FREE(list->uniques);
                         list->uniques = NULL;
                     }
@@ -6081,7 +6148,7 @@ lys_compile_deviations(struct lysc_ctx *ctx, struct lysp_module *mod_p)
                                 }
                                 dflt = NULL;
                             }
-                            if (y == LY_ARRAY_SIZE(llist->dflts)) {
+                            if (y == LY_ARRAY_COUNT(llist->dflts)) {
                                 LOGVAL(ctx->ctx, LY_VLOG_STR, ctx->path, LYVE_REFERENCE, "Invalid deviation deleting \"default\" property \"%s\" "
                                        "which does not match any of the target's property values.", d_del->dflts[x]);
                                 goto cleanup;
@@ -6095,10 +6162,10 @@ lys_compile_deviations(struct lysc_ctx *ctx, struct lysp_module *mod_p)
                             llist->dflts[y]->realtype->plugin->free(ctx->ctx, llist->dflts[y]);
                             lysc_type_free(ctx->ctx, llist->dflts[y]->realtype);
                             free(llist->dflts[y]);
-                            memmove(&llist->dflts[y], &llist->dflts[y + 1], (LY_ARRAY_SIZE(llist->dflts) - y) * (sizeof *llist->dflts));
-                            memmove(&llist->dflts_mods[y], &llist->dflts_mods[y + 1], (LY_ARRAY_SIZE(llist->dflts_mods) - y) * (sizeof *llist->dflts_mods));
+                            memmove(&llist->dflts[y], &llist->dflts[y + 1], (LY_ARRAY_COUNT(llist->dflts) - y) * (sizeof *llist->dflts));
+                            memmove(&llist->dflts_mods[y], &llist->dflts_mods[y + 1], (LY_ARRAY_COUNT(llist->dflts_mods) - y) * (sizeof *llist->dflts_mods));
                         }
-                        if (!LY_ARRAY_SIZE(llist->dflts)) {
+                        if (!LY_ARRAY_COUNT(llist->dflts)) {
                             LY_ARRAY_FREE(llist->dflts_mods);
                             llist->dflts_mods = NULL;
                             LY_ARRAY_FREE(llist->dflts);
@@ -6424,9 +6491,18 @@ lys_compile_deviations(struct lysc_ctx *ctx, struct lysp_module *mod_p)
             goto cleanup;
         }
 
-        /* add this module into the target module deviated_by */
-        LY_ARRAY_NEW_GOTO(ctx->ctx, devs[u]->target->module->compiled->deviated_by, dev_mod, ret, cleanup);
-        *dev_mod = mod_p->mod;
+        /* add this module into the target module deviated_by, if not there already */
+        rc = LY_SUCCESS;
+        LY_ARRAY_FOR(devs[u]->target->module->compiled->deviated_by, v) {
+            if (devs[u]->target->module->compiled->deviated_by[v] == mod_p->mod) {
+                rc = LY_EEXIST;
+                break;
+            }
+        }
+        if (!rc) {
+            LY_ARRAY_NEW_GOTO(ctx->ctx, devs[u]->target->module->compiled->deviated_by, dev_mod, ret, cleanup);
+            *dev_mod = mod_p->mod;
+        }
 
         lysc_update_path(ctx, NULL, NULL);
     }
@@ -6462,7 +6538,7 @@ lys_compile_submodule(struct lysc_ctx *ctx, struct lysp_include *inc)
     struct lysc_module *mainmod = ctx->mod->compiled;
     struct lysp_node *node_p;
 
-    if (!mainmod->mod->off_features) {
+    if (!mainmod->mod->dis_features) {
         /* features are compiled directly into the compiled module structure,
          * but it must be done in two steps to allow forward references (via if-feature) between the features themselves.
          * The features compilation is finished in the main module (lys_compile()). */
@@ -6470,9 +6546,10 @@ lys_compile_submodule(struct lysc_ctx *ctx, struct lysp_include *inc)
         LY_CHECK_GOTO(ret, error);
     }
 
-    lysc_update_path(ctx, NULL, "{identity}");
-    COMPILE_ARRAY_UNIQUE_GOTO(ctx, submod->identities, mainmod->identities, u, lys_compile_identity, ret, error);
-    lysc_update_path(ctx, NULL, NULL);
+    if (!mainmod->mod->dis_identities) {
+        ret = lys_identity_precompile(ctx, NULL, NULL, submod->identities, &mainmod->identities);
+        LY_CHECK_GOTO(ret, error);
+    }
 
     /* data nodes */
     LY_LIST_FOR(submod->data, node_p) {
@@ -6639,7 +6716,7 @@ lys_compile_unres_when_cyclic(struct lyxp_set *set, const struct lysc_node *node
     struct lyxp_set tmp_set;
     struct lyxp_set_scnode *xp_scnode;
     uint32_t i, j;
-    LY_ARRAY_SIZE_TYPE u;
+    LY_ARRAY_COUNT_TYPE u;
     int idx;
     struct lysc_when *when;
     LY_ERR ret = LY_SUCCESS;
@@ -6728,14 +6805,22 @@ lys_compile_unres_xpath(struct lysc_ctx *ctx, const struct lysc_node *node)
 {
     struct lyxp_set tmp_set;
     uint32_t i;
-    LY_ARRAY_SIZE_TYPE u;
+    LY_ARRAY_COUNT_TYPE u;
     int opts, input_done = 0;
     struct lysc_when **when = NULL;
     struct lysc_must *musts = NULL;
     LY_ERR ret = LY_SUCCESS;
+    const struct lysc_node *op;
 
     memset(&tmp_set, 0, sizeof tmp_set);
     opts = LYXP_SCNODE_SCHEMA;
+    if (node->flags & LYS_CONFIG_R) {
+        for (op = node->parent; op && !(op->nodetype & (LYS_RPC | LYS_ACTION)); op = op->parent);
+        if (op) {
+            /* we are actually in output */
+            opts = LYXP_SCNODE_OUTPUT;
+        }
+    }
 
     switch (node->nodetype) {
     case LYS_CONTAINER:
@@ -6855,7 +6940,7 @@ cleanup:
 static LY_ERR
 lys_compile_unres_leafref(struct lysc_ctx *ctx, const struct lysc_node *node, struct lysc_type_leafref *lref)
 {
-    const struct lysc_node *target = NULL;
+    const struct lysc_node *target = NULL, *siter;
     struct ly_path *p;
     struct lysc_type *type;
 
@@ -6867,7 +6952,7 @@ lys_compile_unres_leafref(struct lysc_ctx *ctx, const struct lysc_node *node, st
                                  lys_resolve_prefix, lref->path_context, LYD_SCHEMA, &p));
 
     /* get the target node */
-    target = p[LY_ARRAY_SIZE(p) - 1].node;
+    target = p[LY_ARRAY_COUNT(p) - 1].node;
     ly_path_free(node->module->ctx, p);
 
     if (!(target->nodetype & (LYS_LEAF | LYS_LEAFLIST))) {
@@ -6888,8 +6973,9 @@ lys_compile_unres_leafref(struct lysc_ctx *ctx, const struct lysc_node *node, st
     ctx->path[1] = '\0';
 
     /* check config */
-    if (lref->require_instance && (node->flags & LYS_CONFIG_W)) {
-        if (target->flags & LYS_CONFIG_R) {
+    if (lref->require_instance) {
+        for (siter = node->parent; siter && !(siter->nodetype & (LYS_RPC | LYS_ACTION | LYS_NOTIF)); siter = siter->parent);
+        if (!siter && (node->flags & LYS_CONFIG_W) && (target->flags & LYS_CONFIG_R)) {
             LOGVAL(ctx->ctx, LY_VLOG_LYSC, node, LYVE_REFERENCE, "Invalid leafref path \"%s\" - target is supposed"
                    " to represent configuration data (as the leafref does), but it does not.", lref->path->expr);
             return LY_EVALID;
@@ -6962,7 +7048,7 @@ lys_compile_unres(struct lysc_ctx *ctx)
     struct lysc_node *node;
     struct lysc_type *type, *typeiter;
     struct lysc_type_leafref *lref;
-    LY_ARRAY_SIZE_TYPE v;
+    LY_ARRAY_COUNT_TYPE v;
     uint32_t i;
 
     /* for leafref, we need 2 rounds - first detects circular chain by storing the first referred type (which
@@ -7040,7 +7126,7 @@ lys_compile(struct lys_module **mod, int options)
     struct lysp_augment **augments = NULL;
     struct lysp_grp *grps;
     struct lys_module *m;
-    LY_ARRAY_SIZE_TYPE u, v;
+    LY_ARRAY_COUNT_TYPE u, v;
     uint32_t i;
     LY_ERR ret = LY_SUCCESS;
 
@@ -7071,16 +7157,17 @@ lys_compile(struct lys_module **mod, int options)
     }
 
     /* features */
-    if ((*mod)->off_features) {
+    if ((*mod)->dis_features) {
         /* there is already precompiled array of features */
-        mod_c->features = (*mod)->off_features;
-        (*mod)->off_features = NULL;
+        mod_c->features = (*mod)->dis_features;
+        (*mod)->dis_features = NULL;
     } else {
         /* features are compiled directly into the compiled module structure,
          * but it must be done in two steps to allow forward references (via if-feature) between the features themselves */
         ret = lys_feature_precompile(&ctx, NULL, NULL, sp->features, &mod_c->features);
         LY_CHECK_GOTO(ret, error);
     }
+
     /* finish feature compilation, not only for the main module, but also for the submodules.
      * Due to possible forward references, it must be done when all the features (including submodules)
      * are present. */
@@ -7099,11 +7186,25 @@ lys_compile(struct lys_module **mod, int options)
     }
     lysc_update_path(&ctx, NULL, NULL);
 
-    /* identities */
-    lysc_update_path(&ctx, NULL, "{identity}");
-    COMPILE_ARRAY_UNIQUE_GOTO(&ctx, sp->identities, mod_c->identities, u, lys_compile_identity, ret, error);
+    /* identities, work similarly to features with the precompilation */
+    if ((*mod)->dis_identities) {
+        mod_c->identities = (*mod)->dis_identities;
+        (*mod)->dis_identities = NULL;
+    } else {
+        ret = lys_identity_precompile(&ctx, NULL, NULL, sp->identities, &mod_c->identities);
+        LY_CHECK_GOTO(ret, error);
+    }
     if (sp->identities) {
         LY_CHECK_GOTO(ret = lys_compile_identities_derived(&ctx, sp->identities, mod_c->identities), error);
+    }
+    lysc_update_path(&ctx, NULL, "{submodule}");
+    LY_ARRAY_FOR(sp->includes, v) {
+        if (sp->includes[v].submodule->identities) {
+            lysc_update_path(&ctx, NULL, sp->includes[v].name);
+            ret = lys_compile_identities_derived(&ctx, sp->includes[v].submodule->identities, mod_c->identities);
+            LY_CHECK_GOTO(ret, error);
+            lysc_update_path(&ctx, NULL, NULL);
+        }
     }
     lysc_update_path(&ctx, NULL, NULL);
 

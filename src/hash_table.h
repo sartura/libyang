@@ -170,9 +170,10 @@ void lyht_free(struct hash_table *ht);
  * @param[in] val_p Pointer to the value to find.
  * @param[in] hash Hash of the stored value.
  * @param[out] match_p Pointer to the matching value, optional.
- * @return 0 on success, 1 on not found.
+ * @return LY_SUCCESS if value was found,
+ * @return LY_ENOTFOUND if not found.
  */
-int lyht_find(struct hash_table *ht, void *val_p, uint32_t hash, void **match_p);
+LY_ERR lyht_find(struct hash_table *ht, void *val_p, uint32_t hash, void **match_p);
 
 /**
  * @brief Find another equal value in the hash table.
@@ -181,9 +182,10 @@ int lyht_find(struct hash_table *ht, void *val_p, uint32_t hash, void **match_p)
  * @param[in] val_p Pointer to the previously found value in \p ht.
  * @param[in] hash Hash of the previously found value.
  * @param[out] match_p Pointer to the matching value, optional.
- * @return 0 on success, 1 on not found.
+ * @return LY_SUCCESS if value was found,
+ * @return LY_ENOTFOUND if not found.
  */
-int lyht_find_next(struct hash_table *ht, void *val_p, uint32_t hash, void **match_p);
+LY_ERR lyht_find_next(struct hash_table *ht, void *val_p, uint32_t hash, void **match_p);
 
 /**
  * @brief Insert a value into a hash table.
@@ -193,7 +195,8 @@ int lyht_find_next(struct hash_table *ht, void *val_p, uint32_t hash, void **mat
  * are pointers, \p val_p must be a pointer to a pointer.
  * @param[in] hash Hash of the stored value.
  * @param[out] match_p Pointer to the stored value, optional
- * @return LY_ERR value (LY_EEXIST if the value is already present).
+ * @return LY_SUCCESS on success,
+ * @return LY_EEXIST if the value is already present.
  */
 LY_ERR lyht_insert(struct hash_table *ht, void *val_p, uint32_t hash, void **match_p);
 
@@ -208,7 +211,8 @@ LY_ERR lyht_insert(struct hash_table *ht, void *val_p, uint32_t hash, void **mat
  * @param[in] hash Hash of the stored value.
  * @param[in] resize_val_equal Val equal callback to use for resizing.
  * @param[out] match_p Pointer to the stored value, optional
- * @return LY_ERR return value (LY_EEXIST if the value is already present).
+ * @return LY_SUCCESS on success,
+ * @return LY_EEXIST if the value is already present.
  */
 LY_ERR lyht_insert_with_resize_cb(struct hash_table *ht, void *val_p, uint32_t hash, values_equal_cb resize_val_equal,
                                   void **match_p);
@@ -220,7 +224,8 @@ LY_ERR lyht_insert_with_resize_cb(struct hash_table *ht, void *val_p, uint32_t h
  * @param[in] value_p Pointer to value to be removed. Be careful, if the values stored in the hash table
  * are pointers, \p value_p must be a pointer to a pointer.
  * @param[in] hash Hash of the stored value.
- * @return LY_ERR return value (LY_EINVAL if value was not found).
+ * @return LY_SUCCESS on success,
+ * @return LY_ENOTFOUND if value was not found.
  */
 LY_ERR lyht_remove(struct hash_table *ht, void *val_p, uint32_t hash);
 

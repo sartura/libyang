@@ -30,7 +30,6 @@
 extern "C" {
 #endif
 
-struct ly_path;
 struct ly_ctx;
 struct ly_set;
 
@@ -389,7 +388,7 @@ struct lysp_ext_instance {
     struct lysc_ext_instance *compiled;     /**< pointer to the compiled data if any - in case the source format is YIN,
                                                  some of the information (argument) are available only after compilation */
     LYEXT_SUBSTMT insubstmt;                /**< value identifying placement of the extension instance */
-    LY_ARRAY_SIZE_TYPE insubstmt_index;     /**< in case the instance is in a substatement, this identifies
+    LY_ARRAY_COUNT_TYPE insubstmt_index;    /**< in case the instance is in a substatement, this identifies
                                                  the index of that substatement */
     uint8_t yin;                            /** flag for YIN source format, can be set to LYS_YIN */
     LYEXT_PARENT parent_type;               /**< type of the parent structure */
@@ -1398,9 +1397,15 @@ struct lysc_action_inout {
     struct lysc_must *musts;         /**< list of must restrictions ([sized array](@ref sizedarrays)) */
 };
 
+/**
+ * @brief Maximum number of hashes stored in a schema node.
+ */
+#define LYS_NODE_HASH_COUNT 4
+
 struct lysc_action {
     uint16_t nodetype;               /**< LYS_RPC or LYS_ACTION */
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
+    uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser */
     struct lys_module *module;       /**< module structure */
     struct lysp_action *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node - RPC) */
@@ -1418,11 +1423,14 @@ struct lysc_action {
     struct lysc_action_inout input;  /**< RPC's/action's input */
     struct lysc_action_inout output; /**< RPC's/action's output */
 
+    void *priv;                      /** private arbitrary user data, not used by libyang */
+
 };
 
 struct lysc_notif {
     uint16_t nodetype;               /**< LYS_NOTIF */
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
+    uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser */
     struct lys_module *module;       /**< module structure */
     struct lysp_notif *sp;           /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node) */
@@ -1436,6 +1444,8 @@ struct lysc_notif {
 
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
     struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
+
+    void *priv;                      /** private arbitrary user data, not used by libyang */
 };
 
 /**
@@ -1444,6 +1454,7 @@ struct lysc_notif {
 struct lysc_node {
     uint16_t nodetype;               /**< type of the node (mandatory) */
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
+    uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser */
     struct lys_module *module;       /**< module structure */
     struct lysp_node *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or
                                           in case of implicit case node. */
@@ -1459,11 +1470,13 @@ struct lysc_node {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
     struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
+    void *priv;                      /**< private arbitrary user data, not used by libyang */
 };
 
 struct lysc_node_container {
     uint16_t nodetype;               /**< LYS_CONTAINER */
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
+    uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser */
     struct lys_module *module;       /**< module structure */
     struct lysp_node *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node) */
@@ -1478,6 +1491,7 @@ struct lysc_node_container {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
     struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
+    void *priv;                      /**< private arbitrary user data, not used by libyang */
 
     struct lysc_node *child;         /**< first child node (linked list) */
     struct lysc_must *musts;         /**< list of must restrictions ([sized array](@ref sizedarrays)) */
@@ -1488,6 +1502,7 @@ struct lysc_node_container {
 struct lysc_node_case {
     uint16_t nodetype;               /**< LYS_CASE */
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
+    uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser, unused */
     struct lys_module *module;       /**< module structure */
     struct lysp_node *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node) */
@@ -1502,6 +1517,7 @@ struct lysc_node_case {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
     struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
+    void *priv;                      /**< private arbitrary user data, not used by libyang */
 
     struct lysc_node *child;         /**< first child node of the case (linked list). Note that all the children of all the sibling cases are linked
                                           each other as siblings with the parent pointer pointing to appropriate case node. */
@@ -1510,6 +1526,7 @@ struct lysc_node_case {
 struct lysc_node_choice {
     uint16_t nodetype;               /**< LYS_CHOICE */
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
+    uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser, unused */
     struct lys_module *module;       /**< module structure */
     struct lysp_node *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node) */
@@ -1524,6 +1541,7 @@ struct lysc_node_choice {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
     struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
+    void *priv;                      /**< private arbitrary user data, not used by libyang */
 
     struct lysc_node_case *cases;    /**< list of the cases (linked list). Note that all the children of all the cases are linked each other
                                           as siblings. Their parent pointers points to the specific case they belongs to, so distinguish the
@@ -1534,6 +1552,7 @@ struct lysc_node_choice {
 struct lysc_node_leaf {
     uint16_t nodetype;               /**< LYS_LEAF */
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
+    uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser */
     struct lys_module *module;       /**< module structure */
     struct lysp_node *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node) */
@@ -1548,6 +1567,7 @@ struct lysc_node_leaf {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
     struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
+    void *priv;                      /**< private arbitrary user data, not used by libyang */
 
     struct lysc_must *musts;         /**< list of must restrictions ([sized array](@ref sizedarrays)) */
     struct lysc_type *type;          /**< type of the leaf node (mandatory) */
@@ -1560,6 +1580,7 @@ struct lysc_node_leaf {
 struct lysc_node_leaflist {
     uint16_t nodetype;               /**< LYS_LEAFLIST */
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
+    uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser */
     struct lys_module *module;       /**< module structure */
     struct lysp_node *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node) */
@@ -1574,6 +1595,7 @@ struct lysc_node_leaflist {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
     struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
+    void *priv;                      /**< private arbitrary user data, not used by libyang */
 
     struct lysc_must *musts;         /**< list of must restrictions ([sized array](@ref sizedarrays)) */
     struct lysc_type *type;          /**< type of the leaf node (mandatory) */
@@ -1590,6 +1612,7 @@ struct lysc_node_leaflist {
 struct lysc_node_list {
     uint16_t nodetype;               /**< LYS_LIST */
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
+    uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser */
     struct lys_module *module;       /**< module structure */
     struct lysp_node *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node) */
@@ -1604,6 +1627,7 @@ struct lysc_node_list {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
     struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
+    void *priv;                      /**< private arbitrary user data, not used by libyang */
 
     struct lysc_node *child;         /**< first child node (linked list) */
     struct lysc_must *musts;         /**< list of must restrictions ([sized array](@ref sizedarrays)) */
@@ -1618,6 +1642,7 @@ struct lysc_node_list {
 struct lysc_node_anydata {
     uint16_t nodetype;               /**< LYS_ANYXML or LYS_ANYDATA */
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
+    uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser */
     struct lys_module *module;       /**< module structure */
     struct lysp_node *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node) */
@@ -1632,6 +1657,7 @@ struct lysc_node_anydata {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
     struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
+    void *priv;                      /**< private arbitrary user data, not used by libyang */
 
     struct lysc_must *musts;         /**< list of must restrictions ([sized array](@ref sizedarrays)) */
 };
@@ -1653,6 +1679,7 @@ struct lysc_module {
     struct lysc_notif *notifs;       /**< list of notifications ([sized array](@ref sizedarrays)) */
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
     struct lys_module **deviated_by; /**< List of modules that deviate this module ([sized array](@ref sizedarrays)) */
+    struct lys_module **augmented_by;/**< List of modules that augment this module ([sized array](@ref sizedarrays)) */
 };
 
 /**
@@ -1730,6 +1757,17 @@ const struct lysc_node *lysc_node_children(const struct lysc_node *node, uint16_
 int lysc_is_userordered(const struct lysc_node *schema);
 
 /**
+ * @brief Set a schema private pointer to a user pointer.
+ *
+ * @param[in] node Node, whose private field will be assigned. Works also for RPCs, actions, and notifications.
+ * @param[in] priv Arbitrary user-specified pointer.
+ * @param[out] prev Optional previous private object of the \p node. Note, that
+ * the caller is in this case responsible (if it is necessary) for freeing the replaced private object.
+ * @return LY_ERR value.
+ */
+LY_ERR lysc_set_private(const struct lysc_node *node, void *priv, void **prev);
+
+/**
  * @brief Get how the if-feature statement currently evaluates.
  *
  * @param[in] iff Compiled if-feature statement to evaluate.
@@ -1804,12 +1842,16 @@ struct lys_module {
     struct lysp_module *parsed;      /**< Simply parsed (unresolved) YANG schema tree */
     struct lysc_module *compiled;    /**< Compiled and fully validated YANG schema tree for data parsing.
                                           Available only for implemented modules. */
-    struct lysc_feature *off_features;/**< List of pre-compiled features of the module in non implemented modules ([sized array](@ref sizedarrays)).
+    struct lysc_feature *dis_features;/**< List of pre-compiled features in a non implemented module ([sized array](@ref sizedarrays)).
                                           These features are always disabled and cannot be enabled until the module
-                                          become implemented. The features are present in this form to allow their linkage
+                                          is implemented. The features are present in this form to allow their linkage
                                           from if-feature statements of the compiled schemas and their proper use in case
                                           the module became implemented in future (no matter if implicitly via augment/deviate
                                           or explicitly via ly_ctx_module_implement()). */
+    struct lysc_ident *dis_identities;/**< List of pre-compiled identities in a non-implemented module ([sized array](@ref sizedarrays))
+                                          These identities cannot be instantiated in data (in identityrefs) until
+                                          the module is implemented but can be linked by identities in implemented
+                                          modules. */
     uint8_t implemented;             /**< flag if the module is implemented, not just imported. The module is implemented if
                                           the flag has non-zero value. Specific values are used internally:
                                           1 - implemented module
@@ -1836,7 +1878,10 @@ struct lys_module {
  *
  * @param[in] module Module where the feature will be enabled.
  * @param[in] feature Name of the feature to enable. To enable all features at once, use asterisk (`*`) character.
- * @return LY_ERR value.
+ * @return LY_SUCCESS on success,
+ * @return LY_EINVAL if @p module is not implemented,
+ * @return LY_ENOTFOUND if @p feature was not found,
+ * @return LY_EDENIED if @p feature could not be enabled because it has some false if-feature statements.
  */
 LY_ERR lys_feature_enable(const struct lys_module *module, const char *feature);
 
@@ -1845,23 +1890,53 @@ LY_ERR lys_feature_enable(const struct lys_module *module, const char *feature);
  *
  * By default, when the module is loaded by libyang parser, all features are disabled.
  *
+ * If disabling a feature causes some other features that depend on this feature to become disabled.
+ *
  * @param[in] module Module where the feature will be disabled.
  * @param[in] feature Name of the feature to disable. To disable all features at once, use asterisk (`*`) character.
- * @return LY_ERR value
+ * @return LY_SUCCESS on success,
+ * @return LY_EINVAL if @p module is not implemented,
+ * @return LY_ENOTFOUND if @p feature was not found.
  */
 LY_ERR lys_feature_disable(const struct lys_module *module, const char *feature);
 
 /**
- * @brief Get the current status of the specified feature in the module.
+ * @brief Enable specified feature in the module disregarding its if-features.
+ *
+ * @param[in] module Module where the feature will be enabled.
+ * @param[in] feature Name of the feature to enable. To enable all features at once, use asterisk character.
+ * @return LY_SUCCESS on success,
+ * @return LY_EINVAL if @p module is not implemented,
+ * @return LY_ENOTFOUND if @p feature was not found.
+ */
+LY_ERR lys_feature_enable_force(const struct lys_module *module, const char *feature);
+
+/**
+ * @brief Disable specified feature in the module disregarding dependant features.
+ *
+ * By default, when the module is loaded by libyang parser, all features are disabled.
+ *
+ * @param[in] module Module where the feature will be disabled.
+ * @param[in] feature Name of the feature to disable. To disable all features at once, use asterisk character.
+ * @return LY_SUCCESS on success,
+ * @return LY_EINVAL if @p module is not implemented,
+ * @return LY_ENOTFOUND if @p feature was not found.
+ */
+LY_ERR lys_feature_disable_force(const struct lys_module *module, const char *feature);
+
+/**
+ * @brief Get the current real status of the specified feature in the module.
+ *
+ * If the feature is enabled, but some of its if-features are false, the feature is considered
+ * disabled.
  *
  * @param[in] module Module where the feature is defined.
  * @param[in] feature Name of the feature to inspect.
- * @return
- * - 1 if feature is enabled,
- * - 0 if feature is disabled,
- * - -1 in case of error (e.g. feature is not defined or invalid arguments)
+ * @return LY_SUCCESS if the feature is enabled,
+ * @return LY_ENOT if the feature is disabled,
+ * @return LY_ENOTFOUND if the feature was not found.
  */
-int lys_feature_value(const struct lys_module *module, const char *feature);
+LY_ERR lys_feature_value(const struct lys_module *module, const char *feature);
 
 /**
  * @brief Get next schema tree (sibling) node element that can be instantiated in a data tree. Returned node can

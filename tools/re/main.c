@@ -27,6 +27,7 @@
 #include "libyang.h"
 
 #include "tools/config.h"
+#include "compat.h"
 
 void
 help(void)
@@ -267,8 +268,7 @@ main(int argc, char* argv[])
     }
 
     ly_set_log_clb(pattern_error, 0);
-    mod = lys_parse_mem(ctx, modstr, LYS_IN_YANG);
-    if (!mod || !mod->compiled || !mod->compiled->data) {
+    if (lys_parse_mem(ctx, modstr, LYS_IN_YANG, &mod) || !mod->compiled || !mod->compiled->data) {
         goto cleanup;
     }
 

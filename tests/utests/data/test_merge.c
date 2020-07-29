@@ -74,7 +74,6 @@ static void
 test_batch(void **state)
 {
     struct state *st = (*state);
-    LY_ERR ret;
     uint32_t i;
     char *str;
 
@@ -192,25 +191,24 @@ test_batch(void **state)
         "<module>"
             "<name>yang</name>"
             "<revision>2016-02-11</revision>"
-            "<conformance-type>implement</conformance-type>"
             "<namespace>urn:ietf:params:xml:ns:yang:1</namespace>"
+            "<conformance-type>implement</conformance-type>"
         "</module>"
         "<module>"
             "<name>ietf-yang-library</name>"
             "<revision>2016-02-01</revision>"
-            "<conformance-type>implement</conformance-type>"
             "<namespace>urn:ietf:params:xml:ns:yang:ietf-yang-library</namespace>"
+            "<conformance-type>implement</conformance-type>"
         "</module>"
         "<module>"
             "<name>ietf-netconf-acm</name>"
             "<revision>2012-02-22</revision>"
-            "<conformance-type>implement</conformance-type>"
             "<namespace>urn:ietf:params:xml:ns:yang:ietf-netconf-acm</namespace>"
+            "<conformance-type>implement</conformance-type>"
         "</module>"
         "<module>"
             "<name>ietf-netconf</name>"
             "<revision>2011-06-01</revision>"
-            "<conformance-type>implement</conformance-type>"
             "<namespace>urn:ietf:params:xml:ns:netconf:base:1.0</namespace>"
             "<feature>writable-running</feature>"
             "<feature>candidate</feature>"
@@ -218,35 +216,40 @@ test_batch(void **state)
             "<feature>validate</feature>"
             "<feature>startup</feature>"
             "<feature>xpath</feature>"
+            "<conformance-type>implement</conformance-type>"
         "</module>"
         "<module>"
             "<name>ietf-netconf-monitoring</name>"
             "<revision>2010-10-04</revision>"
-            "<conformance-type>implement</conformance-type>"
             "<namespace>urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring</namespace>"
+            "<conformance-type>implement</conformance-type>"
         "</module>"
         "<module>"
             "<name>ietf-netconf-with-defaults</name>"
             "<revision>2011-06-01</revision>"
-            "<conformance-type>implement</conformance-type>"
             "<namespace>urn:ietf:params:xml:ns:yang:ietf-netconf-with-defaults</namespace>"
+            "<conformance-type>implement</conformance-type>"
         "</module>"
     "</modules-state>";
+    struct ly_in *in = NULL;
 
-    st->target = lyd_parse_mem(st->ctx, start, LYD_XML, LYD_OPT_PARSE_ONLY);
+    assert_int_equal(LY_SUCCESS, ly_in_new_memory(start, &in));
+    assert_int_equal(LY_SUCCESS, lyd_parse_data(st->ctx, in, LYD_XML, LYD_PARSE_ONLY, 0, &st->target));
     assert_non_null(st->target);
 
     for (i = 0; i < 11; ++i) {
-        st->source = lyd_parse_mem(st->ctx, data[i], LYD_XML, LYD_OPT_PARSE_ONLY);
+        ly_in_memory(in, data[i]);
+        assert_int_equal(LY_SUCCESS, lyd_parse_data(st->ctx, in, LYD_XML, LYD_PARSE_ONLY, 0, &st->source));
         assert_non_null(st->source);
 
-        ret = lyd_merge(&st->target, st->source, LYD_MERGE_DESTRUCT);
-        assert_int_equal(ret, LY_SUCCESS);
+        assert_int_equal(LY_SUCCESS, lyd_merge_siblings(&st->target, st->source, LYD_MERGE_DESTRUCT));
         st->source = NULL;
     }
 
     lyd_print_mem(&str, st->target, LYD_XML, 0);
     assert_string_equal(str, output_template);
+
+    ly_in_free(in, 0);
     free(str);
 }
 
@@ -269,20 +272,20 @@ test_leaf(void **state)
     const char *result = "<A xmlns=\"urn:x\"><f1>aa</f1><B><f2>bb</f2></B></A>";
     char *printed = NULL;
 
-    assert_non_null(lys_parse_mem(st->ctx, sch, LYS_IN_YANG));
+    assert_int_equal(LY_SUCCESS, lys_parse_mem(st->ctx, sch, LYS_IN_YANG, NULL));
 
-    st->source = lyd_parse_mem(st->ctx, src, LYD_XML, LYD_VALOPT_DATA_ONLY);
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(st->ctx, src, LYD_XML, 0, LYD_VALIDATE_PRESENT, &st->source));
     assert_non_null(st->source);
 
-    st->target = lyd_parse_mem(st->ctx, trg, LYD_XML, LYD_VALOPT_DATA_ONLY);
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(st->ctx, trg, LYD_XML, 0, LYD_VALIDATE_PRESENT, &st->target));
     assert_non_null(st->target);
 
     /* merge them */
-    assert_int_equal(lyd_merge(&st->target, st->source, 0), LY_SUCCESS);
-    assert_int_equal(lyd_validate(&st->target, NULL, LYD_VALOPT_DATA_ONLY), LY_SUCCESS);
+    assert_int_equal(lyd_merge_siblings(&st->target, st->source, 0), LY_SUCCESS);
+    assert_int_equal(lyd_validate_all(&st->target, NULL, LYD_VALIDATE_PRESENT, NULL), LY_SUCCESS);
 
     /* check the result */
-    lyd_print_mem(&printed, st->target, LYD_XML, LYDP_WITHSIBLINGS);
+    lyd_print_mem(&printed, st->target, LYD_XML, LYD_PRINT_WITHSIBLINGS);
     assert_string_equal(printed, result);
     free(printed);
 }
@@ -311,20 +314,20 @@ test_container(void **state)
     const char *result = "<A xmlns=\"aa:A\"><B><f2>aaa</f2></B><C><f3>bbb</f3></C></A>";
     char *printed = NULL;
 
-    assert_non_null(lys_parse_mem(st->ctx, sch, LYS_IN_YANG));
+    assert_int_equal(LY_SUCCESS, lys_parse_mem(st->ctx, sch, LYS_IN_YANG, NULL));
 
-    st->source = lyd_parse_mem(st->ctx, src, LYD_XML, LYD_VALOPT_DATA_ONLY);
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(st->ctx, src, LYD_XML, 0, LYD_VALIDATE_PRESENT, &st->source));
     assert_non_null(st->source);
 
-    st->target = lyd_parse_mem(st->ctx, trg, LYD_XML, LYD_VALOPT_DATA_ONLY);
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(st->ctx, trg, LYD_XML, 0, LYD_VALIDATE_PRESENT, &st->target));
     assert_non_null(st->target);
 
     /* merge them */
-    assert_int_equal(lyd_merge(&st->target, st->source, 0), LY_SUCCESS);
-    assert_int_equal(lyd_validate(&st->target, NULL, LYD_VALOPT_DATA_ONLY), LY_SUCCESS);
+    assert_int_equal(lyd_merge_siblings(&st->target, st->source, 0), LY_SUCCESS);
+    assert_int_equal(lyd_validate_all(&st->target, NULL, LYD_VALIDATE_PRESENT, NULL), LY_SUCCESS);
 
     /* check the result */
-    lyd_print_mem(&printed, st->target, LYD_XML, LYDP_WITHSIBLINGS);
+    lyd_print_mem(&printed, st->target, LYD_XML, LYD_PRINT_WITHSIBLINGS);
     assert_string_equal(printed, result);
     free(printed);
 }
@@ -381,20 +384,20 @@ test_list(void **state)
     "</inner1>";
     char *printed = NULL;
 
-    assert_non_null(lys_parse_mem(st->ctx, sch, LYS_IN_YANG));
+    assert_int_equal(LY_SUCCESS, lys_parse_mem(st->ctx, sch, LYS_IN_YANG, NULL));
 
-    st->source = lyd_parse_mem(st->ctx, src, LYD_XML, LYD_VALOPT_DATA_ONLY);
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(st->ctx, src, LYD_XML, 0, LYD_VALIDATE_PRESENT, &st->source));
     assert_non_null(st->source);
 
-    st->target = lyd_parse_mem(st->ctx, trg, LYD_XML, LYD_VALOPT_DATA_ONLY);
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(st->ctx, trg, LYD_XML, 0, LYD_VALIDATE_PRESENT, &st->target));
     assert_non_null(st->target);
 
     /* merge them */
-    assert_int_equal(lyd_merge(&st->target, st->source, LYD_MERGE_EXPLICIT), LY_SUCCESS);
-    assert_int_equal(lyd_validate(&st->target, NULL, LYD_VALOPT_DATA_ONLY), LY_SUCCESS);
+    assert_int_equal(lyd_merge_siblings(&st->target, st->source, 0), LY_SUCCESS);
+    assert_int_equal(lyd_validate_all(&st->target, NULL, LYD_VALIDATE_PRESENT, NULL), LY_SUCCESS);
 
     /* check the result */
-    lyd_print_mem(&printed, st->target, LYD_XML, LYDP_WITHSIBLINGS);
+    lyd_print_mem(&printed, st->target, LYD_XML, LYD_PRINT_WITHSIBLINGS);
     assert_string_equal(printed, result);
     free(printed);
 }
@@ -460,20 +463,20 @@ test_list2(void **state)
     "</inner1>";
     char *printed = NULL;
 
-    assert_non_null(lys_parse_mem(st->ctx, sch, LYS_IN_YANG));
+    assert_int_equal(LY_SUCCESS, lys_parse_mem(st->ctx, sch, LYS_IN_YANG, NULL));
 
-    st->source = lyd_parse_mem(st->ctx, src, LYD_XML, LYD_VALOPT_DATA_ONLY);
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(st->ctx, src, LYD_XML, 0, LYD_VALIDATE_PRESENT, &st->source));
     assert_non_null(st->source);
 
-    st->target = lyd_parse_mem(st->ctx, trg, LYD_XML, LYD_VALOPT_DATA_ONLY);
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(st->ctx, trg, LYD_XML, 0, LYD_VALIDATE_PRESENT, &st->target));
     assert_non_null(st->target);
 
     /* merge them */
-    assert_int_equal(lyd_merge(&st->target, st->source, LYD_MERGE_EXPLICIT), LY_SUCCESS);
-    assert_int_equal(lyd_validate(&st->target, NULL, LYD_VALOPT_DATA_ONLY), LY_SUCCESS);
+    assert_int_equal(lyd_merge_siblings(&st->target, st->source, 0), LY_SUCCESS);
+    assert_int_equal(lyd_validate_all(&st->target, NULL, LYD_VALIDATE_PRESENT, NULL), LY_SUCCESS);
 
     /* check the result */
-    lyd_print_mem(&printed, st->target, LYD_XML, LYDP_WITHSIBLINGS);
+    lyd_print_mem(&printed, st->target, LYD_XML, LYD_PRINT_WITHSIBLINGS);
     assert_string_equal(printed, result);
     free(printed);
 }
@@ -518,20 +521,20 @@ test_case(void **state)
     "</cont>";
     char *printed = NULL;
 
-    assert_non_null(lys_parse_mem(st->ctx, sch, LYS_IN_YANG));
+    assert_int_equal(LY_SUCCESS, lys_parse_mem(st->ctx, sch, LYS_IN_YANG, NULL));
 
-    st->source = lyd_parse_mem(st->ctx, src, LYD_XML, LYD_VALOPT_DATA_ONLY);
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(st->ctx, src, LYD_XML, 0, LYD_VALIDATE_PRESENT, &st->source));
     assert_non_null(st->source);
 
-    st->target = lyd_parse_mem(st->ctx, trg, LYD_XML, LYD_VALOPT_DATA_ONLY);
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(st->ctx, trg, LYD_XML, 0, LYD_VALIDATE_PRESENT, &st->target));
     assert_non_null(st->target);
 
     /* merge them */
-    assert_int_equal(lyd_merge(&st->target, st->source, 0), LY_SUCCESS);
-    assert_int_equal(lyd_validate(&st->target, NULL, LYD_VALOPT_DATA_ONLY), LY_SUCCESS);
+    assert_int_equal(lyd_merge_siblings(&st->target, st->source, 0), LY_SUCCESS);
+    assert_int_equal(lyd_validate_all(&st->target, NULL, LYD_VALIDATE_PRESENT, NULL), LY_SUCCESS);
 
     /* check the result */
-    lyd_print_mem(&printed, st->target, LYD_XML, LYDP_WITHSIBLINGS);
+    lyd_print_mem(&printed, st->target, LYD_XML, LYD_PRINT_WITHSIBLINGS);
     assert_string_equal(printed, result);
     free(printed);
 }
@@ -540,7 +543,6 @@ static void
 test_dflt(void **state)
 {
     struct state *st = (*state);
-    struct lyd_node *tmp;
     const char *sch =
     "module merge-dflt {"
         "namespace \"urn:merge-dflt\";"
@@ -559,30 +561,27 @@ test_dflt(void **state)
         "}"
     "}";
 
-    assert_non_null(lys_parse_mem(st->ctx, sch, LYS_IN_YANG));
+    assert_int_equal(LY_SUCCESS, lys_parse_mem(st->ctx, sch, LYS_IN_YANG, NULL));
 
-    st->target = lyd_new_path(NULL, st->ctx, "/merge-dflt:top/c", "c_dflt", 0);
-    assert_non_null(st->target);
-    assert_int_equal(lyd_validate(&(st->target), NULL, LYD_VALOPT_DATA_ONLY), LY_SUCCESS);
+    assert_int_equal(lyd_new_path(NULL, st->ctx, "/merge-dflt:top/c", "c_dflt", 0, &st->target), LY_SUCCESS);
+    assert_int_equal(lyd_validate_all(&(st->target), NULL, LYD_VALIDATE_PRESENT, NULL), LY_SUCCESS);
 
-    st->source = lyd_new_path(NULL, st->ctx, "/merge-dflt:top/a", "a_val", 0);
-    assert_non_null(st->source);
-    tmp = lyd_new_path(st->source, st->ctx, "/merge-dflt:top/b", "b_val", 0);
-    assert_non_null(tmp);
-    assert_int_equal(lyd_validate(&(st->source), NULL, LYD_VALOPT_DATA_ONLY), LY_SUCCESS);
+    assert_int_equal(lyd_new_path(NULL, st->ctx, "/merge-dflt:top/a", "a_val", 0, &st->source), LY_SUCCESS);
+    assert_int_equal(lyd_new_path(st->source, st->ctx, "/merge-dflt:top/b", "b_val", 0, NULL), LY_SUCCESS);
+    assert_int_equal(lyd_validate_all(&(st->source), NULL, LYD_VALIDATE_PRESENT, NULL), LY_SUCCESS);
 
-    assert_int_equal(lyd_merge(&st->target, st->source, LYD_MERGE_DESTRUCT), LY_SUCCESS);
+    assert_int_equal(lyd_merge_siblings(&st->target, st->source, LYD_MERGE_DESTRUCT | LYD_MERGE_DEFAULTS), LY_SUCCESS);
     st->source = NULL;
 
     /* c should be replaced and now be default */
-    assert_true(lyd_node_children(st->target, 0)->flags & LYD_DEFAULT);
+    assert_string_equal(lyd_node_children(st->target, 0)->prev->schema->name, "c");
+    assert_true(lyd_node_children(st->target, 0)->prev->flags & LYD_DEFAULT);
 }
 
 static void
 test_dflt2(void **state)
 {
     struct state *st = (*state);
-    struct lyd_node *tmp;
     const char *sch =
     "module merge-dflt {"
         "namespace \"urn:merge-dflt\";"
@@ -601,19 +600,16 @@ test_dflt2(void **state)
         "}"
     "}";
 
-    assert_non_null(lys_parse_mem(st->ctx, sch, LYS_IN_YANG));
+    assert_int_equal(LY_SUCCESS, lys_parse_mem(st->ctx, sch, LYS_IN_YANG, NULL));
 
-    st->target = lyd_new_path(NULL, st->ctx, "/merge-dflt:top/c", "c_dflt", 0);
-    assert_non_null(st->target);
-    assert_int_equal(lyd_validate(&(st->target), NULL, LYD_VALOPT_DATA_ONLY), LY_SUCCESS);
+    assert_int_equal(lyd_new_path(NULL, st->ctx, "/merge-dflt:top/c", "c_dflt", 0, &st->target), LY_SUCCESS);
+    assert_int_equal(lyd_validate_all(&(st->target), NULL, LYD_VALIDATE_PRESENT, NULL), LY_SUCCESS);
 
-    st->source = lyd_new_path(NULL, st->ctx, "/merge-dflt:top/a", "a_val", 0);
-    assert_non_null(st->source);
-    tmp = lyd_new_path(st->source, st->ctx, "/merge-dflt:top/b", "b_val", 0);
-    assert_non_null(tmp);
-    assert_int_equal(lyd_validate(&(st->source), NULL, LYD_VALOPT_DATA_ONLY), LY_SUCCESS);
+    assert_int_equal(lyd_new_path(NULL, st->ctx, "/merge-dflt:top/a", "a_val", 0, &st->source), LY_SUCCESS);
+    assert_int_equal(lyd_new_path(st->source, st->ctx, "/merge-dflt:top/b", "b_val", 0, NULL), LY_SUCCESS);
+    assert_int_equal(lyd_validate_all(&(st->source), NULL, LYD_VALIDATE_PRESENT, NULL), LY_SUCCESS);
 
-    assert_int_equal(lyd_merge(&st->target, st->source, LYD_MERGE_EXPLICIT), LY_SUCCESS);
+    assert_int_equal(lyd_merge_siblings(&st->target, st->source, 0), LY_SUCCESS);
 
     /* c should not be replaced, so c remains not default */
     assert_false(lyd_node_children(st->target, 0)->flags & LYD_DEFAULT);
@@ -640,18 +636,17 @@ test_leafrefs(void **state)
                       "<l xmlns=\"urn:x\"><n>c</n><r>a</r></l>";
     char *prt = NULL;
 
-    assert_non_null(lys_parse_mem(st->ctx, sch, LYS_IN_YANG));
+    assert_int_equal(LY_SUCCESS, lys_parse_mem(st->ctx, sch, LYS_IN_YANG, NULL));
 
-    st->target = lyd_parse_mem(st->ctx, trg, LYD_XML, LYD_VALOPT_DATA_ONLY);
-    assert_non_null(st->target);
-
-    st->source = lyd_parse_mem(st->ctx, src, LYD_XML, LYD_VALOPT_DATA_ONLY);
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(st->ctx, src, LYD_XML, 0, LYD_VALIDATE_PRESENT, &st->source));
     assert_non_null(st->source);
 
-    assert_int_equal(lyd_merge(&st->target, st->source, LYD_MERGE_DESTRUCT), LY_SUCCESS);
-    st->source = NULL;
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(st->ctx, trg, LYD_XML, 0, LYD_VALIDATE_PRESENT, &st->target));
+    assert_non_null(st->target);
 
-    lyd_print_mem(&prt, st->target, LYD_XML, LYDP_WITHSIBLINGS);
+    assert_int_equal(lyd_merge_siblings(&st->target, st->source, 0), LY_SUCCESS);
+
+    lyd_print_mem(&prt, st->target, LYD_XML, LYD_PRINT_WITHSIBLINGS);
     assert_string_equal(prt, res);
     free(prt);
 }

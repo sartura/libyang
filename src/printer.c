@@ -25,7 +25,7 @@
 #include <unistd.h>
 
 #include "common.h"
-#include "config.h"
+#include "compat.h"
 #include "log.h"
 #include "plugins_types.h"
 #include "printer_data.h"
@@ -77,7 +77,7 @@ ly_is_default(const struct lyd_node *node)
     const struct lysc_node_leaf *leaf;
     const struct lysc_node_leaflist *llist;
     const struct lyd_node_term *term;
-    LY_ARRAY_SIZE_TYPE u;
+    LY_ARRAY_COUNT_TYPE u;
 
     assert(node->schema->nodetype & LYD_NODE_TERM);
     term = (const struct lyd_node_term *)node;
@@ -114,7 +114,7 @@ ly_should_print(const struct lyd_node *node, int options)
 {
     const struct lyd_node *next, *elem;
 
-    if (options & LYDP_WD_TRIM) {
+    if (options & LYD_PRINT_WD_TRIM) {
         /* do not print default nodes */
         if (node->flags & LYD_DEFAULT) {
             /* implicit default node/NP container with only default nodes */
@@ -125,7 +125,7 @@ ly_should_print(const struct lyd_node *node, int options)
                 return 0;
             }
         }
-    } else if ((node->flags & LYD_DEFAULT) && !(options & LYDP_WD_MASK) && !(node->schema->flags & LYS_CONFIG_R)) {
+    } else if ((node->flags & LYD_DEFAULT) && !(options & LYD_PRINT_WD_MASK) && !(node->schema->flags & LYS_CONFIG_R)) {
         /* LYDP_WD_EXPLICIT
          * - print only if it contains status data in its subtree */
         LYD_TREE_DFS_BEGIN(node, next, elem) {
@@ -137,7 +137,7 @@ ly_should_print(const struct lyd_node *node, int options)
             LYD_TREE_DFS_END(node, next, elem)
         }
         return 0;
-    } else if ((node->flags & LYD_DEFAULT) && (node->schema->nodetype == LYS_CONTAINER) && !(options & LYDP_KEEPEMPTYCONT)) {
+    } else if ((node->flags & LYD_DEFAULT) && (node->schema->nodetype == LYS_CONTAINER) && !(options & LYD_PRINT_KEEPEMPTYCONT)) {
         /* avoid empty default containers */
         LYD_TREE_DFS_BEGIN(node, next, elem) {
             if (elem->schema->nodetype != LYS_CONTAINER) {
@@ -212,34 +212,8 @@ ly_out_new_fd(int fd, struct ly_out **out)
 
     *out = calloc(1, sizeof **out);
     LY_CHECK_ERR_RET(!*out, LOGMEM(NULL), LY_EMEM);
-
-#ifdef HAVE_VDPRINTF
     (*out)->type = LY_OUT_FD;
     (*out)->method.fd = fd;
-#else
-    /* Without vdfprintf(), change the printing method to printing to a FILE stream.
-     * To preserve the original file descriptor, duplicate it and use it to open file stream. */
-    (*out)->type = LY_OUT_FDSTREAM;
-    (*out)->method.fdstream.fd = fd;
-
-    fd = dup((*out)->method.fdstream.fd);
-    if (fd < 0) {
-        LOGERR(NULL, LY_ESYS, "Unable to duplicate provided file descriptor (%d) for printing the output (%s).",
-               (*out)->method.fdstream.fd, strerror(errno));
-        free(*out);
-        *out = NULL;
-        return LY_ESYS;
-    }
-    (*out)->method.fdstream.f = fdopen(fd, "a");
-    if (!(*out)->method.fdstream.f) {
-        LOGERR(NULL, LY_ESYS, "Unable to open provided file descriptor (%d) for printing the output (%s).",
-               (*out)->method.fdstream.fd, strerror(errno));
-        free(*out);
-        *out = NULL;
-        close(fd);
-        return LY_ESYS;
-    }
-#endif
 
     return LY_SUCCESS;
 }
@@ -420,6 +394,8 @@ ly_out_new_filepath(const char *filepath, struct ly_out **out)
     (*out)->method.fpath.f = fopen(filepath, "w");
     if (!(*out)->method.fpath.f) {
         LOGERR(NULL, LY_ESYS, "Failed to open file \"%s\" (%s).", filepath, strerror(errno));
+        free(*out);
+        *out = NULL;
         return LY_ESYS;
     }
     (*out)->method.fpath.filepath = strdup(filepath);
@@ -509,15 +485,8 @@ ly_print(struct ly_out *out, const char *format, ...)
 
     switch (out->type) {
     case LY_OUT_FD:
-#ifdef HAVE_VDPRINTF
         count = vdprintf(out->method.fd, format, ap);
         break;
-#else
-        /* never should be here since ly_out_fd() is supposed to set type to LY_OUT_FDSTREAM in case vdprintf() is missing */
-        LOGINT(NULL);
-        va_end(ap);
-        return -LY_EINT;
-#endif
     case LY_OUT_FDSTREAM:
     case LY_OUT_FILEPATH:
     case LY_OUT_FILE:
@@ -570,6 +539,7 @@ ly_print(struct ly_out *out, const char *format, ...)
             lseek(out->method.fdstream.fd, 0, SEEK_END);
         }
         out->printed += count;
+        out->func_printed += count;
         return count;
     }
 }
@@ -645,6 +615,7 @@ repeat:
         (*out->method.mem.buf)[out->method.mem.len] = '\0';
 
         out->printed += len;
+        out->func_printed += len;
         return len;
     case LY_OUT_FD:
         written = write(out->method.fd, buf, len);
@@ -652,7 +623,7 @@ repeat:
     case LY_OUT_FDSTREAM:
     case LY_OUT_FILEPATH:
     case LY_OUT_FILE:
-        written =  fwrite(buf, sizeof *buf, len, out->method.f);
+        written = fwrite(buf, sizeof *buf, len, out->method.f);
         break;
     case LY_OUT_CALLBACK:
         written = out->method.clb.func(out->method.clb.arg, buf, len);
@@ -670,7 +641,8 @@ repeat:
         out->status = LY_ESYS;
         return -LY_ESYS;
     } else if ((size_t)written != len) {
-        LOGERR(out->ctx, LY_ESYS, "%s: writing data failed (unable to write %u from %u data).", __func__, len - (size_t)written, len);
+        LOGERR(out->ctx, LY_ESYS, "%s: writing data failed (unable to write %u from %u data).", __func__,
+               len - (size_t)written, len);
         out->status = LY_ESYS;
         return -LY_ESYS;
     } else {
@@ -679,8 +651,15 @@ repeat:
             lseek(out->method.fdstream.fd, 0, SEEK_END);
         }
         out->printed += written;
+        out->func_printed += written;
         return written;
     }
+}
+
+API size_t
+ly_out_printed(const struct ly_out *out)
+{
+    return out->func_printed;
 }
 
 ssize_t
@@ -709,6 +688,7 @@ ly_write_skip(struct ly_out *out, size_t count, size_t *position)
 
         /* update printed bytes counter despite we actually printed just a hole */
         out->printed += count;
+        out->func_printed += count;
         break;
     case LY_OUT_FD:
     case LY_OUT_FDSTREAM:
@@ -746,12 +726,12 @@ ly_write_skip(struct ly_out *out, size_t count, size_t *position)
     return count;
 }
 
-ssize_t
+LY_ERR
 ly_write_skipped(struct ly_out *out, size_t position, const char *buf, size_t count)
 {
-    ssize_t ret = LY_SUCCESS;
+    LY_ERR ret = LY_SUCCESS;
 
-    LYOUT_CHECK(out, -1 * out->status);
+    LYOUT_CHECK(out, out->status);
 
     switch (out->type) {
     case LY_OUT_MEMORY:
@@ -765,8 +745,7 @@ ly_write_skipped(struct ly_out *out, size_t position, const char *buf, size_t co
     case LY_OUT_CALLBACK:
         if (out->buf_len < position + count) {
             out->status = LY_EMEM;
-            LOGMEM(NULL);
-            return -LY_EMEM;
+            LOGMEM_RET(NULL);
         }
 
         /* write into the hole */
@@ -783,13 +762,12 @@ ly_write_skipped(struct ly_out *out, size_t position, const char *buf, size_t co
         }
         break;
     case LY_OUT_ERROR:
-        LOGINT(NULL);
-        return -LY_EINT;
+        LOGINT_RET(NULL);
     }
 
     if (out->type == LY_OUT_FILEPATH) {
         /* move the original file descriptor to the end of the output file */
         lseek(out->method.fdstream.fd, 0, SEEK_END);
     }
-    return ret < 0 ? (-1 * ret) : LY_SUCCESS;
+    return ret;
 }

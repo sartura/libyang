@@ -16,7 +16,6 @@
 
 #include "common.h"
 #include "config.h"
-#include "path.h"
 #include "plugins_exts.h"
 #include "plugins_types.h"
 #include "tree.h"
@@ -730,7 +729,7 @@ lysc_node_leaf_free(struct ly_ctx *ctx, struct lysc_node_leaf *node)
 static void
 lysc_node_leaflist_free(struct ly_ctx *ctx, struct lysc_node_leaflist *node)
 {
-    LY_ARRAY_SIZE_TYPE u;
+    LY_ARRAY_COUNT_TYPE u;
 
     FREE_ARRAY(ctx, node->musts, lysc_must_free);
     if (node->type) {
@@ -749,7 +748,7 @@ lysc_node_leaflist_free(struct ly_ctx *ctx, struct lysc_node_leaflist *node)
 static void
 lysc_node_list_free(struct ly_ctx *ctx, struct lysc_node_list *node)
 {
-    LY_ARRAY_SIZE_TYPE u;
+    LY_ARRAY_COUNT_TYPE u;
     struct lysc_node *child, *child_next;
 
     LY_LIST_FOR_SAFE(node->child, child_next, child) {
@@ -849,6 +848,7 @@ lysc_module_free_(struct lysc_module *module)
     FREE_ARRAY(ctx, module->notifs, lysc_notif_free);
     FREE_ARRAY(ctx, module->exts, lysc_ext_instance_free);
     LY_ARRAY_FREE(module->deviated_by);
+    LY_ARRAY_FREE(module->augmented_by);
 
     free(module);
 }
@@ -872,7 +872,8 @@ lys_module_free(struct lys_module *module, void (*private_destructor)(const stru
     }
 
     lysc_module_free(module->compiled, private_destructor);
-    FREE_ARRAY(module->ctx, module->off_features, lysc_feature_free);
+    FREE_ARRAY(module->ctx, module->dis_features, lysc_feature_free);
+    FREE_ARRAY(module->ctx, module->dis_identities, lysc_ident_free);
     lysp_module_free(module->parsed);
 
     FREE_STRING(module->ctx, module->name);
@@ -887,6 +888,7 @@ lys_module_free(struct lys_module *module, void (*private_destructor)(const stru
 
     free(module);
 }
+
 API void
 lysc_extension_instance_free(struct ly_ctx *ctx, struct lysc_ext_substmt *substmts)
 {

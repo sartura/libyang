@@ -21,6 +21,8 @@
 #include <string.h>
 
 #include "context.h"
+#include "parser.h"
+#include "parser_data.h"
 #include "printer.h"
 #include "printer_data.h"
 #include "tests/config.h"
@@ -82,7 +84,7 @@ setup(void **state)
     assert_non_null(ly_ctx_load_module(ctx, "ietf-netconf-with-defaults", "2011-06-01"));
     assert_non_null((mod = ly_ctx_load_module(ctx, "ietf-netconf", "2011-06-01")));
     assert_int_equal(LY_SUCCESS, lys_feature_enable(mod, "writable-running"));
-    assert_non_null(lys_parse_mem(ctx, schema_a, LYS_IN_YANG));
+    assert_int_equal(LY_SUCCESS, lys_parse_mem(ctx, schema_a, LYS_IN_YANG, NULL));
 
     return 0;
 }
@@ -125,7 +127,7 @@ test_leaf(void **state)
     struct lyd_node *tree;
     struct lyd_node_term *leaf;
 
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_data(ctx, data, LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(ctx, data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &tree));
     assert_non_null(tree);
     assert_int_equal(LYS_LEAF, tree->schema->nodetype);
     assert_string_equal("foo", tree->schema->name);
@@ -142,7 +144,7 @@ test_leaf(void **state)
 
     /* make foo2 explicit */
     data = "<foo2 xmlns=\"urn:tests:a\">default-val</foo2>";
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_data(ctx, data, LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(ctx, data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &tree));
     assert_non_null(tree);
     assert_int_equal(LYS_LEAF, tree->schema->nodetype);
     assert_string_equal("foo2", tree->schema->name);
@@ -154,7 +156,7 @@ test_leaf(void **state)
 
     /* parse foo2 but make it implicit */
     data = "<foo2 xmlns=\"urn:tests:a\" xmlns:wd=\"urn:ietf:params:xml:ns:yang:ietf-netconf-with-defaults\" wd:default=\"true\">default-val</foo2>";
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_data(ctx, data, LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(ctx, data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &tree));
     assert_non_null(tree);
     assert_int_equal(LYS_LEAF, tree->schema->nodetype);
     assert_string_equal("foo2", tree->schema->name);
@@ -186,12 +188,12 @@ test_anydata(void **state)
         "</element1>"
         "<element1a/>"
     "</any>";
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_data(ctx, data, LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(ctx, data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &tree));
     assert_non_null(tree);
     assert_int_equal(LYS_ANYDATA, tree->schema->nodetype);
     assert_string_equal("any", tree->schema->name);
 
-    lyd_print(out, tree, LYD_XML, 0);
+    lyd_print_tree(out, tree, LYD_XML, 0);
     assert_string_equal(str,
         "<any xmlns=\"urn:tests:a\">"
             "<element1>"
@@ -219,7 +221,7 @@ test_list(void **state)
     struct lyd_node_term *leaf;
 
     /* check hashes */
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_data(ctx, data, LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(ctx, data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &tree));
     assert_non_null(tree);
     assert_int_equal(LYS_LIST, tree->schema->nodetype);
     assert_string_equal("l1", tree->schema->name);
@@ -231,25 +233,25 @@ test_list(void **state)
 
     /* missing keys */
     data = "<l1 xmlns=\"urn:tests:a\"><c>1</c><b>b</b></l1>";
-    assert_int_equal(LY_EVALID, lyd_parse_xml_data(ctx, data, LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_EVALID, lyd_parse_data_mem(ctx, data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &tree));
     logbuf_assert("List instance is missing its key \"a\". /a:l1[b='b'][c='1']");
 
     data = "<l1 xmlns=\"urn:tests:a\"><a>a</a></l1>";
-    assert_int_equal(LY_EVALID, lyd_parse_xml_data(ctx, data, LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_EVALID, lyd_parse_data_mem(ctx, data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &tree));
     logbuf_assert("List instance is missing its key \"b\". /a:l1[a='a']");
 
     data = "<l1 xmlns=\"urn:tests:a\"><b>b</b><a>a</a></l1>";
-    assert_int_equal(LY_EVALID, lyd_parse_xml_data(ctx, data, LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_EVALID, lyd_parse_data_mem(ctx, data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &tree));
     logbuf_assert("List instance is missing its key \"c\". /a:l1[a='a'][b='b']");
 
     /* key duplicate */
     data = "<l1 xmlns=\"urn:tests:a\"><c>1</c><b>b</b><a>a</a><c>1</c></l1>";
-    assert_int_equal(LY_EVALID, lyd_parse_xml_data(ctx, data, LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_EVALID, lyd_parse_data_mem(ctx, data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &tree));
     logbuf_assert("Duplicate instance of \"c\". /a:l1[a='a'][b='b'][c='1'][c='1']/c");
 
     /* keys order */
     data = "<l1 xmlns=\"urn:tests:a\"><d>d</d><a>a</a><c>1</c><b>b</b></l1>";
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_data(ctx, data, LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(ctx, data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &tree));
     assert_non_null(tree);
     assert_int_equal(LYS_LIST, tree->schema->nodetype);
     assert_string_equal("l1", tree->schema->name);
@@ -266,7 +268,7 @@ test_list(void **state)
     lyd_free_all(tree);
 
     data = "<l1 xmlns=\"urn:tests:a\"><c>1</c><b>b</b><a>a</a></l1>";
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_data(ctx, data, LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(ctx, data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &tree));
     assert_non_null(tree);
     assert_int_equal(LYS_LIST, tree->schema->nodetype);
     assert_string_equal("l1", tree->schema->name);
@@ -281,7 +283,7 @@ test_list(void **state)
     logbuf_clean();
     lyd_free_all(tree);
 
-    assert_int_equal(LY_EVALID, lyd_parse_xml_data(ctx, data, LYD_OPT_STRICT, &tree));
+    assert_int_equal(LY_EVALID, lyd_parse_data_mem(ctx, data, LYD_XML, LYD_PARSE_STRICT, 0, &tree));
     logbuf_assert("Invalid position of the key \"b\" in a list. Line number 1.");
 
     *state = NULL;
@@ -296,7 +298,7 @@ test_container(void **state)
     struct lyd_node *tree;
     struct lyd_node_inner *cont;
 
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_data(ctx, data, LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(ctx, data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &tree));
     assert_non_null(tree);
     assert_int_equal(LYS_CONTAINER, tree->schema->nodetype);
     assert_string_equal("c", tree->schema->name);
@@ -305,7 +307,7 @@ test_container(void **state)
     lyd_free_all(tree);
 
     data = "<cp xmlns=\"urn:tests:a\"/>";
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_data(ctx, data, LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(ctx, data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &tree));
     assert_non_null(tree);
     assert_int_equal(LYS_CONTAINER, tree->schema->nodetype);
     assert_string_equal("cp", tree->schema->name);
@@ -330,61 +332,61 @@ test_opaq(void **state)
 
     /* invalid value, no flags */
     data = "<foo3 xmlns=\"urn:tests:a\"/>";
-    assert_int_equal(LY_EVALID, lyd_parse_xml_data(ctx, data, LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_EVALID, lyd_parse_data_mem(ctx, data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &tree));
     logbuf_assert("Invalid empty uint32 value. /a:foo3");
     assert_null(tree);
 
     /* opaq flag */
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_data(ctx, data, LYD_OPT_OPAQ | LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(ctx, data, LYD_XML, LYD_PARSE_OPAQ, LYD_VALIDATE_PRESENT, &tree));
     assert_non_null(tree);
     assert_null(tree->schema);
     assert_string_equal(((struct lyd_node_opaq *)tree)->name, "foo3");
     assert_string_equal(((struct lyd_node_opaq *)tree)->value, "");
 
-    lyd_print(out, tree, LYD_XML, 0);
+    lyd_print_tree(out, tree, LYD_XML, 0);
     assert_string_equal(str, "<foo3 xmlns=\"urn:tests:a\"/>");
     ly_out_reset(out);
     lyd_free_all(tree);
 
     /* missing key, no flags */
     data = "<l1 xmlns=\"urn:tests:a\"><a>val_a</a><b>val_b</b><d>val_d</d></l1>";
-    assert_int_equal(LY_EVALID, lyd_parse_xml_data(ctx, data, LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_EVALID, lyd_parse_data_mem(ctx, data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &tree));
     logbuf_assert("List instance is missing its key \"c\". /a:l1[a='val_a'][b='val_b']");
     assert_null(tree);
 
     /* opaq flag */
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_data(ctx, data, LYD_OPT_OPAQ | LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(ctx, data, LYD_XML, LYD_PARSE_OPAQ , LYD_VALIDATE_PRESENT, &tree));
     assert_non_null(tree);
     assert_null(tree->schema);
     assert_string_equal(((struct lyd_node_opaq *)tree)->name, "l1");
     assert_string_equal(((struct lyd_node_opaq *)tree)->value, "");
 
-    lyd_print(out, tree, LYD_XML, 0);
+    lyd_print_tree(out, tree, LYD_XML, 0);
     assert_string_equal(str, data);
     ly_out_reset(out);
     lyd_free_all(tree);
 
     /* invalid key, no flags */
     data = "<l1 xmlns=\"urn:tests:a\"><a>val_a</a><b>val_b</b><c>val_c</c></l1>";
-    assert_int_equal(LY_EVALID, lyd_parse_xml_data(ctx, data, LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_EVALID, lyd_parse_data_mem(ctx, data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &tree));
     logbuf_assert("Invalid int16 value \"val_c\". /a:l1/c");
     assert_null(tree);
 
     /* opaq flag */
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_data(ctx, data, LYD_OPT_OPAQ | LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(ctx, data, LYD_XML, LYD_PARSE_OPAQ, LYD_VALIDATE_PRESENT, &tree));
     assert_non_null(tree);
     assert_null(tree->schema);
     assert_string_equal(((struct lyd_node_opaq *)tree)->name, "l1");
     assert_string_equal(((struct lyd_node_opaq *)tree)->value, "");
 
-    lyd_print(out, tree, LYD_XML, 0);
+    lyd_print_tree(out, tree, LYD_XML, 0);
     assert_string_equal(str, data);
     ly_out_reset(out);
     lyd_free_all(tree);
 
     /* opaq flag and fail */
-    assert_int_equal(LY_EVALID, lyd_parse_xml_data(ctx, "<a xmlns=\"ns\"><b>x</b><c xml:id=\"D\">1</c></a>",
-            LYD_OPT_OPAQ | LYD_VALOPT_DATA_ONLY, &tree));
+    assert_int_equal(LY_EVALID, lyd_parse_data_mem(ctx, "<a xmlns=\"ns\"><b>x</b><c xml:id=\"D\">1</c></a>", LYD_XML,
+                                                   LYD_PARSE_OPAQ, LYD_VALIDATE_PRESENT, &tree));
     assert_null(tree);
 
     ly_out_free(out, NULL, 1);
@@ -398,6 +400,7 @@ test_rpc(void **state)
     *state = test_rpc;
 
     const char *data;
+    struct ly_in *in;
     char *str;
     struct lyd_node *tree, *op;
     const struct lyd_node *node;
@@ -423,7 +426,9 @@ test_rpc(void **state)
                 "</config>"
             "</edit-config>"
         "</rpc>";
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_rpc(ctx, data, &tree, &op));
+    assert_int_equal(LY_SUCCESS, ly_in_new_memory(data, &in));
+    assert_int_equal(LY_SUCCESS, lyd_parse_rpc(ctx, in, LYD_XML, &tree, &op));
+    ly_in_free(in, 0);
 
     assert_non_null(op);
     assert_string_equal(op->schema->name, "edit-config");
@@ -436,19 +441,20 @@ test_rpc(void **state)
     assert_string_equal(node->schema->name, "edit-config");
     node = lyd_node_children(node, 0)->next;
     assert_string_equal(node->schema->name, "config");
+
     node = ((struct lyd_node_any *)node)->value.tree;
-    /* l1 key c has invalid value */
-    assert_null(node->schema);
-    assert_string_equal(((struct lyd_node_opaq *)node)->name, "l1");
-    node = node->next;
     assert_non_null(node->schema);
     assert_string_equal(node->schema->name, "cp");
     node = lyd_node_children(node, 0);
     /* z has no value */
     assert_null(node->schema);
     assert_string_equal(((struct lyd_node_opaq *)node)->name, "z");
+    node = node->parent->next;
+    /* l1 key c has invalid value so it is at the end */
+    assert_null(node->schema);
+    assert_string_equal(((struct lyd_node_opaq *)node)->name, "l1");
 
-    lyd_print(out, tree, LYD_XML, 0);
+    lyd_print_tree(out, tree, LYD_XML, 0);
     assert_string_equal(str,
         "<rpc xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" msgid=\"25\" custom-attr=\"val\">"
             "<edit-config>"
@@ -456,14 +462,14 @@ test_rpc(void **state)
                     "<running/>"
                 "</target>"
                 "<config>"
+                    "<cp xmlns=\"urn:tests:a\">"
+                        "<z xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" nc:operation=\"delete\"/>"
+                    "</cp>"
                     "<l1 xmlns=\"urn:tests:a\" xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" nc:operation=\"replace\">"
                         "<a>val_a</a>"
                         "<b>val_b</b>"
                         "<c>val_c</c>"
                     "</l1>"
-                    "<cp xmlns=\"urn:tests:a\">"
-                        "<z xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" nc:operation=\"delete\"/>"
-                    "</cp>"
                 "</config>"
             "</edit-config>"
         "</rpc>");
@@ -484,6 +490,7 @@ test_action(void **state)
     *state = test_action;
 
     const char *data;
+    struct ly_in *in;
     char *str;
     struct lyd_node *tree, *op;
     const struct lyd_node *node;
@@ -501,7 +508,9 @@ test_action(void **state)
                 "</c>"
             "</action>"
         "</rpc>";
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_rpc(ctx, data, &tree, &op));
+    assert_int_equal(LY_SUCCESS, ly_in_new_memory(data, &in));
+    assert_int_equal(LY_SUCCESS, lyd_parse_rpc(ctx, in, LYD_XML, &tree, &op));
+    ly_in_free(in, 0);
 
     assert_non_null(op);
     assert_string_equal(op->schema->name, "act");
@@ -515,7 +524,7 @@ test_action(void **state)
     assert_string_equal(((struct lyd_node_opaq *)node)->name, "action");
     assert_null(((struct lyd_node_opaq *)node)->attr);
 
-    lyd_print(out, tree, LYD_XML, 0);
+    lyd_print_tree(out, tree, LYD_XML, 0);
     assert_string_equal(str,
         "<rpc xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" msgid=\"25\" custom-attr=\"val\">"
             "<action xmlns=\"urn:ietf:params:xml:ns:yang:1\">"
@@ -543,6 +552,7 @@ test_notification(void **state)
     *state = test_notification;
 
     const char *data;
+    struct ly_in *in;
     char *str;
     struct lyd_node *tree, *ntf;
     const struct lyd_node *node;
@@ -559,7 +569,9 @@ test_notification(void **state)
                 "</n1>"
             "</c>"
         "</notification>";
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_notif(ctx, data, &tree, &ntf));
+    assert_int_equal(LY_SUCCESS, ly_in_new_memory(data, &in));
+    assert_int_equal(LY_SUCCESS, lyd_parse_notif(ctx, in, LYD_XML, &tree, &ntf));
+    ly_in_free(in, 0);
 
     assert_non_null(ntf);
     assert_string_equal(ntf->schema->name, "n1");
@@ -577,14 +589,16 @@ test_notification(void **state)
     assert_non_null(node->schema);
     assert_string_equal(node->schema->name, "c");
 
-    lyd_print(out, tree, LYD_XML, 0);
+    lyd_print_tree(out, tree, LYD_XML, 0);
     assert_string_equal(str, data);
     ly_out_reset(out);
     lyd_free_all(tree);
 
     /* top-level notif without envelope */
     data = "<n2 xmlns=\"urn:tests:a\"/>";
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_notif(ctx, data, &tree, &ntf));
+    assert_int_equal(LY_SUCCESS, ly_in_new_memory(data, &in));
+    assert_int_equal(LY_SUCCESS, lyd_parse_notif(ctx, in, LYD_XML, &tree, &ntf));
+    ly_in_free(in, 0);
 
     assert_non_null(ntf);
     assert_string_equal(ntf->schema->name, "n2");
@@ -592,7 +606,7 @@ test_notification(void **state)
     assert_non_null(tree);
     assert_ptr_equal(ntf, tree);
 
-    lyd_print(out, tree, LYD_XML, 0);
+    lyd_print_tree(out, tree, LYD_XML, 0);
     assert_string_equal(str, data);
     ly_out_reset(out);
     lyd_free_all(tree);
@@ -611,6 +625,7 @@ test_reply(void **state)
     *state = test_reply;
 
     const char *data;
+    struct ly_in *in;
     char *str;
     struct lyd_node *request, *tree, *op;
     const struct lyd_node *node;
@@ -624,12 +639,17 @@ test_reply(void **state)
                 "<al>value</al>"
             "</act>"
         "</c>";
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_rpc(ctx, data, &request, NULL));
+    assert_int_equal(LY_SUCCESS, ly_in_new_memory(data, &in));
+    assert_int_equal(LY_SUCCESS, lyd_parse_rpc(ctx, in, LYD_XML, &request, NULL));
+    ly_in_free(in, 0);
+
     data =
         "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" msgid=\"25\">"
             "<al xmlns=\"urn:tests:a\">25</al>"
         "</rpc-reply>";
-    assert_int_equal(LY_SUCCESS, lyd_parse_xml_reply(request, data, &tree, &op));
+    assert_int_equal(LY_SUCCESS, ly_in_new_memory(data, &in));
+    assert_int_equal(LY_SUCCESS, lyd_parse_reply(request, in, LYD_XML, &tree, &op));
+    ly_in_free(in, 0);
     lyd_free_all(request);
 
     assert_non_null(op);
@@ -648,7 +668,7 @@ test_reply(void **state)
     assert_string_equal(node->schema->name, "c");
 
     /* TODO print only rpc-reply node and then output subtree */
-    lyd_print(out, lyd_node_children(op, 0), LYD_XML, 0);
+    lyd_print_tree(out, lyd_node_children(op, 0), LYD_XML, 0);
     assert_string_equal(str,
         "<al xmlns=\"urn:tests:a\">25</al>");
     ly_out_reset(out);

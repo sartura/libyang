@@ -33,7 +33,7 @@ test_identity(void **state)
     *state = test_identity;
 
     struct ly_ctx *ctx;
-    struct lys_module *mod, *mod_imp;
+    const struct lys_module *mod, *mod_imp;
 
     assert_int_equal(LY_SUCCESS, ly_ctx_new(NULL, 0, &ctx));
 
@@ -49,7 +49,7 @@ test_identity(void **state)
                    "identity test {base \"a\";base b; description text;reference \'another text\';status current; if-feature x;if-feature y; identityone:ext;}"
                    "identity a; identity b; extension ext; feature x; feature y;", mod);
     assert_non_null(mod->parsed->identities);
-    assert_int_equal(3, LY_ARRAY_SIZE(mod->parsed->identities));
+    assert_int_equal(3, LY_ARRAY_COUNT(mod->parsed->identities));
 
     /* invalid substatement */
     TEST_STMT_SUBSTM_ERR(ctx, 0, "identity", "organization", "XXX");
@@ -66,7 +66,7 @@ test_identity(void **state)
                        "<reference><text>ref</text></reference>"
                        "<myext:ext xmlns:myext=\"urn:libyang:test:identityone-yin\"/>"
                    "</identity><extension name=\"ext\"/><identity name=\"base-name\"/><feature name=\"iff\"/>", mod);
-    assert_int_equal(2, LY_ARRAY_SIZE(mod->parsed->identities));
+    assert_int_equal(2, LY_ARRAY_COUNT(mod->parsed->identities));
     assert_string_equal(mod->parsed->identities[0].name, "ident-name");
     assert_string_equal(mod->parsed->identities[0].bases[0], "base-name");
     assert_string_equal(mod->parsed->identities[0].iffeatures[0], "iff");
@@ -81,7 +81,7 @@ test_identity(void **state)
 
     /* min subelems */
     TEST_SCHEMA_OK(ctx, 1, 1, "identitytwo-yin", "<identity name=\"ident-name\" />", mod);
-    assert_int_equal(1, LY_ARRAY_SIZE(mod->parsed->identities));
+    assert_int_equal(1, LY_ARRAY_COUNT(mod->parsed->identities));
     assert_string_equal(mod->parsed->identities[0].name, "ident-name");
 
     /* invalid substatement */
@@ -100,21 +100,21 @@ test_identity(void **state)
     assert_non_null(mod->compiled);
     assert_non_null(mod->compiled->identities);
     assert_non_null(mod_imp->compiled->identities[0].derived);
-    assert_int_equal(1, LY_ARRAY_SIZE(mod_imp->compiled->identities[0].derived));
+    assert_int_equal(1, LY_ARRAY_COUNT(mod_imp->compiled->identities[0].derived));
     assert_ptr_equal(mod_imp->compiled->identities[0].derived[0], &mod->compiled->identities[2]);
     assert_non_null(mod->compiled->identities[0].derived);
-    assert_int_equal(2, LY_ARRAY_SIZE(mod->compiled->identities[0].derived));
+    assert_int_equal(2, LY_ARRAY_COUNT(mod->compiled->identities[0].derived));
     assert_ptr_equal(mod->compiled->identities[0].derived[0], &mod->compiled->identities[2]);
     assert_ptr_equal(mod->compiled->identities[0].derived[1], &mod->compiled->identities[3]);
     assert_non_null(mod->compiled->identities[1].derived);
-    assert_int_equal(1, LY_ARRAY_SIZE(mod->compiled->identities[1].derived));
+    assert_int_equal(1, LY_ARRAY_COUNT(mod->compiled->identities[1].derived));
     assert_ptr_equal(mod->compiled->identities[1].derived[0], &mod->compiled->identities[2]);
     assert_non_null(mod->compiled->identities[2].derived);
-    assert_int_equal(1, LY_ARRAY_SIZE(mod->compiled->identities[2].derived));
+    assert_int_equal(1, LY_ARRAY_COUNT(mod->compiled->identities[2].derived));
     assert_ptr_equal(mod->compiled->identities[2].derived[0], &mod->compiled->identities[3]);
 
     TEST_SCHEMA_OK(ctx, 1, 0, "c", "identity c2 {base c1;} identity c1;", mod);
-    assert_int_equal(1, LY_ARRAY_SIZE(mod->compiled->identities[1].derived));
+    assert_int_equal(1, LY_ARRAY_COUNT(mod->compiled->identities[1].derived));
     assert_ptr_equal(mod->compiled->identities[1].derived[0], &mod->compiled->identities[0]);
 
     TEST_SCHEMA_ERR(ctx, 0, 0, "inv", "identity i1;identity i1;", "Duplicate identifier \"i1\" of identity statement. /inv:{identity='i1'}");
@@ -126,6 +126,21 @@ test_identity(void **state)
     TEST_SCHEMA_ERR(ctx, 0, 0,"inv", "identity i1 {base i1;}", "Identity \"i1\" is derived from itself. /inv:{identity='i1'}");
     TEST_SCHEMA_ERR(ctx, 0, 0,"inv", "identity i1 {base i2;}identity i2 {base i3;}identity i3 {base i1;}",
                     "Identity \"i1\" is indirectly derived from itself. /inv:{identity='i3'}");
+
+    /* base in non-implemented module */
+    ly_ctx_set_module_imp_clb(ctx, test_imp_clb,
+                              "module base {namespace \"urn\"; prefix b; identity i1; identity i2 {base i1;}}");
+    TEST_SCHEMA_OK(ctx, 0, 0, "ident", "import base {prefix b;} identity ii {base b:i1;}", mod);
+
+    /* default value from non-implemented module */
+    TEST_SCHEMA_ERR(ctx, 0, 0, "ident2", "import base {prefix b;} leaf l {type identityref {base b:i1;} default b:i2;}",
+                    "Invalid leaf's default value \"b:i2\" which does not fit the type (Invalid identityref \"b:i2\" value"
+                    " - identity found in non-implemented module \"base\".). /ident2:l");
+
+    /* default value in typedef from non-implemented module */
+    TEST_SCHEMA_ERR(ctx, 0, 0, "ident2", "import base {prefix b;} typedef t1 {type identityref {base b:i1;} default b:i2;}"
+                    "leaf l {type t1;}", "Invalid type's default value \"b:i2\" which does not fit the type (Invalid"
+                    " identityref \"b:i2\" value - identity found in non-implemented module \"base\".). /ident2:l");
 
     /*
      * printing
@@ -139,14 +154,13 @@ test_identity(void **state)
     ly_ctx_destroy(ctx, NULL);
 }
 
-
 void
 test_feature(void **state)
 {
     *state = test_feature;
 
     struct ly_ctx *ctx;
-    struct lys_module *mod;
+    const struct lys_module *mod;
     const struct lysc_feature *f, *f1;
 
     assert_int_equal(LY_SUCCESS, ly_ctx_new(NULL, 0, &ctx));
@@ -164,7 +178,7 @@ test_feature(void **state)
                    "feature test {description text;reference \'another text\';status current; if-feature x; if-feature y; featureone:ext;}"
                    "extension ext; feature x; feature y;", mod);
     assert_non_null(mod->parsed->features);
-    assert_int_equal(3, LY_ARRAY_SIZE(mod->parsed->features));
+    assert_int_equal(3, LY_ARRAY_COUNT(mod->parsed->features));
 
     /* invalid substatement */
     TEST_STMT_SUBSTM_ERR(ctx, 0, "feature", "organization", "XXX");
@@ -180,7 +194,7 @@ test_feature(void **state)
                        "<reference><text>ref</text></reference>"
                        "<myext:ext xmlns:myext=\"urn:libyang:test:featureone-yin\"/>"
                    "</feature><extension name=\"ext\"/><feature name=\"iff\"/>", mod);
-    assert_int_equal(2, LY_ARRAY_SIZE(mod->parsed->features));
+    assert_int_equal(2, LY_ARRAY_COUNT(mod->parsed->features));
     assert_string_equal(mod->parsed->features[0].name, "feature-name");
     assert_string_equal(mod->parsed->features[0].dsc, "desc");
     assert_true(mod->parsed->features[0].flags & LYS_STATUS_DEPRC);
@@ -192,7 +206,7 @@ test_feature(void **state)
 
     /* min subelems */
     TEST_SCHEMA_OK(ctx, 0, 1, "featuretwo-yin", "<feature name=\"feature-name\"/>", mod)
-    assert_int_equal(1, LY_ARRAY_SIZE(mod->parsed->features));
+    assert_int_equal(1, LY_ARRAY_COUNT(mod->parsed->features));
     assert_string_equal(mod->parsed->features[0].name, "feature-name");
 
     /* invalid substatement */
@@ -211,7 +225,7 @@ test_feature(void **state)
                    "feature f8 {if-feature \"f1 or f2 or f3 or orfeature or andfeature\";}\n"
                    "feature f9 {if-feature \"not not f1\";}", mod);
     assert_non_null(mod->compiled->features);
-    assert_int_equal(9, LY_ARRAY_SIZE(mod->compiled->features));
+    assert_int_equal(9, LY_ARRAY_COUNT(mod->compiled->features));
 
     /* all features are disabled by default */
     LY_ARRAY_FOR(mod->compiled->features, struct lysc_feature, f) {
@@ -269,11 +283,11 @@ test_feature(void **state)
     /* disable all features */
     assert_int_equal(LY_SUCCESS, lys_feature_disable(mod, "*"));
     LY_ARRAY_FOR(mod->compiled->features, struct lysc_feature, f) {
-        assert_int_equal(0, lys_feature_value(mod, f->name));
+        assert_int_equal(LY_ENOT, lys_feature_value(mod, f->name));
     }
     /* re-setting already set feature */
     assert_int_equal(LY_SUCCESS, lys_feature_disable(mod, "f1"));
-    assert_int_equal(0, lys_feature_value(mod, "f1"));
+    assert_int_equal(LY_ENOT, lys_feature_value(mod, "f1"));
 
     /* enabling feature that cannot be enabled due to its if-features */
     assert_int_equal(LY_SUCCESS, lys_feature_enable(mod, "f1"));
@@ -282,26 +296,26 @@ test_feature(void **state)
     assert_int_equal(LY_EDENIED, lys_feature_enable(mod, "*"));
     logbuf_assert("Feature \"f6\" cannot be enabled since it is disabled by its if-feature condition(s).");
     /* test if not changed */
-    assert_int_equal(1, lys_feature_value(mod, "f1"));
-    assert_int_equal(0, lys_feature_value(mod, "f2"));
+    assert_int_equal(LY_SUCCESS, lys_feature_value(mod, "f1"));
+    assert_int_equal(LY_ENOT, lys_feature_value(mod, "f2"));
 
     TEST_SCHEMA_OK(ctx, 0, 0, "b", "feature f1 {if-feature f2;}feature f2;", mod);
     assert_non_null(mod->compiled);
     assert_non_null(mod->compiled->features);
-    assert_int_equal(2, LY_ARRAY_SIZE(mod->compiled->features));
+    assert_int_equal(2, LY_ARRAY_COUNT(mod->compiled->features));
     assert_non_null(mod->compiled->features[0].iffeatures);
-    assert_int_equal(1, LY_ARRAY_SIZE(mod->compiled->features[0].iffeatures));
+    assert_int_equal(1, LY_ARRAY_COUNT(mod->compiled->features[0].iffeatures));
     assert_non_null(mod->compiled->features[0].iffeatures[0].features);
-    assert_int_equal(1, LY_ARRAY_SIZE(mod->compiled->features[0].iffeatures[0].features));
+    assert_int_equal(1, LY_ARRAY_COUNT(mod->compiled->features[0].iffeatures[0].features));
     assert_ptr_equal(&mod->compiled->features[1], mod->compiled->features[0].iffeatures[0].features[0]);
     assert_non_null(mod->compiled->features);
-    assert_int_equal(2, LY_ARRAY_SIZE(mod->compiled->features));
+    assert_int_equal(2, LY_ARRAY_COUNT(mod->compiled->features));
     assert_non_null(mod->compiled->features[1].depfeatures);
-    assert_int_equal(1, LY_ARRAY_SIZE(mod->compiled->features[1].depfeatures));
+    assert_int_equal(1, LY_ARRAY_COUNT(mod->compiled->features[1].depfeatures));
     assert_ptr_equal(&mod->compiled->features[0], mod->compiled->features[1].depfeatures[0]);
 
     /* invalid reference */
-    assert_int_equal(LY_EINVAL, lys_feature_enable(mod, "xxx"));
+    assert_int_equal(LY_ENOTFOUND, lys_feature_enable(mod, "xxx"));
     logbuf_assert("Feature \"xxx\" not found in module \"b\".");
 
     /* some invalid expressions */
@@ -347,8 +361,8 @@ test_feature(void **state)
     assert_int_equal(LY_SUCCESS, lys_feature_enable(mod, "f1"));
     TEST_SCHEMA_OK(ctx, 0, 0, "c", "import a {prefix a;} feature f1; feature f2{if-feature 'a:f1';}", mod);
     assert_int_equal(LY_SUCCESS, lys_feature_enable(mod, "f2"));
-    assert_int_equal(0, lys_feature_value(mod, "f1"));
-    assert_int_equal(1, lys_feature_value(mod, "f2"));
+    assert_int_equal(LY_ENOT, lys_feature_value(mod, "f1"));
+    assert_int_equal(LY_SUCCESS, lys_feature_value(mod, "f2"));
 
     /*
      * printing

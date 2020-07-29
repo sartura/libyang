@@ -63,7 +63,7 @@
  */
 #define CHECK_UNIQUENESS(CTX, ARRAY, MEMBER, STMT, IDENT) \
     if (ARRAY) { \
-        for (LY_ARRAY_SIZE_TYPE u_ = 0; u_ < LY_ARRAY_SIZE(ARRAY) - 1; ++u_) { \
+        for (LY_ARRAY_COUNT_TYPE u_ = 0; u_ < LY_ARRAY_COUNT(ARRAY) - 1; ++u_) { \
             if (!strcmp((ARRAY)[u_].MEMBER, IDENT)) { \
                 LOGVAL_PARSER(CTX, LY_VCODE_DUPIDENT, IDENT, STMT); \
                 return LY_EVALID; \
@@ -408,12 +408,12 @@ struct lysc_action **lysc_node_actions_p(struct lysc_node *node);
  *
  * @param[in] ext ([Sized array](@ref sizedarrays)) of extensions to explore
  * @param[in] index Index in the \p ext array where to start searching (first call with 0, the consequent calls with
- *            the returned index increased by 1 (until the iteration is not terminated by returning LY_ARRAY_SIZE(ext).
+ *            the returned index increased by 1 (until the iteration is not terminated by returning LY_ARRAY_COUNT(ext).
  * @param[in] substmt Type of the extension (its belongins to the specific substatement) to iterate, use
  *            #LYEXT_SUBSTMT_ALL to go through all the extensions in the array
- * @result index in the ext array, LY_ARRAY_SIZE(ext) value if not present.
+ * @result index in the ext array, LY_ARRAY_COUNT(ext) value if not present.
  */
-LY_ARRAY_SIZE_TYPE lysp_ext_instance_iter(struct lysp_ext_instance *ext, LY_ARRAY_SIZE_TYPE index, LYEXT_SUBSTMT substmt);
+LY_ARRAY_COUNT_TYPE lysp_ext_instance_iter(struct lysp_ext_instance *ext, LY_ARRAY_COUNT_TYPE index, LYEXT_SUBSTMT substmt);
 
 /**
  * @brief Get the covering schema module structure for the given parsed module structure.
@@ -520,7 +520,8 @@ const char *lys_prefix_find_module(const struct lys_module *mod, const struct ly
  */
 const char *lys_datatype2str(LY_DATA_TYPE basetype);
 
-typedef LY_ERR (*lys_custom_check)(const struct ly_ctx *ctx, struct lysp_module *mod, struct lysp_submodule *submod, void *check_data);
+typedef LY_ERR (*lys_custom_check)(const struct ly_ctx *ctx, struct lysp_module *mod, struct lysp_submodule *submod,
+                                   void *check_data);
 
 /**
  * @brief Parse module from a string.
@@ -528,16 +529,16 @@ typedef LY_ERR (*lys_custom_check)(const struct ly_ctx *ctx, struct lysp_module 
  * The modules are added into the context and the latest_revision flag is updated.
  *
  * @param[in] ctx libyang context where to process the data model.
- * @param[in] data The string containing the dumped data model in the specified
- * format.
+ * @param[in] in Input structure.
  * @param[in] format Format of the input data (YANG or YIN).
  * @param[in] implement Flag if the schema is supposed to be marked as implemented.
  * @param[in] custom_check Callback to check the parsed schema before it is accepted.
  * @param[in] check_data Caller's data to pass to the custom_check callback.
- * @return Pointer to the data model structure or NULL on error.
+ * @param[out] module Parsed module.
+ * @return LY_ERR value.
  */
-struct lys_module *lys_parse_mem_module(struct ly_ctx *ctx, const char *data, LYS_INFORMAT format, int implement,
-                                        lys_custom_check custom_check, void *check_data);
+LY_ERR lys_parse_mem_module(struct ly_ctx *ctx, struct ly_in *in, LYS_INFORMAT format, int implement,
+                            lys_custom_check custom_check, void *check_data, struct lys_module **module);
 
 /**
  * @brief Parse submodule from a string.
@@ -545,16 +546,17 @@ struct lys_module *lys_parse_mem_module(struct ly_ctx *ctx, const char *data, LY
  * The latest_revision flag of submodule is updated.
  *
  * @param[in] ctx libyang context where to process the data model.
- * @param[in] data The string containing the dumped data model in the specified
- * format.
+ * @param[in] in Input structure.
  * @param[in] format Format of the input data (YANG or YIN).
  * @param[in] main_ctx Parser context of the main module.
  * @param[in] custom_check Callback to check the parsed schema before it is accepted.
  * @param[in] check_data Caller's data to pass to the custom_check callback.
- * @return Pointer to the data model structure or NULL on error.
+ * @param[out] submodule Parsed submodule.
+ * @return LY_ERR value.
  */
-struct lysp_submodule *lys_parse_mem_submodule(struct ly_ctx *ctx, const char *data, LYS_INFORMAT format, struct lys_parser_ctx *main_ctx,
-                                               lys_custom_check custom_check, void *check_data);
+LY_ERR lys_parse_mem_submodule(struct ly_ctx *ctx, struct ly_in *in, LYS_INFORMAT format,
+                               struct lys_parser_ctx *main_ctx, lys_custom_check custom_check,
+                               void *check_data, struct lysp_submodule **submodule);
 
 /**
  * @brief Fill filepath value if available in input handler @p in
@@ -586,6 +588,23 @@ void lys_parser_fill_filepath(struct ly_ctx *ctx, struct ly_in *in, const char *
  */
 LY_ERR lys_module_localfile(struct ly_ctx *ctx, const char *name, const char *revision, int implement,
                             struct lys_parser_ctx *main_ctx, const char *main_name, int required, void **result);
+
+/**
+ * @brief Compile information from the identity statement
+ *
+ * The backlinks to the identities derived from this one are supposed to be filled later via lys_compile_identity_bases().
+ *
+ * @param[in] ctx_sc Compile context - alternative to the combination of @p ctx and @p module.
+ * @param[in] ctx libyang context.
+ * @param[in] module Module of the features.
+ * @param[in] identities_p Array of the parsed identity definitions to precompile.
+ * @param[in,out] identities Pointer to the storage of the (pre)compiled identities array where the new identities are
+ * supposed to be added. The storage is supposed to be initiated to NULL when the first parsed identities are going
+ * to be processed.
+ * @return LY_ERR value.
+ */
+LY_ERR lys_identity_precompile(struct lysc_ctx *ctx_sc, struct ly_ctx *ctx, struct lys_module *module,
+                               struct lysp_ident *identities_p, struct lysc_ident **identities);
 
 /**
  * @brief Create pre-compiled features array.
@@ -634,7 +653,7 @@ LY_ERR lys_compile_type_pattern_check(struct ly_ctx *ctx, const char *log_path, 
  * @brief Macro to free [sized array](@ref sizedarrays) of items using the provided free function. The ARRAY itself is also freed,
  * but the memory is not sanitized.
  */
-#define FREE_ARRAY(CTX, ARRAY, FUNC) {LY_ARRAY_SIZE_TYPE c__; LY_ARRAY_FOR(ARRAY, c__){FUNC(CTX, &(ARRAY)[c__]);}LY_ARRAY_FREE(ARRAY);}
+#define FREE_ARRAY(CTX, ARRAY, FUNC) {LY_ARRAY_COUNT_TYPE c__; LY_ARRAY_FOR(ARRAY, c__){FUNC(CTX, &(ARRAY)[c__]);}LY_ARRAY_FREE(ARRAY);}
 
 /**
  * @brief Macro to free the specified MEMBER of a structure using the provided free function. The memory is not sanitized.
@@ -645,7 +664,7 @@ LY_ERR lys_compile_type_pattern_check(struct ly_ctx *ctx, const char *log_path, 
  * @brief Macro to free [sized array](@ref sizedarrays) of strings stored in the context's dictionary. The ARRAY itself is also freed,
  * but the memory is not sanitized.
  */
-#define FREE_STRINGS(CTX, ARRAY) {LY_ARRAY_SIZE_TYPE c__; LY_ARRAY_FOR(ARRAY, c__){FREE_STRING(CTX, ARRAY[c__]);}LY_ARRAY_FREE(ARRAY);}
+#define FREE_STRINGS(CTX, ARRAY) {LY_ARRAY_COUNT_TYPE c__; LY_ARRAY_FOR(ARRAY, c__){FREE_STRING(CTX, ARRAY[c__]);}LY_ARRAY_FREE(ARRAY);}
 
 /**
  * @brief Free the parsed submodule structure.
@@ -774,10 +793,10 @@ LY_ERR lys_set_implemented_internal(struct lys_module *mod, uint8_t implemented)
  * @brief match yang keyword
  *
  * @param[in] ctx yang parser context for logging, can be NULL if keyword is from YIN data.
- * @param[in,out] data Data to read from, always moved to currently handled character.
+ * @param[in,out] in Input structure, is updated.
  * @return yang_keyword values.
  */
-enum ly_stmt lysp_match_kw(struct lys_yang_parser_ctx *ctx, const char **data);
+enum ly_stmt lysp_match_kw(struct lys_yang_parser_ctx *ctx, struct ly_in *in);
 
 /**
  * @brief Generate path of the given node in the requested format.

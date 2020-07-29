@@ -25,6 +25,7 @@
 #include <unistd.h>
 
 #include "common.h"
+#include "compat.h"
 #include "dict.h"
 #include "log.h"
 #include "parser_internal.h"
@@ -56,7 +57,7 @@ ly_in_new_fd(int fd, struct ly_in **in)
 
     (*in)->type = LY_IN_FD;
     (*in)->method.fd = fd;
-    (*in)->current = (*in)->start = addr;
+    (*in)->current = (*in)->start = (*in)->func_start = addr;
     (*in)->length = length;
 
     return LY_SUCCESS;
@@ -140,12 +141,12 @@ ly_in_new_memory(const char *str, struct ly_in **in)
     LY_CHECK_ERR_RET(!*in, LOGMEM(NULL), LY_EMEM);
 
     (*in)->type = LY_IN_MEMORY;
-    (*in)->start = (*in)->current = str;
+    (*in)->start = (*in)->current = (*in)->func_start = str;
 
     return LY_SUCCESS;
 }
 
-const char *
+API const char *
 ly_in_memory(struct ly_in *in, const char *str)
 {
     const char *data;
@@ -166,7 +167,7 @@ ly_in_reset(struct ly_in *in)
 {
     LY_CHECK_ARG_RET(NULL, in, LY_EINVAL);
 
-    in->current = in->start;
+    in->current = in->func_start = in->start;
     return LY_SUCCESS;
 }
 
@@ -186,7 +187,8 @@ ly_in_new_filepath(const char *filepath, size_t len, struct ly_in **in)
     }
 
     fd = open(fp, O_RDONLY);
-    LY_CHECK_ERR_RET(!fd, LOGERR(NULL, LY_ESYS, "Failed to open file \"%s\" (%s).", fp, strerror(errno)); free(fp), LY_ESYS);
+    LY_CHECK_ERR_RET(fd == -1, LOGERR(NULL, LY_ESYS, "Failed to open file \"%s\" (%s).", fp, strerror(errno)); free(fp),
+                     LY_ESYS);
 
     LY_CHECK_ERR_RET(ret = ly_in_new_fd(fd, in), free(fp), ret);
 
@@ -239,8 +241,10 @@ void
 lys_parser_fill_filepath(struct ly_ctx *ctx, struct ly_in *in, const char **filepath)
 {
     char path[PATH_MAX];
+#ifndef __APPLE__
     char proc_path[32];
     int len;
+#endif
 
     LY_CHECK_ARG_RET(NULL, ctx, in, filepath, );
     if (*filepath) {
@@ -317,4 +321,35 @@ ly_in_free(struct ly_in *in, int destroy)
     }
 
     free(in);
+}
+
+LY_ERR
+ly_in_read(struct ly_in *in, void *buf, size_t count)
+{
+    if (in->length && (in->length - (in->current - in->start) < count)) {
+        /* EOF */
+        return LY_EDENIED;
+    }
+
+    memcpy(buf, in->current, count);
+    in->current += count;
+    return LY_SUCCESS;
+}
+
+API size_t
+ly_in_parsed(const struct ly_in *in)
+{
+    return in->current - in->func_start;
+}
+
+LY_ERR
+ly_in_skip(struct ly_in *in, size_t count)
+{
+    if (in->length && (in->length - (in->current - in->start) < count)) {
+        /* EOF */
+        return LY_EDENIED;
+    }
+
+    in->current += count;
+    return LY_SUCCESS;
 }

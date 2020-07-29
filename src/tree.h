@@ -34,14 +34,14 @@ extern "C" {
 /**
  * @brief Type (i.e. size) of the [sized array](@ref sizedarrays)'s size counter.
  *
- * To print the value via a print format, use LY_PRI_ARRAY_SIZE_TYPE specifier.
+ * To print the value via a print format, use LY_PRI_ARRAY_COUNT_TYPE specifier.
  */
-#define LY_ARRAY_SIZE_TYPE uint64_t
+#define LY_ARRAY_COUNT_TYPE uint64_t
 
 /**
  * @brief Printing format specifier macro for LY_ARRAY_SIZE_TYPE values.
  */
-#define LY_PRI_ARRAY_SIZE_TYPE PRIu64
+#define LY_PRI_ARRAY_COUNT_TYPE PRIu64
 
 /**
  * @brief Macro selector for other LY_ARRAY_* macros, do not use directly!
@@ -59,7 +59,7 @@ extern "C" {
  */
 #define LY_ARRAY_FOR_ITER(ARRAY, TYPE, ITER) \
     for (ITER = ARRAY; \
-         (ARRAY) && ((void*)ITER - (void*)ARRAY)/(sizeof(TYPE)) < (*((LY_ARRAY_SIZE_TYPE*)(ARRAY) - 1)); \
+         (ARRAY) && ((void*)ITER - (void*)ARRAY)/(sizeof(TYPE)) < (*((LY_ARRAY_COUNT_TYPE*)(ARRAY) - 1)); \
          ITER = (void*)((TYPE*)ITER + 1))
 
 /**
@@ -74,15 +74,15 @@ extern "C" {
  */
 #define LY_ARRAY_FOR_INDEX(ARRAY, INDEX) \
     for (INDEX = 0; \
-         ARRAY && INDEX < (*((LY_ARRAY_SIZE_TYPE*)(ARRAY) - 1)); \
+         ARRAY && INDEX < (*((LY_ARRAY_COUNT_TYPE*)(ARRAY) - 1)); \
          ++INDEX)
 
 /**
- * @brief Get a number of records in the ARRAY.
+ * @brief Get the number of records in the ARRAY.
  *
  * Does not check if array exists!
  */
-#define LY_ARRAY_SIZE(ARRAY) (*((LY_ARRAY_SIZE_TYPE*)(ARRAY) - 1))
+#define LY_ARRAY_COUNT(ARRAY) (*((LY_ARRAY_COUNT_TYPE*)(ARRAY) - 1))
 
 /**
  * @brief Sized-array iterator (for-loop).
@@ -98,7 +98,7 @@ extern "C" {
  *
  *     LY_ARRAY_FOR(ARRAY, INDEX)
  *
- * The ARRAY is again a sized-array to go through, the INDEX is a variable (LY_ARRAY_SIZE_TYPE) for storing iterating ARRAY's index
+ * The ARRAY is again a sized-array to go through, the INDEX is a variable (LY_ARRAY_COUNT_TYPE) for storing iterating ARRAY's index
  * to access the items of ARRAY in the loops. This functionality is provided by LY_ARRAY_FOR_INDEX macro.
  */
 #define LY_ARRAY_FOR(ARRAY, ...) LY_ARRAY_SELECT(__VA_ARGS__, LY_ARRAY_FOR_ITER, LY_ARRAY_FOR_INDEX)(ARRAY, __VA_ARGS__)
@@ -131,6 +131,31 @@ extern "C" {
 #define LY_LIST_FOR_SAFE(START, NEXT, ELEM) \
     for ((ELEM) = (START); \
          (ELEM) ? (NEXT = (ELEM)->next, 1) : 0; \
+         (ELEM) = (NEXT))
+
+/**
+ * @brief Macro to iterate via all schema node data instances in data siblings.
+ *
+ * @param START Pointer to the starting sibling. Even if it is not first, all the siblings are searched.
+ * @param SCHEMA Schema node of the searched instances.
+ * @param ELEM Iterator.
+ */
+#define LYD_LIST_FOR_INST(START, SCHEMA, ELEM) \
+    for (lyd_find_sibling_val(START, SCHEMA, NULL, 0, &(ELEM)); \
+         (ELEM) && ((ELEM)->schema == (SCHEMA)); \
+         (ELEM) = (ELEM)->next)
+
+/**
+ * @brief Macro to iterate via all schema node data instances in data siblings allowing to modify the list itself.
+ *
+ * @param START Pointer to the starting sibling. Even if it is not first, all the siblings are searched.
+ * @param SCHEMA Schema node of the searched instances.
+ * @param NEXT Temporary storage to allow removing of the current iterator content.
+ * @param ELEM Iterator.
+ */
+#define LYD_LIST_FOR_INST_SAFE(START, SCHEMA, NEXT, ELEM) \
+    for (lyd_find_sibling_val(START, SCHEMA, NULL, 0, &(ELEM)); \
+         (ELEM) && ((ELEM)->schema == (SCHEMA)) ? ((NEXT) = (ELEM)->next, 1) : 0; \
          (ELEM) = (NEXT))
 
 /**

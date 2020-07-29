@@ -17,7 +17,7 @@ function(ly_add_utest)
     cmake_parse_arguments(ADDTEST "" "NAME;WRAP" "SOURCES" ${ARGN})
     set(TEST_NAME utest_${ADDTEST_NAME})
 
-    add_executable(${TEST_NAME} ${TEST_SOURCES} $<TARGET_OBJECTS:yangobj>)
+    add_executable(${TEST_NAME} ${TEST_SOURCES} $<TARGET_OBJECTS:yangobj> $<TARGET_OBJECTS:compat>)
     foreach(TEST_SOURCE ${ADDTEST_SOURCES})
         target_sources(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/${TEST_SOURCE})
     endforeach()
@@ -47,8 +47,6 @@ function(ly_add_utest)
         endif(VALGRIND_FOUND)
     endif(ENABLE_VALGRIND_TESTS)
 endfunction(ly_add_utest)
-
-add_subdirectory(utests)
 
 if(ENABLE_COVERAGE)
     # Destination
@@ -94,3 +92,6 @@ if(ENABLE_COVERAGE)
         COMMAND ;
         )
 endif()
+
+add_subdirectory(style)
+add_subdirectory(utests)

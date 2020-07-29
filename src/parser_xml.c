@@ -20,16 +20,14 @@
 #include "common.h"
 #include "context.h"
 #include "log.h"
+#include "parser_data.h"
+#include "parser_internal.h"
 #include "set.h"
 #include "tree.h"
 #include "tree_data_internal.h"
 #include "tree_schema.h"
 #include "validation.h"
 #include "xml.h"
-
-#define LYD_INTOPT_RPC      0x01    /**< RPC/action invocation is being parsed */
-#define LYD_INTOPT_NOTIF    0x02    /**< notification is being parsed */
-#define LYD_INTOPT_REPLY    0x04    /**< RPC/action reply is being parsed */
 
 /**
  * @brief Internal context for XML YANG data parser.
@@ -67,7 +65,7 @@ lydxml_resolve_prefix(const struct ly_ctx *ctx, const char *prefix, size_t prefi
 }
 
 static LY_ERR
-lydxml_metadata(struct lyxml_ctx *xmlctx, const struct lysc_node *sparent, int strict, struct ly_set *type_meta_check,
+lydxml_metadata(struct lyxml_ctx *xmlctx, const struct lysc_node *sparent, int strict, struct ly_set *unres_meta_type,
                 struct lyd_meta **meta)
 {
     LY_ERR ret = LY_EVALID;
@@ -116,7 +114,7 @@ skip_attr:
             goto skip_attr;
         }
 
-        /* remember attr name and get its content */
+        /* remember meta name and get its content */
         name = xmlctx->name;
         name_len = xmlctx->name_len;
         LY_CHECK_GOTO(ret = lyxml_ctx_next(xmlctx), cleanup);
@@ -126,8 +124,8 @@ skip_attr:
         ret = lyd_create_meta(NULL, meta, mod, name, name_len, xmlctx->value, xmlctx->value_len, &xmlctx->dynamic,
                               lydxml_resolve_prefix, xmlctx, LYD_XML, sparent);
         if (ret == LY_EINCOMPLETE) {
-            if (type_meta_check) {
-                ly_set_add(type_meta_check, meta, LY_SET_OPT_USEASLIST);
+            if (unres_meta_type) {
+                ly_set_add(unres_meta_type, *meta, LY_SET_OPT_USEASLIST);
             }
         } else if (ret) {
             goto cleanup;
@@ -141,7 +139,7 @@ skip_attr:
 
 cleanup:
     if (ret) {
-        lyd_free_meta(xmlctx->ctx, *meta, 1);
+        lyd_free_meta_siblings(*meta);
         *meta = NULL;
     }
     return ret;
@@ -205,7 +203,7 @@ lydxml_attrs(struct lyxml_ctx *xmlctx, struct ly_attr **attr)
 
 cleanup:
     if (ret) {
-        ly_free_attr(xmlctx->ctx, *attr, 1);
+        ly_free_attr_siblings(xmlctx->ctx, *attr);
         *attr = NULL;
     }
     return ret;
@@ -313,11 +311,11 @@ lydxml_data_check_schema(struct lyd_xml_ctx *lydctx, const struct lysc_node **sn
 {
     LY_ERR ret = LY_SUCCESS;
     enum LYXML_PARSER_STATUS prev_status;
-    const char *prev_input, *pname, *pprefix;
+    const char *prev_current, *pname, *pprefix;
     size_t pprefix_len, pname_len;
     struct lyxml_ctx *xmlctx = lydctx->xmlctx;
 
-    if ((lydctx->options & LYD_OPT_NO_STATE) && ((*snode)->flags & LYS_CONFIG_R)) {
+    if ((lydctx->options & LYD_PARSE_NO_STATE) && ((*snode)->flags & LYS_CONFIG_R)) {
         LOGVAL(xmlctx->ctx, LY_VLOG_LINE, &xmlctx->line, LY_VCODE_INNODE, "state", (*snode)->name);
         return LY_EVALID;
     }
@@ -350,14 +348,14 @@ lydxml_data_check_schema(struct lyd_xml_ctx *lydctx, const struct lysc_node **sn
         }
     }
 
-    if ((lydctx->options & LYD_OPT_OPAQ) && ((*snode)->nodetype & (LYD_NODE_TERM | LYS_LIST))) {
+    if ((lydctx->options & LYD_PARSE_OPAQ) && ((*snode)->nodetype & (LYD_NODE_TERM | LYS_LIST))) {
         /* backup parser */
         prev_status = xmlctx->status;
         pprefix = xmlctx->prefix;
         pprefix_len = xmlctx->prefix_len;
         pname = xmlctx->name;
         pname_len = xmlctx->name_len;
-        prev_input = xmlctx->input;
+        prev_current = xmlctx->in->current;
         if ((xmlctx->status == LYXML_ELEM_CONTENT) && xmlctx->dynamic) {
             /* it was backed up, do not free */
             xmlctx->dynamic = 0;
@@ -394,50 +392,10 @@ restore:
         xmlctx->prefix_len = pprefix_len;
         xmlctx->name = pname;
         xmlctx->name_len = pname_len;
-        xmlctx->input = prev_input;
+        xmlctx->in->current = prev_current;
     }
 
     return ret;
-}
-
-static void
-lydxml_data_flags(struct lyd_xml_ctx *lydctx, struct lyd_node *node, struct lyd_meta **meta)
-{
-    struct lyd_meta *meta2, *prev_meta = NULL;
-
-    if (!(node->schema->nodetype & (LYS_RPC | LYS_ACTION | LYS_NOTIF)) && node->schema->when) {
-        if (lydctx->options & LYD_OPT_TRUSTED) {
-            /* just set it to true */
-            node->flags |= LYD_WHEN_TRUE;
-        } else {
-            /* remember we need to evaluate this node's when */
-            ly_set_add(&lydctx->when_check, node, LY_SET_OPT_USEASLIST);
-        }
-    }
-
-    if (lydctx->options & LYD_OPT_TRUSTED) {
-        /* node is valid */
-        node->flags &= ~LYD_NEW;
-    }
-
-    LY_LIST_FOR(*meta, meta2) {
-        if (!strcmp(meta2->name, "default") && !strcmp(meta2->annotation->module->name, "ietf-netconf-with-defaults")
-                && meta2->value.boolean) {
-            /* node is default according to the metadata */
-            node->flags |= LYD_DEFAULT;
-
-            /* delete the metadata */
-            if (prev_meta) {
-                prev_meta->next = meta2->next;
-            } else {
-                *meta = (*meta)->next;
-            }
-            lyd_free_meta(lydctx->xmlctx->ctx, meta2, 0);
-            break;
-        }
-
-        prev_meta = meta2;
-    }
 }
 
 /**
@@ -457,8 +415,8 @@ lydxml_data_r(struct lyd_xml_ctx *lydctx, struct lyd_node_inner *parent, struct 
     struct lyxml_ctx *xmlctx;
     const struct ly_ctx *ctx;
     const struct lyxml_ns *ns;
-    struct lyd_meta *meta = NULL;
-    struct ly_attr *attr = NULL;
+    struct lyd_meta *meta = NULL, *m;
+    struct ly_attr *attr = NULL, *a;
     const struct lysc_node *snode;
     struct lys_module *mod;
     uint32_t prev_opts;
@@ -488,13 +446,13 @@ lydxml_data_r(struct lyd_xml_ctx *lydctx, struct lyd_node_inner *parent, struct 
         }
         mod = ly_ctx_get_module_implemented_ns(ctx, ns->uri);
         if (!mod) {
-            if (lydctx->options & LYD_OPT_STRICT) {
+            if (lydctx->options & LYD_PARSE_STRICT) {
                 LOGVAL(ctx, LY_VLOG_LINE, &xmlctx->line, LYVE_REFERENCE, "No module with namespace \"%s\" in the context.",
                        ns->uri);
                 ret = LY_EVALID;
                 goto cleanup;
             }
-            if (!(lydctx->options & LYD_OPT_OPAQ)) {
+            if (!(lydctx->options & LYD_PARSE_OPAQ)) {
                 /* skip element with children */
                 LY_CHECK_GOTO(ret = lydxml_data_skip(xmlctx), cleanup);
                 continue;
@@ -509,12 +467,12 @@ lydxml_data_r(struct lyd_xml_ctx *lydctx, struct lyd_node_inner *parent, struct 
         if (mod && (!parent || parent->schema)) {
             snode = lys_find_child(parent ? parent->schema : NULL, mod, name, name_len, 0, getnext_opts);
             if (!snode) {
-                if (lydctx->options & LYD_OPT_STRICT) {
+                if (lydctx->options & LYD_PARSE_STRICT) {
                     LOGVAL(ctx, LY_VLOG_LINE, &xmlctx->line, LYVE_REFERENCE, "Element \"%.*s\" not found in the \"%s\" module.",
                         name_len, name, mod->name);
                     ret = LY_EVALID;
                     goto cleanup;
-                } else if (!(lydctx->options & LYD_OPT_OPAQ)) {
+                } else if (!(lydctx->options & LYD_PARSE_OPAQ)) {
                     /* skip element with children */
                     LY_CHECK_GOTO(ret = lydxml_data_skip(xmlctx), cleanup);
                     continue;
@@ -528,10 +486,10 @@ lydxml_data_r(struct lyd_xml_ctx *lydctx, struct lyd_node_inner *parent, struct 
         /* create metadata/attributes */
         if (xmlctx->status == LYXML_ATTRIBUTE) {
             if (snode) {
-                ret = lydxml_metadata(xmlctx, snode, lydctx->options & LYD_OPT_STRICT, &lydctx->unres_meta_type, &meta);
+                ret = lydxml_metadata(xmlctx, snode, lydctx->options & LYD_PARSE_STRICT, &lydctx->unres_meta_type, &meta);
                 LY_CHECK_GOTO(ret, cleanup);
             } else {
-                assert(lydctx->options & LYD_OPT_OPAQ);
+                assert(lydctx->options & LYD_PARSE_OPAQ);
                 ret = lydxml_attrs(xmlctx, &attr);
                 LY_CHECK_GOTO(ret, cleanup);
             }
@@ -539,7 +497,7 @@ lydxml_data_r(struct lyd_xml_ctx *lydctx, struct lyd_node_inner *parent, struct 
 
         assert(xmlctx->status == LYXML_ELEM_CONTENT);
         if (!snode) {
-            assert(lydctx->options & LYD_OPT_OPAQ);
+            assert(lydctx->options & LYD_PARSE_OPAQ);
 
             if (xmlctx->ws_only) {
                 /* ignore WS-only value */
@@ -569,7 +527,7 @@ lydxml_data_r(struct lyd_xml_ctx *lydctx, struct lyd_node_inner *parent, struct 
             ret = lyd_create_term(snode, xmlctx->value, xmlctx->value_len, &xmlctx->dynamic, lydxml_resolve_prefix,
                                   xmlctx, LYD_XML, &cur);
             if (ret == LY_EINCOMPLETE) {
-                if (!(lydctx->options & LYD_OPT_PARSE_ONLY)) {
+                if (!(lydctx->options & LYD_PARSE_ONLY)) {
                     ly_set_add(&lydctx->unres_node_type, cur, LY_SET_OPT_USEASLIST);
                 }
             } else if (ret) {
@@ -577,10 +535,10 @@ lydxml_data_r(struct lyd_xml_ctx *lydctx, struct lyd_node_inner *parent, struct 
             }
 
             if (parent && (cur->schema->flags & LYS_KEY)) {
-                /* check the key order, the anchor must always be the last child */
-                anchor = lyd_get_prev_key_anchor(parent->child, cur->schema);
-                if ((!anchor && parent->child) || (anchor && anchor->next)) {
-                    if (lydctx->options & LYD_OPT_STRICT) {
+                /* check the key order, the anchor must never be a key */
+                anchor = lyd_insert_get_next_anchor(parent->child, cur);
+                if (anchor && (anchor->schema->flags & LYS_KEY)) {
+                    if (lydctx->options & LYD_PARSE_STRICT) {
                         LOGVAL(ctx, LY_VLOG_LINE, &xmlctx->line, LYVE_DATA, "Invalid position of the key \"%s\" in a list.",
                                 cur->schema->name);
                         ret = LY_EVALID;
@@ -628,21 +586,18 @@ lydxml_data_r(struct lyd_xml_ctx *lydctx, struct lyd_node_inner *parent, struct 
                 LY_CHECK_GOTO(ret = lyd_parse_check_keys(cur), cleanup);
             }
 
-            if (!(lydctx->options & LYD_OPT_PARSE_ONLY)) {
+            if (!(lydctx->options & LYD_PARSE_ONLY)) {
                 /* new node validation, autodelete CANNOT occur, all nodes are new */
-                ret = lyd_validate_new(lyd_node_children_p(cur), snode, NULL);
+                ret = lyd_validate_new(lyd_node_children_p(cur), snode, NULL, NULL);
                 LY_CHECK_GOTO(ret, cleanup);
 
                 /* add any missing default children */
-                ret = lyd_validate_defaults_r((struct lyd_node_inner *)cur, lyd_node_children_p(cur), NULL, NULL,
-                                              &lydctx->unres_node_type, &lydctx->when_check, lydctx->options);
+                ret = lyd_validate_defaults_r(cur, lyd_node_children_p(cur), NULL, NULL, &lydctx->unres_node_type,
+                                              &lydctx->when_check, lydctx->options, NULL);
                 LY_CHECK_GOTO(ret, cleanup);
             }
 
-            if (snode->nodetype == LYS_LIST) {
-                /* hash now that all keys should be parsed, rehash for key-less list */
-                lyd_hash(cur);
-            } else if (snode->nodetype & (LYS_RPC | LYS_ACTION | LYS_NOTIF)) {
+            if (snode->nodetype & (LYS_RPC | LYS_ACTION | LYS_NOTIF)) {
                 /* rememeber the RPC/action/notification */
                 lydctx->op_ntf = cur;
             }
@@ -660,8 +615,8 @@ lydxml_data_r(struct lyd_xml_ctx *lydctx, struct lyd_node_inner *parent, struct 
 
             /* parse any data tree with correct options */
             prev_opts = lydctx->options;
-            lydctx->options &= ~LYD_OPT_STRICT;
-            lydctx->options |= LYD_OPT_OPAQ;
+            lydctx->options &= ~LYD_PARSE_STRICT;
+            lydctx->options |= LYD_PARSE_OPAQ;
             anchor = NULL;
             ret = lydxml_data_r(lydctx, NULL, &anchor);
             lydctx->options = prev_opts;
@@ -675,21 +630,30 @@ lydxml_data_r(struct lyd_xml_ctx *lydctx, struct lyd_node_inner *parent, struct 
 
         /* add/correct flags */
         if (snode) {
-            lydxml_data_flags(lydctx, cur, &meta);
+            lyd_parse_set_data_flags(cur, &lydctx->when_check, &meta, lydctx->options);
         }
 
         /* add metadata/attributes */
         if (snode) {
+            LY_LIST_FOR(meta, m) {
+                m->parent = cur;
+            }
             cur->meta = meta;
             meta = NULL;
         } else {
             assert(!cur->schema);
+            LY_LIST_FOR(attr, a) {
+                a->parent = (struct lyd_node_opaq *)cur;
+            }
             ((struct lyd_node_opaq *)cur)->attr = attr;
             attr = NULL;
         }
 
-        /* insert */
+        /* insert, keep first pointer correct */
         lyd_insert_node((struct lyd_node *)parent, first, cur);
+        while (!parent && (*first)->prev->next) {
+            *first = (*first)->prev;
+        }
         cur = NULL;
 
         /* parser next */
@@ -701,8 +665,8 @@ lydxml_data_r(struct lyd_xml_ctx *lydctx, struct lyd_node_inner *parent, struct 
     ret = LY_SUCCESS;
 
 cleanup:
-    lyd_free_meta(ctx, meta, 1);
-    ly_free_attr(ctx, attr, 1);
+    lyd_free_meta_siblings(meta);
+    ly_free_attr_siblings(ctx, attr);
     lyd_free_tree(cur);
     if (ret && *first) {
         lyd_free_siblings(*first);
@@ -712,7 +676,7 @@ cleanup:
 }
 
 LY_ERR
-lyd_parse_xml_data(const struct ly_ctx *ctx, const char *data, int options, struct lyd_node **tree)
+lyd_parse_xml_data(const struct ly_ctx *ctx, struct ly_in *in, int parse_options, int validate_options, struct lyd_node **tree)
 {
     LY_ERR ret = LY_SUCCESS;
     struct lyd_xml_ctx lydctx = {0};
@@ -720,21 +684,24 @@ lyd_parse_xml_data(const struct ly_ctx *ctx, const char *data, int options, stru
     const struct lys_module *mod;
     struct lyd_node *first, *next, **first2;
 
+    assert(!(parse_options & ~LYD_PARSE_OPTS_MASK));
+    assert(!(validate_options & ~LYD_VALIDATE_OPTS_MASK));
+
     /* init context and tree */
-    LY_CHECK_GOTO(ret = lyxml_ctx_new(ctx, data, &lydctx.xmlctx), cleanup);
-    lydctx.options = options;
+    LY_CHECK_GOTO(ret = lyxml_ctx_new(ctx, in, &lydctx.xmlctx), cleanup);
+    lydctx.options = parse_options;
     *tree = NULL;
 
     /* parse XML data */
     LY_CHECK_GOTO(ret = lydxml_data_r(&lydctx, NULL, tree), cleanup);
 
-    if (!(options & LYD_OPT_PARSE_ONLY)) {
+    if (!(parse_options & LYD_PARSE_ONLY)) {
         next = *tree;
         while (1) {
-            if (options & LYD_VALOPT_DATA_ONLY) {
+            if (validate_options & LYD_VALIDATE_PRESENT) {
                 mod = lyd_data_next_module(&next, &first);
             } else {
-                mod = lyd_mod_next_module(next, NULL, 0, ctx, &i, &first);
+                mod = lyd_mod_next_module(next, NULL, ctx, &i, &first);
             }
             if (!mod) {
                 break;
@@ -747,26 +714,26 @@ lyd_parse_xml_data(const struct ly_ctx *ctx, const char *data, int options, stru
             }
 
             /* validate new top-level nodes, autodelete CANNOT occur, all nodes are new */
-            LY_CHECK_GOTO(ret = lyd_validate_new(first2, NULL, mod), cleanup);
+            LY_CHECK_GOTO(ret = lyd_validate_new(first2, NULL, mod, NULL), cleanup);
 
             /* add all top-level defaults for this module */
             ret = lyd_validate_defaults_r(NULL, first2, NULL, mod, &lydctx.unres_node_type, &lydctx.when_check,
-                                          options & LYD_VALOPT_MASK);
+                                          validate_options, NULL);
             LY_CHECK_GOTO(ret, cleanup);
 
             /* finish incompletely validated terminal values/attributes and when conditions */
             ret = lyd_validate_unres(tree, &lydctx.when_check, &lydctx.unres_node_type, &lydctx.unres_meta_type, LYD_XML,
-                                     lydxml_resolve_prefix, lydctx.xmlctx);
+                                     lydxml_resolve_prefix, lydctx.xmlctx, NULL);
             LY_CHECK_GOTO(ret, cleanup);
 
             /* perform final validation that assumes the data tree is final */
-            LY_CHECK_GOTO(ret = lyd_validate_final_r(*first2, NULL, mod, options & LYD_VALOPT_MASK), cleanup);
+            LY_CHECK_GOTO(ret = lyd_validate_final_r(*first2, NULL, mod, validate_options, 0), cleanup);
         }
     }
 
 cleanup:
     /* there should be no unresolved types stored */
-    assert(!(options & LYD_OPT_PARSE_ONLY) || (!lydctx.unres_node_type.count && !lydctx.unres_meta_type.count
+    assert(!(parse_options & LYD_PARSE_ONLY) || (!lydctx.unres_node_type.count && !lydctx.unres_meta_type.count
            && !lydctx.when_check.count));
 
     ly_set_erase(&lydctx.unres_node_type, NULL);
@@ -835,20 +802,20 @@ lydxml_envelope(struct lyxml_ctx *xmlctx, const char *name, const char *uri, str
     attr = NULL;
 
 cleanup:
-    ly_free_attr(xmlctx->ctx, attr, 1);
+    ly_free_attr_siblings(xmlctx->ctx, attr);
     return ret;
 }
 
 LY_ERR
-lyd_parse_xml_rpc(const struct ly_ctx *ctx, const char *data, struct lyd_node **tree, struct lyd_node **op)
+lyd_parse_xml_rpc(const struct ly_ctx *ctx, struct ly_in *in, struct lyd_node **tree, struct lyd_node **op)
 {
     LY_ERR ret = LY_SUCCESS;
     struct lyd_xml_ctx lydctx = {0};
     struct lyd_node *rpc_e = NULL, *act_e = NULL;
 
     /* init */
-    LY_CHECK_GOTO(ret = lyxml_ctx_new(ctx, data, &lydctx.xmlctx), cleanup);
-    lydctx.options = LYD_OPT_PARSE_ONLY | LYD_OPT_STRICT;
+    LY_CHECK_GOTO(ret = lyxml_ctx_new(ctx, in, &lydctx.xmlctx), cleanup);
+    lydctx.options = LYD_PARSE_ONLY | LYD_PARSE_STRICT;
     lydctx.int_opts = LYD_INTOPT_RPC;
     *tree = NULL;
     if (op) {
@@ -1018,21 +985,21 @@ lydxml_notif_envelope(struct lyxml_ctx *xmlctx, struct lyd_node **envp)
 cleanup:
     if (ret) {
         lyd_free_tree(*envp);
-        ly_free_attr(xmlctx->ctx, attr, 1);
+        ly_free_attr_siblings(xmlctx->ctx, attr);
     }
     return ret;
 }
 
 LY_ERR
-lyd_parse_xml_notif(const struct ly_ctx *ctx, const char *data, struct lyd_node **tree, struct lyd_node **ntf)
+lyd_parse_xml_notif(const struct ly_ctx *ctx, struct ly_in *in, struct lyd_node **tree, struct lyd_node **ntf)
 {
     LY_ERR ret = LY_SUCCESS;
     struct lyd_xml_ctx lydctx = {0};
     struct lyd_node *ntf_e = NULL;
 
     /* init */
-    LY_CHECK_GOTO(ret = lyxml_ctx_new(ctx, data, &lydctx.xmlctx), cleanup);
-    lydctx.options = LYD_OPT_PARSE_ONLY | LYD_OPT_STRICT;
+    LY_CHECK_GOTO(ret = lyxml_ctx_new(ctx, in, &lydctx.xmlctx), cleanup);
+    lydctx.options = LYD_PARSE_ONLY | LYD_PARSE_STRICT;
     lydctx.int_opts = LYD_INTOPT_NOTIF;
     *tree = NULL;
     if (ntf) {
@@ -1087,15 +1054,15 @@ cleanup:
 }
 
 LY_ERR
-lyd_parse_xml_reply(const struct lyd_node *request, const char *data, struct lyd_node **tree, struct lyd_node **op)
+lyd_parse_xml_reply(const struct lyd_node *request, struct ly_in *in, struct lyd_node **tree, struct lyd_node **op)
 {
     LY_ERR ret = LY_SUCCESS;
     struct lyd_xml_ctx lydctx = {0};
-    struct lyd_node *rpcr_e = NULL, *iter, *req_op, *rep_op;
+    struct lyd_node *rpcr_e = NULL, *iter, *req_op, *rep_op = NULL;
 
     /* init */
-    LY_CHECK_GOTO(ret = lyxml_ctx_new(LYD_NODE_CTX(request), data, &lydctx.xmlctx), cleanup);
-    lydctx.options = LYD_OPT_PARSE_ONLY | LYD_OPT_STRICT;
+    LY_CHECK_GOTO(ret = lyxml_ctx_new(LYD_NODE_CTX(request), in, &lydctx.xmlctx), cleanup);
+    lydctx.options = LYD_PARSE_ONLY | LYD_PARSE_STRICT;
     lydctx.int_opts = LYD_INTOPT_REPLY;
     *tree = NULL;
     if (op) {
@@ -1116,11 +1083,11 @@ lyd_parse_xml_reply(const struct lyd_node *request, const char *data, struct lyd
     }
 
     /* duplicate request OP with parents */
-    rep_op = lyd_dup(req_op, NULL, LYD_DUP_WITH_PARENTS);
-    LY_CHECK_ERR_GOTO(!rep_op, ret = LY_EMEM, cleanup);
+    LY_CHECK_GOTO(ret = lyd_dup_single(req_op, NULL, LYD_DUP_WITH_PARENTS, &rep_op), cleanup);
 
     /* parse "rpc-reply", if any */
-    LY_CHECK_GOTO(ret = lydxml_envelope(lydctx.xmlctx, "rpc-reply", "urn:ietf:params:xml:ns:netconf:base:1.0", &rpcr_e), cleanup);
+    LY_CHECK_GOTO(ret = lydxml_envelope(lydctx.xmlctx, "rpc-reply", "urn:ietf:params:xml:ns:netconf:base:1.0", &rpcr_e),
+                  cleanup);
 
     /* parse the rest of data normally but connect them to the duplicated operation */
     LY_CHECK_GOTO(ret = lydxml_data_r(&lydctx, (struct lyd_node_inner *)rep_op, lyd_node_children_p(rep_op)), cleanup);
