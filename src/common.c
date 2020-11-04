@@ -31,7 +31,7 @@
 #include "tree_schema.h"
 #include "tree_schema_internal.h"
 
-const char *const ly_stmt_list[] = {
+const char * const ly_stmt_list[] = {
     [LY_STMT_ACTION] = "action",
     [LY_STMT_ANYDATA] = "anydata",
     [LY_STMT_ANYXML] = "anyxml",
@@ -108,7 +108,7 @@ const char *const ly_stmt_list[] = {
     [LY_STMT_ARG_VALUE] = "value",
 };
 
-const char *const lyext_substmt_list[] = {
+const char * const lyext_substmt_list[] = {
     [LYEXT_SUBSTMT_ARGUMENT] = "argument",
     [LYEXT_SUBSTMT_BASE] = "base",
     [LYEXT_SUBSTMT_BELONGSTO] = "belongs-to",
@@ -143,7 +143,7 @@ const char *const lyext_substmt_list[] = {
     [LYEXT_SUBSTMT_IFFEATURE] = "if-feature",
 };
 
-const char *const ly_devmod_list[] = {
+const char * const ly_devmod_list[] = {
     [LYS_DEV_NOT_SUPPORTED] = "not-supported",
     [LYS_DEV_ADD] = "add",
     [LYS_DEV_DELETE] = "delete",
@@ -164,9 +164,9 @@ ly_realloc(void *ptr, size_t size)
 }
 
 char *
-ly_strnchr(const char *s, int c, unsigned int len)
+ly_strnchr(const char *s, int c, size_t len)
 {
-    for (; *s != (char)c; ++s, --len) {
+    for ( ; *s != (char)c; ++s, --len) {
         if ((*s == '\0') || (!len)) {
             return NULL;
         }
@@ -178,7 +178,8 @@ int
 ly_strncmp(const char *refstr, const char *str, size_t str_len)
 {
     int rc = strncmp(refstr, str, str_len);
-    if (!rc && refstr[str_len] == '\0') {
+
+    if (!rc && (refstr[str_len] == '\0')) {
         return 0;
     } else {
         return rc ? rc : 1;
@@ -188,9 +189,8 @@ ly_strncmp(const char *refstr, const char *str, size_t str_len)
 LY_ERR
 ly_getutf8(const char **input, uint32_t *utf8_char, size_t *bytes_read)
 {
-    uint32_t c, len;
-    int aux;
-    int i;
+    uint32_t c, aux;
+    size_t len;
 
     if (bytes_read) {
         (*bytes_read) = 0;
@@ -203,7 +203,7 @@ ly_getutf8(const char **input, uint32_t *utf8_char, size_t *bytes_read)
         /* one byte character */
         len = 1;
 
-        if (c < 0x20 && c != 0x9 && c != 0xa && c != 0xd) {
+        if ((c < 0x20) && (c != 0x9) && (c != 0xa) && (c != 0xd)) {
             return LY_EINVAL;
         }
     } else if ((c & 0xe0) == 0xc0) {
@@ -224,7 +224,7 @@ ly_getutf8(const char **input, uint32_t *utf8_char, size_t *bytes_read)
         len = 3;
 
         c &= 0x0f;
-        for (i = 1; i <= 2; i++) {
+        for (uint64_t i = 1; i <= 2; i++) {
             aux = (*input)[i];
             if ((aux & 0xc0) != 0x80) {
                 return LY_EINVAL;
@@ -233,7 +233,7 @@ ly_getutf8(const char **input, uint32_t *utf8_char, size_t *bytes_read)
             c = (c << 6) | (aux & 0x3f);
         }
 
-        if (c < 0x800 || (c > 0xd7ff && c < 0xe000) || c > 0xfffd) {
+        if ((c < 0x800) || ((c > 0xd7ff) && (c < 0xe000)) || (c > 0xfffd)) {
             return LY_EINVAL;
         }
     } else if ((c & 0xf8) == 0xf0) {
@@ -241,7 +241,7 @@ ly_getutf8(const char **input, uint32_t *utf8_char, size_t *bytes_read)
         len = 4;
 
         c &= 0x07;
-        for (i = 1; i <= 3; i++) {
+        for (uint64_t i = 1; i <= 3; i++) {
             aux = (*input)[i];
             if ((aux & 0xc0) != 0x80) {
                 return LY_EINVAL;
@@ -250,7 +250,7 @@ ly_getutf8(const char **input, uint32_t *utf8_char, size_t *bytes_read)
             c = (c << 6) | (aux & 0x3f);
         }
 
-        if (c < 0x1000 || c > 0x10ffff) {
+        if ((c < 0x1000) || (c > 0x10ffff)) {
             return LY_EINVAL;
         }
     } else {
@@ -265,11 +265,63 @@ ly_getutf8(const char **input, uint32_t *utf8_char, size_t *bytes_read)
     return LY_SUCCESS;
 }
 
+LY_ERR
+ly_pututf8(char *dst, uint32_t value, size_t *bytes_written)
+{
+    if (value < 0x80) {
+        /* one byte character */
+        if ((value < 0x20) &&
+                (value != 0x09) &&
+                (value != 0x0a) &&
+                (value != 0x0d)) {
+            return LY_EINVAL;
+        }
+
+        dst[0] = value;
+        (*bytes_written) = 1;
+    } else if (value < 0x800) {
+        /* two bytes character */
+        dst[0] = 0xc0 | (value >> 6);
+        dst[1] = 0x80 | (value & 0x3f);
+        (*bytes_written) = 2;
+    } else if (value < 0xfffe) {
+        /* three bytes character */
+        if (((value & 0xf800) == 0xd800) ||
+                ((value >= 0xfdd0) && (value <= 0xfdef))) {
+            /* exclude surrogate blocks %xD800-DFFF */
+            /* exclude noncharacters %xFDD0-FDEF */
+            return LY_EINVAL;
+        }
+
+        dst[0] = 0xe0 | (value >> 12);
+        dst[1] = 0x80 | ((value >> 6) & 0x3f);
+        dst[2] = 0x80 | (value & 0x3f);
+
+        (*bytes_written) = 3;
+    } else if (value < 0x10fffe) {
+        if ((value & 0xffe) == 0xffe) {
+            /* exclude noncharacters %xFFFE-FFFF, %x1FFFE-1FFFF, %x2FFFE-2FFFF, %x3FFFE-3FFFF, %x4FFFE-4FFFF,
+             * %x5FFFE-5FFFF, %x6FFFE-6FFFF, %x7FFFE-7FFFF, %x8FFFE-8FFFF, %x9FFFE-9FFFF, %xAFFFE-AFFFF,
+             * %xBFFFE-BFFFF, %xCFFFE-CFFFF, %xDFFFE-DFFFF, %xEFFFE-EFFFF, %xFFFFE-FFFFF, %x10FFFE-10FFFF */
+            return LY_EINVAL;
+        }
+        /* four bytes character */
+        dst[0] = 0xf0 | (value >> 18);
+        dst[1] = 0x80 | ((value >> 12) & 0x3f);
+        dst[2] = 0x80 | ((value >> 6) & 0x3f);
+        dst[3] = 0x80 | (value & 0x3f);
+
+        (*bytes_written) = 4;
+    } else {
+        return LY_EINVAL;
+    }
+    return LY_SUCCESS;
+}
+
 /**
  * @brief Static table of the UTF8 characters lengths according to their first byte.
  */
-static const unsigned char
-utf8_char_length_table[] = {
+static const unsigned char utf8_char_length_table[] = {
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -291,10 +343,13 @@ utf8_char_length_table[] = {
 size_t
 ly_utf8len(const char *str, size_t bytes)
 {
-    size_t len;
-    const char *ptr;
+    size_t len = 0;
+    const char *ptr = str;
 
-    for (len = 0, ptr = str; *ptr && (size_t)(ptr - str) < bytes; ++len, ptr += utf8_char_length_table[((unsigned char)(*ptr))]);
+    while (*ptr && (size_t)(ptr - str) < bytes) {
+        ++len;
+        ptr += utf8_char_length_table[((unsigned char)(*ptr))];
+    }
     return len;
 }
 
@@ -302,12 +357,13 @@ size_t
 LY_VCODE_INSTREXP_len(const char *str)
 {
     size_t len = 0;
+
     if (!str) {
         return len;
     } else if (!str[0]) {
         return 1;
     }
-    for (len = 1; len < LY_VCODE_INSTREXP_MAXLEN && str[len]; ++len);
+    for (len = 1; len < LY_VCODE_INSTREXP_MAXLEN && str[len]; ++len) {}
     return len;
 }
 
@@ -337,7 +393,7 @@ ly_mmap(struct ly_ctx *ctx, int fd, size_t *length, void **addr)
     pagesize = sysconf(_SC_PAGESIZE);
 
     m = sb.st_size % pagesize;
-    if (m && pagesize - m >= 1) {
+    if (m && (pagesize - m >= 1)) {
         /* there will be enough space (at least 1 byte) after the file content mapping to provide zeroed NULL-termination byte */
         *length = sb.st_size + 1;
         *addr = mmap(NULL, *length, PROT_READ, MAP_PRIVATE, fd, 0);
@@ -409,7 +465,7 @@ ly_parse_int(const char *val_str, size_t val_len, int64_t min, int64_t max, int 
 
     /* parse the value */
     i = strtoll(val_str, &strptr, base);
-    if (errno || strptr == val_str) {
+    if (errno || (strptr == val_str)) {
         return LY_EVALID;
     } else if ((i < min) || (i > max)) {
         return LY_EDENIED;
@@ -417,7 +473,7 @@ ly_parse_int(const char *val_str, size_t val_len, int64_t min, int64_t max, int 
         while (isspace(*strptr)) {
             ++strptr;
         }
-        if (*strptr && strptr < val_str + val_len) {
+        if (*strptr && (strptr < val_str + val_len)) {
             return LY_EVALID;
         }
     }
@@ -437,15 +493,15 @@ ly_parse_uint(const char *val_str, size_t val_len, uint64_t max, int base, uint6
     errno = 0;
     strptr = NULL;
     u = strtoull(val_str, &strptr, base);
-    if (errno || strptr == val_str) {
+    if (errno || (strptr == val_str)) {
         return LY_EVALID;
-    } else if ((u > max) || (u && val_str[0] == '-')) {
+    } else if ((u > max) || (u && (val_str[0] == '-'))) {
         return LY_EDENIED;
     } else if (strptr && *strptr) {
         while (isspace(*strptr)) {
             ++strptr;
         }
-        if (*strptr && strptr < val_str + val_len) {
+        if (*strptr && (strptr < val_str + val_len)) {
             return LY_EVALID;
         }
     }
@@ -513,13 +569,13 @@ ly_parse_nodeid(const char **id, const char **prefix, size_t *prefix_len, const 
 
 LY_ERR
 ly_parse_instance_predicate(const char **pred, size_t limit, LYD_FORMAT format,
-                            const char **prefix, size_t *prefix_len, const char **id, size_t *id_len, const char **value, size_t *value_len,
-                            const char **errmsg)
+        const char **prefix, size_t *prefix_len, const char **id, size_t *id_len, const char **value, size_t *value_len,
+        const char **errmsg)
 {
     LY_ERR ret = LY_EVALID;
     const char *in = *pred;
     size_t offset = 1;
-    int expr = 0;
+    uint8_t expr = 0; /* 0 - position predicate; 1 - leaf-list-predicate; 2 - key-predicate */
     char quot;
 
     assert(in[0] == '\[');
@@ -528,7 +584,7 @@ ly_parse_instance_predicate(const char **pred, size_t limit, LYD_FORMAT format,
     *prefix_len = *id_len = *value_len = 0;
 
     /* leading *WSP */
-    for (; isspace(in[offset]); offset++);
+    for ( ; isspace(in[offset]); offset++) {}
 
     if (isdigit(in[offset])) {
         /* pos: "[" *WSP positive-integer-value *WSP "]" */
@@ -540,7 +596,7 @@ ly_parse_instance_predicate(const char **pred, size_t limit, LYD_FORMAT format,
 
         /* positive-integer-value */
         *value = &in[offset++];
-        for (; isdigit(in[offset]); offset++);
+        for ( ; isdigit(in[offset]); offset++) {}
         *value_len = &in[offset] - *value;
 
     } else if (in[offset] == '.') {
@@ -560,7 +616,7 @@ ly_parse_instance_predicate(const char **pred, size_t limit, LYD_FORMAT format,
             *errmsg = "Invalid node-identifier.";
             goto error;
         }
-        if (format == LYD_XML && !(*prefix)) {
+        if ((format == LYD_XML) && !(*prefix)) {
             /* all node names MUST be qualified with explicit namespace prefix */
             *errmsg = "Missing prefix of a node name.";
             goto error;
@@ -572,7 +628,7 @@ ly_parse_instance_predicate(const char **pred, size_t limit, LYD_FORMAT format,
 
     if (expr) {
         /*  *WSP "=" *WSP quoted-string *WSP "]" */
-        for (; isspace(in[offset]); offset++);
+        for ( ; isspace(in[offset]); offset++) {}
 
         if (in[offset] != '=') {
             if (expr == 1) {
@@ -583,16 +639,16 @@ ly_parse_instance_predicate(const char **pred, size_t limit, LYD_FORMAT format,
             goto error;
         }
         offset++;
-        for (; isspace(in[offset]); offset++);
+        for ( ; isspace(in[offset]); offset++) {}
 
         /* quoted-string */
         quot = in[offset++];
-        if (quot != '\'' && quot != '\"') {
+        if ((quot != '\'') && (quot != '\"')) {
             *errmsg = "String value is not quoted.";
             goto error;
         }
         *value = &in[offset];
-        for (;offset < limit && (in[offset] != quot || (offset && in[offset - 1] == '\\')); offset++);
+        for ( ; offset < limit && (in[offset] != quot || (offset && in[offset - 1] == '\\')); offset++) {}
         if (in[offset] == quot) {
             *value_len = &in[offset] - *value;
             offset++;
@@ -603,7 +659,7 @@ ly_parse_instance_predicate(const char **pred, size_t limit, LYD_FORMAT format,
     }
 
     /* *WSP "]" */
-    for(; isspace(in[offset]); offset++);
+    for ( ; isspace(in[offset]); offset++) {}
     if (in[offset] != ']') {
         if (expr == 0) {
             *errmsg = "Predicate (pos) is not terminated by \']\' character.";

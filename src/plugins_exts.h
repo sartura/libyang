@@ -26,7 +26,6 @@ struct lyd_node;
 extern "C" {
 #endif
 
-
 /**
  * @defgroup extensions YANG Extensions
  *
@@ -42,7 +41,7 @@ extern "C" {
  * @brief Macro to store version of extension plugins API in the plugins.
  * It is matched when the plugin is being loaded by libyang.
  */
-#define LYEXT_VERSION_CHECK int lyext_api_version = LYEXT_API_VERSION;
+#define LYEXT_VERSION_CHECK uint32_t lyext_api_version = LYEXT_API_VERSION;
 
 /**
  * @defgroup extensionscompile YANG Extensions - Compilation Helpers
@@ -72,8 +71,8 @@ enum ly_stmt_cardinality {
 /**
  * @brief Description of the extension instance substatements.
  *
- * Provided by extensions plugins to libyang's lyext_compile_stmts() to be able to correctly compile the content of extension instances.
- * Note that order of the defined records matters - just follow the values of enum ly_stmt and order the records from lower to higher values.
+ * Provided by extensions plugins to libyang to be able to correctly compile the content of extension instances.
+ * Note that order of the defined records matters - just follow the values of ::ly_stmt and order the records from lower to higher values.
  */
 struct lysc_ext_substmt {
     enum ly_stmt stmt;                     /**< allowed substatement */
@@ -85,18 +84,19 @@ struct lysc_ext_substmt {
 /**
  * @brief Compile substatements of an extension instance.
  * TODO
+ * @return LY_ENOT if the extension is disabled and should be ignored.
  */
 LY_ERR lys_compile_extension_instance(struct lysc_ctx *ctx, const struct lysp_ext_instance *ext, struct lysc_ext_substmt *substmts);
 
 /**
- * @brief Free the extension instance's data compiled with lys_compile_extension_instance().
+ * @brief Free the extension instance's data compiled with ::lys_compile_extension_instance().
  * TODO
  */
 void lysc_extension_instance_free(struct ly_ctx *ctx, struct lysc_ext_substmt *substmts);
 
 /**
  * @brief Duplicate the compiled extension (definition) structure.
- * TODO should this be in API? currently required for nacm_compile()
+ * TODO should this be in API? currently required by nacm_compile()
  * Instead of duplicating memory, the reference counter in the @p orig is increased.
  *
  * @param[in] orig The extension structure to duplicate.
@@ -108,7 +108,7 @@ struct lysc_ext *lysc_ext_dup(struct lysc_ext *orig);
  * @brief Update path in the compile context, which is used for logging where the compilation failed.
  *
  * @param[in] ctx Compile context with the path.
- * @param[in] parent Parent of the current node to check difference of the node's module. The current module is taken from lysc_ctx::mod.
+ * @param[in] parent Parent of the current node to check difference with the currently processed module (taken from @p ctx).
  * @param[in] name Name of the node to update path with. If NULL, the last segment is removed. If the format is `{keyword}`, the following
  * call updates the segment to the form `{keyword='name'}` (to remove this compound segment, 2 calls with NULL @p name must be used).
  */
@@ -126,6 +126,7 @@ void lysc_update_path(struct lysc_ctx *ctx, struct lysc_node *parent, const char
  * for later use (data validation or use of external tool).
  * @return LY_SUCCESS in case of success.
  * @return LY_EVALID in case of non-conforming parsed data.
+ * @return LY_ENOT in case the extension instance is not supported and should be removed.
  */
 typedef LY_ERR (*lyext_clb_compile)(struct lysc_ctx *cctx, const struct lysp_ext_instance *p_ext, struct lysc_ext_instance *c_ext);
 
@@ -141,7 +142,7 @@ typedef void (*lyext_clb_free)(struct ly_ctx *ctx, struct lysc_ext_instance *ext
  * @brief Callback to decide if data instance is valid according to the schema.
  *
  * The callback is used only for the extension instances placed in the following parent statements
- * (which is specified as lysc_ext_instance::parent_type):
+ * (which is specified as ::lysc_ext_instance.parent_type):
  *     - LYEXT_PAR_NODE - @p node is instance of the schema node where the extension instance was specified.
  *     - LYEXT_PAR_TPDF - @p node is instance of the schema node with the value of the typedef's type where the extension instance was specified.
  *     - LYEXT_PAR_TYPE - @p node is instance of the schema node with the value of the type where the extension instance was specified.
@@ -164,7 +165,7 @@ struct lyext_plugin {
     lyext_clb_compile compile;          /**< Callback to compile extension instance from the parsed data */
     lyext_clb_data_validation validate; /**< Callback to decide if data instance is valid according to the schema. */
     /* TODO printers? (schema/data) */
-    lyext_clb_free free;                /**< Free the extension instance specific data created by lyext_plugin::compile callback */
+    lyext_clb_free free;                /**< Free the extension instance specific data created by ::lyext_plugin.compile callback */
 };
 
 struct lyext_plugins_list {
@@ -177,7 +178,6 @@ struct lyext_plugins_list {
     const char *name;            /**< name of the extension */
     struct lyext_plugin *plugin; /**< plugin for the extension */
 };
-
 
 /**
  * @brief Provide a log message from an extension plugin.

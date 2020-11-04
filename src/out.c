@@ -1,9 +1,9 @@
 /**
- * @file printer.c
+ * @file out.c
  * @author Radek Krejci <rkrejci@cesnet.cz>
- * @brief Generic libyang printers functions.
+ * @brief libyang output functions.
  *
- * Copyright (c) 2015 - 2019 CESNET, z.s.p.o.
+ * Copyright (c) 2015 - 2020 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -14,7 +14,8 @@
 
 #define _GNU_SOURCE
 
-#include "printer.h"
+#include "out.h"
+#include "out_internal.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -37,82 +38,44 @@
  * @brief informational structure shared by printers
  */
 struct ext_substmt_info_s ext_substmt_info[] = {
-  {NULL, NULL, 0},                              /**< LYEXT_SUBSTMT_SELF */
-  {"argument", "name", SUBST_FLAG_ID},          /**< LYEXT_SUBSTMT_ARGUMENT */
-  {"base", "name", SUBST_FLAG_ID},              /**< LYEXT_SUBSTMT_BASE */
-  {"belongs-to", "module", SUBST_FLAG_ID},      /**< LYEXT_SUBSTMT_BELONGSTO */
-  {"contact", "text", SUBST_FLAG_YIN},          /**< LYEXT_SUBSTMT_CONTACT */
-  {"default", "value", 0},                      /**< LYEXT_SUBSTMT_DEFAULT */
-  {"description", "text", SUBST_FLAG_YIN},      /**< LYEXT_SUBSTMT_DESCRIPTION */
-  {"error-app-tag", "value", 0},                /**< LYEXT_SUBSTMT_ERRTAG */
-  {"error-message", "value", SUBST_FLAG_YIN},   /**< LYEXT_SUBSTMT_ERRMSG */
-  {"key", "value", 0},                          /**< LYEXT_SUBSTMT_KEY */
-  {"namespace", "uri", 0},                      /**< LYEXT_SUBSTMT_NAMESPACE */
-  {"organization", "text", SUBST_FLAG_YIN},     /**< LYEXT_SUBSTMT_ORGANIZATION */
-  {"path", "value", 0},                         /**< LYEXT_SUBSTMT_PATH */
-  {"prefix", "value", SUBST_FLAG_ID},           /**< LYEXT_SUBSTMT_PREFIX */
-  {"presence", "value", 0},                     /**< LYEXT_SUBSTMT_PRESENCE */
-  {"reference", "text", SUBST_FLAG_YIN},        /**< LYEXT_SUBSTMT_REFERENCE */
-  {"revision-date", "date", SUBST_FLAG_ID},     /**< LYEXT_SUBSTMT_REVISIONDATE */
-  {"units", "name", 0},                         /**< LYEXT_SUBSTMT_UNITS */
-  {"value", "value", SUBST_FLAG_ID},            /**< LYEXT_SUBSTMT_VALUE */
-  {"yang-version", "value", SUBST_FLAG_ID},     /**< LYEXT_SUBSTMT_VERSION */
-  {"modifier", "value", SUBST_FLAG_ID},         /**< LYEXT_SUBSTMT_MODIFIER */
-  {"require-instance", "value", SUBST_FLAG_ID}, /**< LYEXT_SUBSTMT_REQINST */
-  {"yin-element", "value", SUBST_FLAG_ID},      /**< LYEXT_SUBSTMT_YINELEM */
-  {"config", "value", SUBST_FLAG_ID},           /**< LYEXT_SUBSTMT_CONFIG */
-  {"mandatory", "value", SUBST_FLAG_ID},        /**< LYEXT_SUBSTMT_MANDATORY */
-  {"ordered-by", "value", SUBST_FLAG_ID},       /**< LYEXT_SUBSTMT_ORDEREDBY */
-  {"status", "value", SUBST_FLAG_ID},           /**< LYEXT_SUBSTMT_STATUS */
-  {"fraction-digits", "value", SUBST_FLAG_ID},  /**< LYEXT_SUBSTMT_DIGITS */
-  {"max-elements", "value", SUBST_FLAG_ID},     /**< LYEXT_SUBSTMT_MAX */
-  {"min-elements", "value", SUBST_FLAG_ID},     /**< LYEXT_SUBSTMT_MIN */
-  {"position", "value", SUBST_FLAG_ID},         /**< LYEXT_SUBSTMT_POSITION */
-  {"unique", "tag", 0},                         /**< LYEXT_SUBSTMT_UNIQUE */
+    {NULL, NULL, 0},                            /**< LYEXT_SUBSTMT_SELF */
+    {"argument", "name", SUBST_FLAG_ID},        /**< LYEXT_SUBSTMT_ARGUMENT */
+    {"base", "name", SUBST_FLAG_ID},            /**< LYEXT_SUBSTMT_BASE */
+    {"belongs-to", "module", SUBST_FLAG_ID},    /**< LYEXT_SUBSTMT_BELONGSTO */
+    {"contact", "text", SUBST_FLAG_YIN},        /**< LYEXT_SUBSTMT_CONTACT */
+    {"default", "value", 0},                    /**< LYEXT_SUBSTMT_DEFAULT */
+    {"description", "text", SUBST_FLAG_YIN},    /**< LYEXT_SUBSTMT_DESCRIPTION */
+    {"error-app-tag", "value", 0},              /**< LYEXT_SUBSTMT_ERRTAG */
+    {"error-message", "value", SUBST_FLAG_YIN}, /**< LYEXT_SUBSTMT_ERRMSG */
+    {"key", "value", 0},                        /**< LYEXT_SUBSTMT_KEY */
+    {"namespace", "uri", 0},                    /**< LYEXT_SUBSTMT_NAMESPACE */
+    {"organization", "text", SUBST_FLAG_YIN},   /**< LYEXT_SUBSTMT_ORGANIZATION */
+    {"path", "value", 0},                       /**< LYEXT_SUBSTMT_PATH */
+    {"prefix", "value", SUBST_FLAG_ID},         /**< LYEXT_SUBSTMT_PREFIX */
+    {"presence", "value", 0},                   /**< LYEXT_SUBSTMT_PRESENCE */
+    {"reference", "text", SUBST_FLAG_YIN},      /**< LYEXT_SUBSTMT_REFERENCE */
+    {"revision-date", "date", SUBST_FLAG_ID},   /**< LYEXT_SUBSTMT_REVISIONDATE */
+    {"units", "name", 0},                       /**< LYEXT_SUBSTMT_UNITS */
+    {"value", "value", SUBST_FLAG_ID},          /**< LYEXT_SUBSTMT_VALUE */
+    {"yang-version", "value", SUBST_FLAG_ID},   /**< LYEXT_SUBSTMT_VERSION */
+    {"modifier", "value", SUBST_FLAG_ID},       /**< LYEXT_SUBSTMT_MODIFIER */
+    {"require-instance", "value", SUBST_FLAG_ID}, /**< LYEXT_SUBSTMT_REQINST */
+    {"yin-element", "value", SUBST_FLAG_ID},    /**< LYEXT_SUBSTMT_YINELEM */
+    {"config", "value", SUBST_FLAG_ID},         /**< LYEXT_SUBSTMT_CONFIG */
+    {"mandatory", "value", SUBST_FLAG_ID},      /**< LYEXT_SUBSTMT_MANDATORY */
+    {"ordered-by", "value", SUBST_FLAG_ID},     /**< LYEXT_SUBSTMT_ORDEREDBY */
+    {"status", "value", SUBST_FLAG_ID},         /**< LYEXT_SUBSTMT_STATUS */
+    {"fraction-digits", "value", SUBST_FLAG_ID}, /**< LYEXT_SUBSTMT_DIGITS */
+    {"max-elements", "value", SUBST_FLAG_ID},   /**< LYEXT_SUBSTMT_MAX */
+    {"min-elements", "value", SUBST_FLAG_ID},   /**< LYEXT_SUBSTMT_MIN */
+    {"position", "value", SUBST_FLAG_ID},       /**< LYEXT_SUBSTMT_POSITION */
+    {"unique", "tag", 0},                       /**< LYEXT_SUBSTMT_UNIQUE */
 };
 
-int
-ly_is_default(const struct lyd_node *node)
+ly_bool
+ly_should_print(const struct lyd_node *node, uint32_t options)
 {
-    const struct lysc_node_leaf *leaf;
-    const struct lysc_node_leaflist *llist;
-    const struct lyd_node_term *term;
-    LY_ARRAY_COUNT_TYPE u;
-
-    assert(node->schema->nodetype & LYD_NODE_TERM);
-    term = (const struct lyd_node_term *)node;
-
-    if (node->schema->nodetype == LYS_LEAF) {
-        leaf = (const struct lysc_node_leaf *)node->schema;
-        if (!leaf->dflt) {
-            return 0;
-        }
-
-        /* compare with the default value */
-        if (leaf->type->plugin->compare(&term->value, leaf->dflt)) {
-            return 0;
-        }
-    } else {
-        llist = (const struct lysc_node_leaflist *)node->schema;
-        if (!llist->dflts) {
-            return 0;
-        }
-
-        LY_ARRAY_FOR(llist->dflts, u) {
-            /* compare with each possible default value */
-            if (llist->type->plugin->compare(&term->value, llist->dflts[u])) {
-                return 0;
-            }
-        }
-    }
-
-    return 1;
-}
-
-int
-ly_should_print(const struct lyd_node *node, int options)
-{
-    const struct lyd_node *next, *elem;
+    const struct lyd_node *elem;
 
     if (options & LYD_PRINT_WD_TRIM) {
         /* do not print default nodes */
@@ -120,7 +83,7 @@ ly_should_print(const struct lyd_node *node, int options)
             /* implicit default node/NP container with only default nodes */
             return 0;
         } else if (node->schema->nodetype & LYD_NODE_TERM) {
-            if (ly_is_default(node)) {
+            if (lyd_is_default(node)) {
                 /* explicit default node */
                 return 0;
             }
@@ -128,23 +91,23 @@ ly_should_print(const struct lyd_node *node, int options)
     } else if ((node->flags & LYD_DEFAULT) && !(options & LYD_PRINT_WD_MASK) && !(node->schema->flags & LYS_CONFIG_R)) {
         /* LYDP_WD_EXPLICIT
          * - print only if it contains status data in its subtree */
-        LYD_TREE_DFS_BEGIN(node, next, elem) {
+        LYD_TREE_DFS_BEGIN(node, elem) {
             if ((elem->schema->nodetype != LYS_CONTAINER) || (elem->schema->flags & LYS_PRESENCE)) {
                 if (elem->schema->flags & LYS_CONFIG_R) {
                     return 1;
                 }
             }
-            LYD_TREE_DFS_END(node, next, elem)
+            LYD_TREE_DFS_END(node, elem)
         }
         return 0;
     } else if ((node->flags & LYD_DEFAULT) && (node->schema->nodetype == LYS_CONTAINER) && !(options & LYD_PRINT_KEEPEMPTYCONT)) {
         /* avoid empty default containers */
-        LYD_TREE_DFS_BEGIN(node, next, elem) {
+        LYD_TREE_DFS_BEGIN(node, elem) {
             if (elem->schema->nodetype != LYS_CONTAINER) {
                 return 1;
             }
             assert(elem->flags & LYD_DEFAULT);
-            LYD_TREE_DFS_END(node, next, elem)
+            LYD_TREE_DFS_END(node, elem)
         }
         return 0;
     }
@@ -160,7 +123,7 @@ ly_out_type(const struct ly_out *out)
 }
 
 API LY_ERR
-ly_out_new_clb(ssize_t (*writeclb)(void *arg, const void *buf, size_t count), void *arg, struct ly_out **out)
+ly_out_new_clb(ly_write_clb writeclb, void *user_data, struct ly_out **out)
 {
     LY_CHECK_ARG_RET(NULL, out, writeclb, LY_EINVAL);
 
@@ -169,12 +132,13 @@ ly_out_new_clb(ssize_t (*writeclb)(void *arg, const void *buf, size_t count), vo
 
     (*out)->type = LY_OUT_CALLBACK;
     (*out)->method.clb.func = writeclb;
-    (*out)->method.clb.arg = arg;
+    (*out)->method.clb.arg = user_data;
 
     return LY_SUCCESS;
 }
 
-API ssize_t (*ly_out_clb(struct ly_out *out, ssize_t (*writeclb)(void *arg, const void *buf, size_t count)))(void *arg, const void *buf, size_t count)
+API ly_write_clb
+ly_out_clb(struct ly_out *out, ly_write_clb writeclb)
 {
     void *prev_clb;
 
@@ -341,16 +305,16 @@ ly_out_reset(struct ly_out *out)
 {
     LY_CHECK_ARG_RET(NULL, out, LY_EINVAL);
 
-    switch(out->type) {
+    switch (out->type) {
     case LY_OUT_ERROR:
         LOGINT(NULL);
         return LY_EINT;
     case LY_OUT_FD:
-        if ((lseek(out->method.fd, 0, SEEK_SET) == -1) && errno != ESPIPE) {
+        if ((lseek(out->method.fd, 0, SEEK_SET) == -1) && (errno != ESPIPE)) {
             LOGERR(NULL, LY_ESYS, "Seeking output file descriptor failed (%s).", strerror(errno));
             return LY_ESYS;
         }
-        if (errno != ESPIPE && ftruncate(out->method.fd, 0) == -1) {
+        if ((errno != ESPIPE) && (ftruncate(out->method.fd, 0) == -1)) {
             LOGERR(NULL, LY_ESYS, "Truncating output file failed (%s).", strerror(errno));
             return LY_ESYS;
         }
@@ -358,11 +322,11 @@ ly_out_reset(struct ly_out *out)
     case LY_OUT_FDSTREAM:
     case LY_OUT_FILE:
     case LY_OUT_FILEPATH:
-        if ((fseek(out->method.f, 0, SEEK_SET) == -1) && errno != ESPIPE) {
+        if ((fseek(out->method.f, 0, SEEK_SET) == -1) && (errno != ESPIPE)) {
             LOGERR(NULL, LY_ESYS, "Seeking output file stream failed (%s).", strerror(errno));
             return LY_ESYS;
         }
-        if (errno != ESPIPE && ftruncate(fileno(out->method.f), 0) == -1) {
+        if ((errno != ESPIPE) && (ftruncate(fileno(out->method.f), 0) == -1)) {
             LOGERR(NULL, LY_ESYS, "Truncating output file failed (%s).", strerror(errno));
             return LY_ESYS;
         }
@@ -419,7 +383,7 @@ ly_out_filepath(struct ly_out *out, const char *filepath)
     if (!out->method.fpath.f) {
         LOGERR(NULL, LY_ESYS, "Failed to open file \"%s\" (%s).", filepath, strerror(errno));
         out->method.fpath.f = f;
-        return ((void *)-1);
+        return (void *)-1;
     }
     fclose(f);
     free(out->method.fpath.filepath);
@@ -429,7 +393,7 @@ ly_out_filepath(struct ly_out *out, const char *filepath)
 }
 
 API void
-ly_out_free(struct ly_out *out, void (*clb_arg_destructor)(void *arg), int destroy)
+ly_out_free(struct ly_out *out, void (*clb_arg_destructor)(void *arg), ly_bool destroy)
 {
     if (!out) {
         return;
@@ -472,76 +436,98 @@ ly_out_free(struct ly_out *out, void (*clb_arg_destructor)(void *arg), int destr
     free(out);
 }
 
-API ssize_t
-ly_print(struct ly_out *out, const char *format, ...)
+static LY_ERR
+ly_vprint_(struct ly_out *out, const char *format, va_list ap)
 {
-    int count = 0;
+    LY_ERR ret;
+    int written = 0;
     char *msg = NULL, *aux;
-    va_list ap;
-
-    LYOUT_CHECK(out, -1 * out->status);
-
-    va_start(ap, format);
 
     switch (out->type) {
     case LY_OUT_FD:
-        count = vdprintf(out->method.fd, format, ap);
+        written = vdprintf(out->method.fd, format, ap);
         break;
     case LY_OUT_FDSTREAM:
     case LY_OUT_FILEPATH:
     case LY_OUT_FILE:
-        count = vfprintf(out->method.f, format, ap);
+        written = vfprintf(out->method.f, format, ap);
         break;
     case LY_OUT_MEMORY:
-        if ((count = vasprintf(&msg, format, ap)) < 0) {
+        if ((written = vasprintf(&msg, format, ap)) < 0) {
             break;
         }
-        if (out->method.mem.len + count + 1 > out->method.mem.size) {
-            aux = ly_realloc(*out->method.mem.buf, out->method.mem.len + count + 1);
+        if (out->method.mem.len + written + 1 > out->method.mem.size) {
+            aux = ly_realloc(*out->method.mem.buf, out->method.mem.len + written + 1);
             if (!aux) {
                 out->method.mem.buf = NULL;
                 out->method.mem.len = 0;
                 out->method.mem.size = 0;
                 LOGMEM(NULL);
-                va_end(ap);
-                return -LY_EMEM;
+                return LY_EMEM;
             }
             *out->method.mem.buf = aux;
-            out->method.mem.size = out->method.mem.len + count + 1;
+            out->method.mem.size = out->method.mem.len + written + 1;
         }
-        memcpy(&(*out->method.mem.buf)[out->method.mem.len], msg, count);
-        out->method.mem.len += count;
+        memcpy(&(*out->method.mem.buf)[out->method.mem.len], msg, written);
+        out->method.mem.len += written;
         (*out->method.mem.buf)[out->method.mem.len] = '\0';
         free(msg);
         break;
     case LY_OUT_CALLBACK:
-        if ((count = vasprintf(&msg, format, ap)) < 0) {
+        if ((written = vasprintf(&msg, format, ap)) < 0) {
             break;
         }
-        count = out->method.clb.func(out->method.clb.arg, msg, count);
+        written = out->method.clb.func(out->method.clb.arg, msg, written);
         free(msg);
         break;
     case LY_OUT_ERROR:
         LOGINT(NULL);
-        va_end(ap);
-        return -LY_EINT;
+        return LY_EINT;
     }
 
-    va_end(ap);
-
-    if (count < 0) {
-        LOGERR(out->ctx, LY_ESYS, "%s: writing data failed (%s).", __func__, strerror(errno));
-        out->status = LY_ESYS;
-        return -LY_ESYS;
+    if (written < 0) {
+        LOGERR(NULL, LY_ESYS, "%s: writing data failed (%s).", __func__, strerror(errno));
+        written = 0;
+        ret = LY_ESYS;
     } else {
         if (out->type == LY_OUT_FDSTREAM) {
             /* move the original file descriptor to the end of the output file */
             lseek(out->method.fdstream.fd, 0, SEEK_END);
         }
-        out->printed += count;
-        out->func_printed += count;
-        return count;
+        ret = LY_SUCCESS;
     }
+
+    out->printed += written;
+    out->func_printed += written;
+    return ret;
+}
+
+LY_ERR
+ly_print_(struct ly_out *out, const char *format, ...)
+{
+    LY_ERR ret;
+    va_list ap;
+
+    va_start(ap, format);
+    ret = ly_vprint_(out, format, ap);
+    va_end(ap);
+
+    return ret;
+}
+
+API LY_ERR
+ly_print(struct ly_out *out, const char *format, ...)
+{
+    LY_ERR ret;
+    va_list ap;
+
+    out->func_printed = 0;
+
+    va_start(ap, format);
+    ret = ly_vprint_(out, format, ap);
+    va_end(ap);
+
+    return ret;
 }
 
 API void
@@ -572,12 +558,11 @@ ly_print_flush(struct ly_out *out)
     out->buf_size = out->buf_len = 0;
 }
 
-API ssize_t
-ly_write(struct ly_out *out, const char *buf, size_t len)
+LY_ERR
+ly_write_(struct ly_out *out, const char *buf, size_t len)
 {
-    int written = 0;
-
-    LYOUT_CHECK(out, -1 * out->status);
+    LY_ERR ret = LY_SUCCESS;
+    size_t written = 0;
 
     if (out->hole_count) {
         /* we are buffering data after a hole */
@@ -587,14 +572,17 @@ ly_write(struct ly_out *out, const char *buf, size_t len)
                 out->buf_len = 0;
                 out->buf_size = 0;
                 LOGMEM(NULL);
-                return -LY_EMEM;
+                return LY_EMEM;
             }
             out->buf_size = out->buf_len + len;
         }
 
         memcpy(&out->buffered[out->buf_len], buf, len);
         out->buf_len += len;
-        return len;
+
+        out->printed += len;
+        out->func_printed += len;
+        return LY_SUCCESS;
     }
 
 repeat:
@@ -606,7 +594,7 @@ repeat:
                 out->method.mem.len = 0;
                 out->method.mem.size = 0;
                 LOGMEM(NULL);
-                return -LY_EMEM;
+                return LY_EMEM;
             }
             out->method.mem.size = out->method.mem.len + len + 1;
         }
@@ -614,46 +602,71 @@ repeat:
         out->method.mem.len += len;
         (*out->method.mem.buf)[out->method.mem.len] = '\0';
 
-        out->printed += len;
-        out->func_printed += len;
-        return len;
-    case LY_OUT_FD:
-        written = write(out->method.fd, buf, len);
+        written = len;
         break;
+    case LY_OUT_FD: {
+        ssize_t r;
+        r = write(out->method.fd, buf, len);
+        if (r < 0) {
+            ret = LY_ESYS;
+        } else {
+            written = (size_t)r;
+        }
+        break;
+    }
     case LY_OUT_FDSTREAM:
     case LY_OUT_FILEPATH:
     case LY_OUT_FILE:
         written = fwrite(buf, sizeof *buf, len, out->method.f);
+        if (written != len) {
+            ret = LY_ESYS;
+        }
         break;
-    case LY_OUT_CALLBACK:
-        written = out->method.clb.func(out->method.clb.arg, buf, len);
+    case LY_OUT_CALLBACK: {
+        ssize_t r;
+        r = out->method.clb.func(out->method.clb.arg, buf, len);
+        if (r < 0) {
+            ret = LY_ESYS;
+        } else {
+            written = (size_t)r;
+        }
         break;
+    }
     case LY_OUT_ERROR:
         LOGINT(NULL);
-        return -LY_EINT;
+        return LY_EINT;
     }
 
-    if (written < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+    if (ret) {
+        if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+            ret = LY_SUCCESS;
             goto repeat;
         }
-        LOGERR(out->ctx, LY_ESYS, "%s: writing data failed (%s).", __func__, strerror(errno));
-        out->status = LY_ESYS;
-        return -LY_ESYS;
+        LOGERR(NULL, LY_ESYS, "%s: writing data failed (%s).", __func__, strerror(errno));
+        written = 0;
     } else if ((size_t)written != len) {
-        LOGERR(out->ctx, LY_ESYS, "%s: writing data failed (unable to write %u from %u data).", __func__,
-               len - (size_t)written, len);
-        out->status = LY_ESYS;
-        return -LY_ESYS;
+        LOGERR(NULL, LY_ESYS, "%s: writing data failed (unable to write %u from %u data).", __func__,
+                len - (size_t)written, len);
+        ret = LY_ESYS;
     } else {
         if (out->type == LY_OUT_FDSTREAM) {
             /* move the original file descriptor to the end of the output file */
             lseek(out->method.fdstream.fd, 0, SEEK_END);
         }
-        out->printed += written;
-        out->func_printed += written;
-        return written;
+        ret = LY_SUCCESS;
     }
+
+    out->printed += written;
+    out->func_printed += written;
+    return ret;
+}
+
+API LY_ERR
+ly_write(struct ly_out *out, const char *buf, size_t len)
+{
+    out->func_printed = 0;
+
+    return ly_write_(out, buf, len);
 }
 
 API size_t
@@ -662,11 +675,9 @@ ly_out_printed(const struct ly_out *out)
     return out->func_printed;
 }
 
-ssize_t
+LY_ERR
 ly_write_skip(struct ly_out *out, size_t count, size_t *position)
 {
-    LYOUT_CHECK(out, -1 * out->status);
-
     switch (out->type) {
     case LY_OUT_MEMORY:
         if (out->method.mem.len + count > out->method.mem.size) {
@@ -674,8 +685,8 @@ ly_write_skip(struct ly_out *out, size_t count, size_t *position)
             if (!(*out->method.mem.buf)) {
                 out->method.mem.len = 0;
                 out->method.mem.size = 0;
-                out->status = LY_EMEM;
-                LOGMEM_RET(NULL);
+                LOGMEM(NULL);
+                return LY_EMEM;
             }
             out->method.mem.size = out->method.mem.len + count;
         }
@@ -685,10 +696,6 @@ ly_write_skip(struct ly_out *out, size_t count, size_t *position)
 
         /* skip the memory */
         out->method.mem.len += count;
-
-        /* update printed bytes counter despite we actually printed just a hole */
-        out->printed += count;
-        out->func_printed += count;
         break;
     case LY_OUT_FD:
     case LY_OUT_FDSTREAM:
@@ -701,9 +708,8 @@ ly_write_skip(struct ly_out *out, size_t count, size_t *position)
             if (!out->buffered) {
                 out->buf_len = 0;
                 out->buf_size = 0;
-                out->status = LY_EMEM;
                 LOGMEM(NULL);
-                return -LY_EMEM;
+                return LY_EMEM;
             }
             out->buf_size = out->buf_len + count;
         }
@@ -716,22 +722,22 @@ ly_write_skip(struct ly_out *out, size_t count, size_t *position)
 
         /* increase hole counter */
         ++out->hole_count;
-
         break;
     case LY_OUT_ERROR:
         LOGINT(NULL);
-        return -LY_EINT;
+        return LY_EINT;
     }
 
-    return count;
+    /* update printed bytes counter despite we actually printed just a hole */
+    out->printed += count;
+    out->func_printed += count;
+    return LY_SUCCESS;
 }
 
 LY_ERR
 ly_write_skipped(struct ly_out *out, size_t position, const char *buf, size_t count)
 {
     LY_ERR ret = LY_SUCCESS;
-
-    LYOUT_CHECK(out, out->status);
 
     switch (out->type) {
     case LY_OUT_MEMORY:
@@ -744,8 +750,8 @@ ly_write_skipped(struct ly_out *out, size_t position, const char *buf, size_t co
     case LY_OUT_FILE:
     case LY_OUT_CALLBACK:
         if (out->buf_len < position + count) {
-            out->status = LY_EMEM;
-            LOGMEM_RET(NULL);
+            LOGMEM(NULL);
+            return LY_EMEM;
         }
 
         /* write into the hole */
@@ -756,13 +762,14 @@ ly_write_skipped(struct ly_out *out, size_t position, const char *buf, size_t co
 
         if (!out->hole_count) {
             /* all holes filled, we can write the buffer,
-             * printed bytes counter is updated by ly_write() */
-            ret = ly_write(out, out->buffered, out->buf_len);
+             * printed bytes counter is updated by ly_write_() */
+            ret = ly_write_(out, out->buffered, out->buf_len);
             out->buf_len = 0;
         }
         break;
     case LY_OUT_ERROR:
-        LOGINT_RET(NULL);
+        LOGINT(NULL);
+        return LY_EINT;
     }
 
     if (out->type == LY_OUT_FILEPATH) {

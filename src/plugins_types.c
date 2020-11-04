@@ -25,9 +25,9 @@
 
 #include "common.h"
 #include "compat.h"
-#include "config.h"
 #include "dict.h"
 #include "path.h"
+#include "schema_compile.h"
 #include "set.h"
 #include "tree.h"
 #include "tree_schema.h"
@@ -36,14 +36,215 @@
 #include "xpath.h"
 
 /**
+ * @brief Find import prefix in imports.
+ */
+static const struct lys_module *
+ly_schema_resolve_prefix(const struct ly_ctx *UNUSED(ctx), const char *prefix, size_t prefix_len, void *data)
+{
+    const struct lysp_module *prefix_mod = data;
+    struct lys_module *m = NULL;
+    LY_ARRAY_COUNT_TYPE u;
+    const char *local_prefix;
+
+    local_prefix = prefix_mod->is_submod ? ((struct lysp_submodule *)prefix_mod)->prefix : prefix_mod->mod->prefix;
+    if (!prefix_len || !ly_strncmp(local_prefix, prefix, prefix_len)) {
+        /* it is the prefix of the module itself */
+        m = prefix_mod->mod;
+    }
+
+    /* search in imports */
+    if (!m) {
+        LY_ARRAY_FOR(prefix_mod->imports, u) {
+            if (!ly_strncmp(prefix_mod->imports[u].prefix, prefix, prefix_len)) {
+                m = prefix_mod->imports[u].module;
+                break;
+            }
+        }
+    }
+
+    return m;
+}
+
+/**
+ * @brief Find resolved module for a prefix in prefix - module pairs.
+ */
+static const struct lys_module *
+ly_schema_resolved_resolve_prefix(const struct ly_ctx *UNUSED(ctx), const char *prefix, size_t prefix_len, void *data)
+{
+    struct lysc_prefix *prefixes = data;
+    LY_ARRAY_COUNT_TYPE u;
+
+    LY_ARRAY_FOR(prefixes, u) {
+        if (!ly_strncmp(prefixes[u].prefix, prefix, prefix_len)) {
+            return prefixes[u].mod;
+        }
+    }
+
+    return NULL;
+}
+
+/**
+ * @brief Find XML namespace prefix in XML namespaces, which are then mapped to modules.
+ */
+static const struct lys_module *
+ly_xml_resolve_prefix(const struct ly_ctx *ctx, const char *prefix, size_t prefix_len, void *data)
+{
+    const struct lyxml_ns *ns;
+    const struct ly_set *ns_set = data;
+
+    ns = lyxml_ns_get(ns_set, prefix, prefix_len);
+    if (!ns) {
+        return NULL;
+    }
+
+    return ly_ctx_get_module_implemented_ns(ctx, ns->uri);
+}
+
+/**
+ * @brief Find module name.
+ */
+static const struct lys_module *
+ly_json_resolve_prefix(const struct ly_ctx *ctx, const char *prefix, size_t prefix_len, void *UNUSED(parser))
+{
+    return ly_ctx_get_module_implemented2(ctx, prefix, prefix_len);
+}
+
+const struct lys_module *
+ly_resolve_prefix(const struct ly_ctx *ctx, const char *prefix, size_t prefix_len, LY_PREFIX_FORMAT format, void *prefix_data)
+{
+    const struct lys_module *mod = NULL;
+
+    LY_CHECK_ARG_RET(ctx, prefix, prefix_len, NULL);
+
+    switch (format) {
+    case LY_PREF_SCHEMA:
+        mod = ly_schema_resolve_prefix(ctx, prefix, prefix_len, prefix_data);
+        break;
+    case LY_PREF_SCHEMA_RESOLVED:
+        mod = ly_schema_resolved_resolve_prefix(ctx, prefix, prefix_len, prefix_data);
+        break;
+    case LY_PREF_XML:
+        mod = ly_xml_resolve_prefix(ctx, prefix, prefix_len, prefix_data);
+        break;
+    case LY_PREF_JSON:
+        mod = ly_json_resolve_prefix(ctx, prefix, prefix_len, prefix_data);
+        break;
+    }
+
+    return mod;
+}
+
+API const struct lys_module *
+ly_type_store_resolve_prefix(const struct ly_ctx *ctx, const char *prefix, size_t prefix_len,
+        LY_PREFIX_FORMAT format, void *prefix_data)
+{
+    return ly_resolve_prefix(ctx, prefix, prefix_len, format, prefix_data);
+}
+
+/**
+ * @brief Find module in import prefixes.
+ */
+static const char *
+ly_schema_get_prefix(const struct lys_module *mod, void *data)
+{
+    const struct lysp_module *pmod = data;
+    LY_ARRAY_COUNT_TYPE u;
+
+    if (pmod->mod == mod) {
+        if (pmod->is_submod) {
+            return ((struct lysp_submodule *)pmod)->prefix;
+        } else {
+            return pmod->mod->prefix;
+        }
+    }
+
+    LY_ARRAY_FOR(pmod->imports, u) {
+        if (pmod->imports[u].module == mod) {
+            /* match */
+            return pmod->imports[u].prefix;
+        }
+    }
+
+    return NULL;
+}
+
+/**
+ * @brief Find prefix in prefix - module pairs.
+ */
+static const char *
+ly_schema_resolved_get_prefix(const struct lys_module *mod, void *data)
+{
+    struct lysc_prefix *prefixes = data;
+    LY_ARRAY_COUNT_TYPE u;
+
+    LY_ARRAY_FOR(prefixes, u) {
+        if (prefixes[u].mod == mod) {
+            return prefixes[u].prefix;
+        }
+    }
+
+    return NULL;
+}
+
+/**
+ * @brief Simply return module local prefix. Also, store the module in a set.
+ */
+static const char *
+ly_xml_get_prefix(const struct lys_module *mod, void *data)
+{
+    struct ly_set *ns_list = data;
+
+    LY_CHECK_RET(ly_set_add(ns_list, (void *)mod, 0, NULL), NULL);
+    return mod->prefix;
+}
+
+/**
+ * @brief Simply return module name.
+ */
+static const char *
+ly_json_get_prefix(const struct lys_module *mod, void *UNUSED(data))
+{
+    return mod->name;
+}
+
+const char *
+ly_get_prefix(const struct lys_module *mod, LY_PREFIX_FORMAT format, void *prefix_data)
+{
+    const char *prefix = NULL;
+
+    switch (format) {
+    case LY_PREF_SCHEMA:
+        prefix = ly_schema_get_prefix(mod, prefix_data);
+        break;
+    case LY_PREF_SCHEMA_RESOLVED:
+        prefix = ly_schema_resolved_get_prefix(mod, prefix_data);
+        break;
+    case LY_PREF_XML:
+        prefix = ly_xml_get_prefix(mod, prefix_data);
+        break;
+    case LY_PREF_JSON:
+        prefix = ly_json_get_prefix(mod, prefix_data);
+        break;
+    }
+
+    return prefix;
+}
+
+API const char *
+ly_type_print_get_prefix(const struct lys_module *mod, LY_PREFIX_FORMAT format, void *prefix_data)
+{
+    return ly_get_prefix(mod, format, prefix_data);
+}
+
+/**
  * @brief Generic comparison callback checking the canonical value.
  *
  * Implementation of the ly_type_compare_clb.
  */
 static LY_ERR
-ly_type_compare_canonical(const struct lyd_value *val1, const struct lyd_value *val2)
+ly_type_compare_simple(const struct lyd_value *val1, const struct lyd_value *val2)
 {
-    if (val1 == val2 || !strcmp(val1->canonical_cache, val2->canonical_cache)) {
+    if ((val1->realtype == val2->realtype) && (val1->canonical == val2->canonical)) {
         return LY_SUCCESS;
     }
 
@@ -56,28 +257,11 @@ ly_type_compare_canonical(const struct lyd_value *val1, const struct lyd_value *
  * Implementation of the ly_type_print_clb.
  */
 static const char *
-ly_type_print_canonical(const struct lyd_value *value, LYD_FORMAT UNUSED(format),
-                        ly_clb_get_prefix UNUSED(get_prefix), void *UNUSED(printer), int *dynamic)
+ly_type_print_simple(const struct lyd_value *value, LY_PREFIX_FORMAT UNUSED(format),
+        void *UNUSED(prefix_data), ly_bool *dynamic)
 {
     *dynamic = 0;
-    return (char*)value->canonical_cache;
-}
-
-/**
- * @brief Generic duplication callback of the original value only.
- *
- * Implementation of the ly_type_dup_clb.
- */
-static LY_ERR
-ly_type_dup_original(const struct ly_ctx *ctx, const struct lyd_value *original, struct lyd_value *dup)
-{
-    dup->canonical_cache = original->canonical_cache;
-    dup->original = (void*)lydict_insert(ctx, original->original, strlen(original->original));
-    if (dup->original) {
-        return LY_SUCCESS;
-    } else {
-        return LY_EINT;
-    }
+    return (char *)value->canonical;
 }
 
 /**
@@ -86,27 +270,12 @@ ly_type_dup_original(const struct ly_ctx *ctx, const struct lyd_value *original,
  * Implementation of the ly_type_dup_clb.
  */
 static LY_ERR
-ly_type_dup_canonical(const struct ly_ctx *ctx, const struct lyd_value *original, struct lyd_value *dup)
+ly_type_dup_simple(const struct ly_ctx *ctx, const struct lyd_value *original, struct lyd_value *dup)
 {
-    ly_type_dup_original(ctx, original, dup);
-    dup->canonical_cache = (void*)lydict_insert(ctx, original->canonical_cache, strlen(original->canonical_cache));
-    if (dup->canonical_cache) {
-        return LY_SUCCESS;
-    } else {
-        return LY_EINT;
-    }
-}
-
-/**
- * @brief Free original value in lyd_value.
- *
- * Implementation of the ly_type_free_clb.
- */
-static void
-ly_type_free_original(const struct ly_ctx *ctx, struct lyd_value *value)
-{
-    lydict_remove(ctx, value->original);
-    value->original = NULL;
+    LY_CHECK_RET(lydict_insert(ctx, original->canonical, strlen(original->canonical), &dup->canonical));
+    dup->ptr = original->ptr;
+    dup->realtype = original->realtype;
+    return LY_SUCCESS;
 }
 
 /**
@@ -115,16 +284,15 @@ ly_type_free_original(const struct ly_ctx *ctx, struct lyd_value *value)
  * Implementation of the ly_type_free_clb.
  */
 static void
-ly_type_free_canonical(const struct ly_ctx *ctx, struct lyd_value *value)
+ly_type_free_simple(const struct ly_ctx *ctx, struct lyd_value *value)
 {
-    ly_type_free_original(ctx, value);
-    lydict_remove(ctx, value->canonical_cache);
-    value->canonical_cache = NULL;
+    lydict_remove(ctx, value->canonical);
+    value->canonical = NULL;
 }
 
 API LY_ERR
 ly_type_parse_int(const char *datatype, int base, int64_t min, int64_t max, const char *value, size_t value_len,
-                  int64_t *ret, struct ly_err_item **err)
+        int64_t *ret, struct ly_err_item **err)
 {
     char *errmsg = NULL;
     int rc = 0;
@@ -132,14 +300,14 @@ ly_type_parse_int(const char *datatype, int base, int64_t min, int64_t max, cons
     LY_CHECK_ARG_RET(NULL, err, datatype, LY_EINVAL);
 
     /* consume leading whitespaces */
-    for (;value_len && isspace(*value); ++value, --value_len);
+    for ( ; value_len && isspace(*value); ++value, --value_len) {}
 
     if (!value || !value[0] || !value_len) {
         rc = asprintf(&errmsg, "Invalid empty %s value.", datatype);
         goto error;
     }
 
-    switch(ly_parse_int(value, value_len, min, max, base, ret)) {
+    switch (ly_parse_int(value, value_len, min, max, base, ret)) {
     case LY_EDENIED:
         rc = asprintf(&errmsg, "Value is out of %s's min/max bounds.", datatype);
         goto error;
@@ -160,65 +328,9 @@ error:
     }
 }
 
-API struct lyd_value_prefix *
-ly_type_get_prefixes(const struct ly_ctx *ctx, const char *value, size_t value_len, ly_clb_resolve_prefix resolve_prefix,
-                     void *parser)
-{
-    LY_ERR ret;
-    unsigned int c;
-    const char *start, *stop;
-    struct lyd_value_prefix *prefixes = NULL;
-    const struct lys_module *mod;
-    LY_ARRAY_COUNT_TYPE u;
-
-    for (stop = start = value; (size_t)(stop - value) < value_len; start = stop) {
-        size_t bytes;
-        ly_getutf8(&stop, &c, &bytes);
-        if (is_xmlqnamestartchar(c)) {
-            for (ly_getutf8(&stop, &c, &bytes);
-                    is_xmlqnamechar(c) && (size_t)(stop - value) < value_len;
-                    ly_getutf8(&stop, &c, &bytes));
-            stop = stop - bytes;
-            if (*stop == ':') {
-                /* we have a possible prefix */
-                struct lyd_value_prefix *p;
-                size_t len = stop - start;
-                mod = NULL;
-
-                LY_ARRAY_FOR(prefixes, u) {
-                    if (!ly_strncmp(prefixes[u].prefix, start, len)) {
-                        mod = prefixes[u].mod;
-                        break;
-                    }
-                }
-                if (!mod) {
-                    mod = resolve_prefix(ctx, start, len, parser);
-                    if (mod) {
-                        LY_ARRAY_NEW_GOTO(ctx, prefixes, p, ret, error);
-                        p->mod = mod;
-                        p->prefix = lydict_insert(ctx, start, len);
-                    }
-                } /* else the prefix already present */
-            }
-            stop = stop + bytes;
-        }
-    }
-
-    return prefixes;
-
-error:
-    LY_ARRAY_FOR(prefixes, u) {
-        lydict_remove(ctx, prefixes[u].prefix);
-    }
-    LY_ARRAY_FREE(prefixes);
-
-    (void)ret;
-    return NULL;
-}
-
 API LY_ERR
 ly_type_parse_uint(const char *datatype, int base, uint64_t max, const char *value, size_t value_len, uint64_t *ret,
-                   struct ly_err_item **err)
+        struct ly_err_item **err)
 {
     char *errmsg = NULL;
     int rc = 0;
@@ -226,7 +338,7 @@ ly_type_parse_uint(const char *datatype, int base, uint64_t max, const char *val
     LY_CHECK_ARG_RET(NULL, err, datatype, LY_EINVAL);
 
     /* consume leading whitespaces */
-    for (;value_len && isspace(*value); ++value, --value_len);
+    for ( ; value_len && isspace(*value); ++value, --value_len) {}
 
     if (!value || !value[0] || !value_len) {
         rc = asprintf(&errmsg, "Invalid empty %s value.", datatype);
@@ -265,7 +377,7 @@ ly_type_parse_dec64(uint8_t fraction_digits, const char *value, size_t value_len
     int64_t d;
 
     /* consume leading whitespaces */
-    for (;value_len && isspace(*value); ++value, --value_len);
+    for ( ; value_len && isspace(*value); ++value, --value_len) {}
 
     /* parse value */
     if (!value_len) {
@@ -273,7 +385,7 @@ ly_type_parse_dec64(uint8_t fraction_digits, const char *value, size_t value_len
         goto error;
     } else if (!isdigit(value[len]) && (value[len] != '-') && (value[len] != '+')) {
         if (asprintf(&errmsg, "Invalid %lu. character of decimal64 value \"%.*s\".",
-                     len + 1, (int)value_len, value) == -1) {
+                len + 1, (int)value_len, value) == -1) {
             errmsg = NULL;
             rc = LY_EMEM;
         }
@@ -289,7 +401,7 @@ ly_type_parse_dec64(uint8_t fraction_digits, const char *value, size_t value_len
     }
 
     trailing_zeros = 0;
-    if (len < value_len && ((value[len] != '.') || !isdigit(value[len + 1]))) {
+    if ((len < value_len) && ((value[len] != '.') || !isdigit(value[len + 1]))) {
         goto decimal;
     }
     fraction = len;
@@ -307,7 +419,7 @@ ly_type_parse_dec64(uint8_t fraction_digits, const char *value, size_t value_len
 decimal:
     if (fraction && (len - 1 - fraction > fraction_digits)) {
         if (asprintf(&errmsg, "Value \"%.*s\" of decimal64 type exceeds defined number (%u) of fraction digits.", (int)len, value,
-                     fraction_digits) == -1) {
+                fraction_digits) == -1) {
             errmsg = NULL;
             rc = LY_EMEM;
         }
@@ -321,11 +433,11 @@ decimal:
 
     if (len + trailing_zeros < value_len) {
         /* consume trailing whitespaces to check that there is nothing after it */
-        unsigned long int u;
-        for (u = len + trailing_zeros; u < value_len && isspace(value[u]); ++u);
+        uint64_t u;
+        for (u = len + trailing_zeros; u < value_len && isspace(value[u]); ++u) {}
         if (u != value_len) {
             if (asprintf(&errmsg, "Invalid %lu. character of decimal64 value \"%.*s\".",
-                         u + 1, (int)value_len, value) == -1) {
+                    u + 1, (int)value_len, value) == -1) {
                 errmsg = NULL;
                 rc = LY_EMEM;
             }
@@ -398,12 +510,12 @@ ly_type_validate_patterns(struct lysc_pattern **patterns, const char *str, size_
             /* error */
             PCRE2_UCHAR pcre2_errmsg[256] = {0};
             pcre2_get_error_message(rc, pcre2_errmsg, 256);
-            *err = ly_err_new(LY_LLERR, LY_ESYS, 0, strdup((const char*)pcre2_errmsg), NULL, NULL);
+            *err = ly_err_new(LY_LLERR, LY_ESYS, 0, strdup((const char *)pcre2_errmsg), NULL, NULL);
             ret = LY_ESYS;
             goto cleanup;
         }
 
-    cleanup:
+cleanup:
         pcre2_match_data_free(match_data);
         if (ret) {
             break;
@@ -415,7 +527,7 @@ ly_type_validate_patterns(struct lysc_pattern **patterns, const char *str, size_
 
 API LY_ERR
 ly_type_validate_range(LY_DATA_TYPE basetype, struct lysc_range *range, int64_t value, const char *strval,
-                       struct ly_err_item **err)
+        struct ly_err_item **err)
 {
     LY_ARRAY_COUNT_TYPE u;
     char *errmsg = NULL;
@@ -429,8 +541,8 @@ ly_type_validate_range(LY_DATA_TYPE basetype, struct lysc_range *range, int64_t 
                     errmsg = strdup(range->emsg);
                 } else {
                     rc = asprintf(&errmsg, "%s \"%s\" does not satisfy the %s constraint.",
-                                  (basetype == LY_TYPE_BINARY || basetype == LY_TYPE_STRING) ? "Length" : "Value", strval,
-                                  (basetype == LY_TYPE_BINARY || basetype == LY_TYPE_STRING) ? "length" : "range");
+                            (basetype == LY_TYPE_BINARY || basetype == LY_TYPE_STRING) ? "Length" : "Value", strval,
+                            (basetype == LY_TYPE_BINARY || basetype == LY_TYPE_STRING) ? "length" : "range");
                 }
                 goto error;
             } else if ((uint64_t)value <= range->parts[u].max_u64) {
@@ -442,8 +554,8 @@ ly_type_validate_range(LY_DATA_TYPE basetype, struct lysc_range *range, int64_t 
                     errmsg = strdup(range->emsg);
                 } else {
                     rc = asprintf(&errmsg, "%s \"%s\" does not satisfy the %s constraint.",
-                                  (basetype == LY_TYPE_BINARY || basetype == LY_TYPE_STRING) ? "Length" : "Value", strval,
-                                  (basetype == LY_TYPE_BINARY || basetype == LY_TYPE_STRING) ? "length" : "range");
+                            (basetype == LY_TYPE_BINARY || basetype == LY_TYPE_STRING) ? "Length" : "Value", strval,
+                            (basetype == LY_TYPE_BINARY || basetype == LY_TYPE_STRING) ? "length" : "range");
                 }
                 goto error;
             }
@@ -474,7 +586,7 @@ ly_type_validate_range(LY_DATA_TYPE basetype, struct lysc_range *range, int64_t 
     return LY_SUCCESS;
 
 error:
-    if (rc == -1 || !errmsg) {
+    if ((rc == -1) || !errmsg) {
         *err = ly_err_new(LY_LLERR, LY_EMEM, 0, "Memory allocation failed.", NULL, NULL);
         return LY_EMEM;
     } else {
@@ -483,113 +595,187 @@ error:
     }
 }
 
-static void
-ly_type_store_strval(const struct ly_ctx *ctx, int options, const char *orig, const char *value,
-                     struct lyd_value *storage, const char **canonized)
+static LY_ERR ly_type_union_store_prefix_data(const struct ly_ctx *ctx, const char *value, size_t value_len,
+        LY_PREFIX_FORMAT format, void *prefix_data, LY_PREFIX_FORMAT *format_p, void **prefix_data_p);
+
+API LY_ERR
+lysc_prefixes_compile(const char *str, size_t str_len, const struct lysp_module *prefix_mod, struct lysc_prefix **prefixes)
 {
-    if (options & LY_TYPE_OPTS_CANONIZE) {
-        *canonized = value;
-    }
-    if (options & LY_TYPE_OPTS_STORE) {
-        storage->original = orig;
-        if (options & LY_TYPE_OPTS_CANONIZE) {
-            /* already stored outside the storage in canonized, so we have to add instance in dictionary */
-            storage->canonical_cache = (void*)lydict_insert(ctx, value, strlen(value));
-        } else {
-            storage->canonical_cache = (void*)value;
-        }
-    }
+    LY_ERR ret;
+    LY_PREFIX_FORMAT format = LY_PREF_SCHEMA_RESOLVED;
+
+    LY_CHECK_ARG_RET(NULL, prefix_mod, prefixes, LY_EINVAL);
+
+    ret = ly_type_union_store_prefix_data(prefix_mod->mod->ctx, str, str_len, LY_PREF_SCHEMA, (void *)prefix_mod, &format,
+            (void **)prefixes);
+    assert(format == LY_PREF_SCHEMA_RESOLVED);
+    return ret;
 }
-#if 0
-static void
-ly_type_store_canonized(const struct ly_ctx *ctx, int options, const char *value, struct lyd_value *storage, const char **canonized)
+
+static LY_ERR ly_type_union_dup_prefix_data(const struct ly_ctx *ctx, LY_PREFIX_FORMAT format, const void *prefix_data,
+        void **prefix_data_p);
+
+API LY_ERR
+lysc_prefixes_dup(const struct lysc_prefix *orig, struct lysc_prefix **dup)
 {
-    if (options & LY_TYPE_OPTS_CANONIZE) {
-        *canonized = value;
+    LY_CHECK_ARG_RET(NULL, dup, LY_EINVAL);
+
+    *dup = NULL;
+
+    if (!orig) {
+        return LY_SUCCESS;
     }
-    if (options & LY_TYPE_OPTS_STORE) {
-        if (options & LY_TYPE_OPTS_CANONIZE) {
-            /* already stored outside the storage in canonized, so we have to add instance in dictionary */
-            storage->canonical_cache = (void*)lydict_insert(ctx, value, strlen(value));
-        } else {
-            storage->canonical_cache = (void*)value;
-        }
-    }
+
+    return ly_type_union_dup_prefix_data(NULL, LY_PREF_SCHEMA_RESOLVED, orig, (void **)dup);
 }
-#endif
+
+static void ly_type_union_free_prefix_data(LY_PREFIX_FORMAT format, void *prefix_data);
+
+API void
+lysc_prefixes_free(struct lysc_prefix *prefixes)
+{
+    ly_type_union_free_prefix_data(LY_PREF_SCHEMA_RESOLVED, prefixes);
+}
+
+static int
+type_get_hints_base(uint32_t hints)
+{
+    /* set allowed base */
+    switch (hints & (LYD_VALHINT_DECNUM | LYD_VALHINT_OCTNUM | LYD_VALHINT_HEXNUM)) {
+    case LYD_VALHINT_DECNUM:
+        return 10;
+    case LYD_VALHINT_OCTNUM:
+        return 8;
+    case LYD_VALHINT_HEXNUM:
+        return 16;
+    default:
+        break;
+    }
+
+    return 0;
+}
+
+/**
+ * @brief Answer if the type is suitable for the parser's hit (if any) in the specified format
+ */
+static LY_ERR
+type_check_hints(uint32_t hints, const char *value, size_t value_len, LY_DATA_TYPE type, int *base, struct ly_err_item **err)
+{
+    char *msg;
+
+    switch (type) {
+    case LY_TYPE_UINT8:
+    case LY_TYPE_UINT16:
+    case LY_TYPE_UINT32:
+    case LY_TYPE_INT8:
+    case LY_TYPE_INT16:
+    case LY_TYPE_INT32:
+        if (!(hints & (LYD_VALHINT_DECNUM | LYD_VALHINT_OCTNUM | LYD_VALHINT_HEXNUM))) {
+            asprintf(&msg, "Invalid non-number-encoded %s value \"%.*s\".", lys_datatype2str(type), (int)value_len, value);
+            *err = ly_err_new(LY_LLERR, LY_EVALID, LYVE_DATA, msg, NULL, NULL);
+            return LY_EVALID;
+        }
+        *base = type_get_hints_base(hints);
+        break;
+    case LY_TYPE_UINT64:
+    case LY_TYPE_INT64:
+        if (!(hints & LYD_VALHINT_NUM64)) {
+            asprintf(&msg, "Invalid non-num64-encoded %s value \"%.*s\".", lys_datatype2str(type), (int)value_len, value);
+            *err = ly_err_new(LY_LLERR, LY_EVALID, LYVE_DATA, msg, NULL, NULL);
+            return LY_EVALID;
+        }
+        *base = type_get_hints_base(hints);
+        break;
+    case LY_TYPE_STRING:
+    case LY_TYPE_DEC64:
+    case LY_TYPE_ENUM:
+    case LY_TYPE_BITS:
+    case LY_TYPE_BINARY:
+    case LY_TYPE_IDENT:
+    case LY_TYPE_INST:
+        if (!(hints & LYD_VALHINT_STRING)) {
+            asprintf(&msg, "Invalid non-string-encoded %s value \"%.*s\".", lys_datatype2str(type), (int)value_len, value);
+            *err = ly_err_new(LY_LLERR, LY_EVALID, LYVE_DATA, msg, NULL, NULL);
+            return LY_EVALID;
+        }
+        break;
+    case LY_TYPE_BOOL:
+        if (!(hints & LYD_VALHINT_BOOLEAN)) {
+            asprintf(&msg, "Invalid non-boolean-encoded %s value \"%.*s\".", lys_datatype2str(type), (int)value_len, value);
+            *err = ly_err_new(LY_LLERR, LY_EVALID, LYVE_DATA, msg, NULL, NULL);
+            return LY_EVALID;
+        }
+        break;
+    case LY_TYPE_EMPTY:
+        if (!(hints & LYD_VALHINT_EMPTY)) {
+            asprintf(&msg, "Invalid non-empty-encoded %s value \"%.*s\".", lys_datatype2str(type), (int)value_len, value);
+            *err = ly_err_new(LY_LLERR, LY_EVALID, LYVE_DATA, msg, NULL, NULL);
+            return LY_EVALID;
+        }
+        break;
+    case LY_TYPE_UNKNOWN:
+    case LY_TYPE_LEAFREF:
+    case LY_TYPE_UNION:
+        LOGINT_RET(NULL);
+    }
+
+    return LY_SUCCESS;
+}
+
 /**
  * @brief Validate, canonize and store value of the YANG built-in signed integer types.
  *
  * Implementation of the ly_type_store_clb.
  */
 static LY_ERR
-ly_type_store_int(const struct ly_ctx *ctx, struct lysc_type *type, const char *value, size_t value_len, int options,
-                  ly_clb_resolve_prefix UNUSED(resolve_prefix), void *UNUSED(parser), LYD_FORMAT UNUSED(format),
-                  const void *UNUSED(context_node), const struct lyd_node *UNUSED(tree),
-                  struct lyd_value *storage, const char **canonized, struct ly_err_item **err)
+ly_type_store_int(const struct ly_ctx *ctx, const struct lysc_type *type, const char *value, size_t value_len,
+        uint32_t options, LY_PREFIX_FORMAT UNUSED(format), void *UNUSED(prefix_data), uint32_t hints,
+        const struct lysc_node *UNUSED(ctx_node), struct lyd_value *storage, struct ly_err_item **err)
 {
     LY_ERR ret;
-    int64_t i;
+    int64_t num;
+    int base;
     char *str;
     struct lysc_type_num *type_num = (struct lysc_type_num *)type;
 
-    if (options & LY_TYPE_OPTS_SECOND_CALL) {
-        return LY_SUCCESS;
-    }
+    /* check hints */
+    LY_CHECK_RET(type_check_hints(hints, value, value_len, type->basetype, &base, err));
 
     switch (type->basetype) {
     case LY_TYPE_INT8:
-        LY_CHECK_RET(ly_type_parse_int("int8", (options & LY_TYPE_OPTS_SCHEMA) ? 0 : 10, INT64_C(-128), INT64_C(127), value, value_len, &i, err));
+        LY_CHECK_RET(ly_type_parse_int("int8", base, INT64_C(-128), INT64_C(127), value, value_len, &num, err));
         break;
     case LY_TYPE_INT16:
-        LY_CHECK_RET(ly_type_parse_int("int16", (options & LY_TYPE_OPTS_SCHEMA) ? 0 : 10, INT64_C(-32768), INT64_C(32767), value, value_len, &i, err));
+        LY_CHECK_RET(ly_type_parse_int("int16", base, INT64_C(-32768), INT64_C(32767), value, value_len, &num, err));
         break;
     case LY_TYPE_INT32:
-        LY_CHECK_RET(ly_type_parse_int("int32", (options & LY_TYPE_OPTS_SCHEMA) ? 0 : 10,
-                                       INT64_C(-2147483648), INT64_C(2147483647), value, value_len, &i, err));
+        LY_CHECK_RET(ly_type_parse_int("int32", base, INT64_C(-2147483648), INT64_C(2147483647), value, value_len, &num,
+                err));
         break;
     case LY_TYPE_INT64:
-        LY_CHECK_RET(ly_type_parse_int("int64", (options & LY_TYPE_OPTS_SCHEMA) ? 0 : 10,
-                                       INT64_C(-9223372036854775807) - INT64_C(1), INT64_C(9223372036854775807), value, value_len, &i, err));
+        LY_CHECK_RET(ly_type_parse_int("int64", base, INT64_C(-9223372036854775807) - INT64_C(1),
+                INT64_C(9223372036854775807), value, value_len, &num, err));
         break;
     default:
-        LOGINT_RET(NULL);
+        LOGINT_RET(ctx);
     }
 
-    LY_CHECK_RET(asprintf(&str, "%"PRId64, i) == -1, LY_EMEM);
+    LY_CHECK_RET(asprintf(&str, "%" PRId64, num) == -1, LY_EMEM);
 
     /* range of the number */
     if (type_num->range) {
-        LY_CHECK_ERR_RET(ret = ly_type_validate_range(type->basetype, type_num->range, i, str, err), free(str), ret);
+        LY_CHECK_ERR_RET(ret = ly_type_validate_range(type->basetype, type_num->range, num, str, err), free(str), ret);
     }
 
-    if (options & (LY_TYPE_OPTS_CANONIZE | LY_TYPE_OPTS_STORE)) {
-        if (options & LY_TYPE_OPTS_STORE) {
-            storage->int64 = i;
-            ly_type_store_strval(ctx, options, lydict_insert(ctx, value_len ? value : "", value_len),
-                                 lydict_insert_zc(ctx, str), storage, canonized);
-        } else {
-            ly_type_store_strval(ctx, options, NULL, lydict_insert_zc(ctx, str), storage, canonized);
-        }
-        str = NULL;
-    }
-    free(str);
-    if (options & LY_TYPE_OPTS_DYNAMIC) {
-        free((char*)value);
-    }
+    /* store everything */
+    LY_CHECK_RET(lydict_insert_zc(ctx, str, &storage->canonical));
+    storage->int64 = num;
+    storage->realtype = type;
 
+    if (options & LY_TYPE_STORE_DYNAMIC) {
+        free((char *)value);
+    }
     return LY_SUCCESS;
-}
-
-/* @brief Duplication callback of the signed integer values.
- *
- * Implementation of the ly_type_dup_clb.
- */
-static LY_ERR
-ly_type_dup_int(const struct ly_ctx *ctx, const struct lyd_value *original, struct lyd_value *dup)
-{
-    dup->int64 = original->int64;
-    return ly_type_dup_canonical(ctx, original, dup);
 }
 
 /**
@@ -598,72 +784,52 @@ ly_type_dup_int(const struct ly_ctx *ctx, const struct lyd_value *original, stru
  * Implementation of the ly_type_store_clb.
  */
 static LY_ERR
-ly_type_store_uint(const struct ly_ctx *ctx, struct lysc_type *type, const char *value, size_t value_len, int options,
-                   ly_clb_resolve_prefix UNUSED(resolve_prefix), void *UNUSED(parser), LYD_FORMAT UNUSED(format),
-                   const void *UNUSED(context_node), const struct lyd_node *UNUSED(tree),
-                   struct lyd_value *storage, const char **canonized, struct ly_err_item **err)
+ly_type_store_uint(const struct ly_ctx *ctx, const struct lysc_type *type, const char *value, size_t value_len,
+        uint32_t options, LY_PREFIX_FORMAT UNUSED(format), void *UNUSED(prefix_data), uint32_t hints,
+        const struct lysc_node *UNUSED(ctx_node), struct lyd_value *storage, struct ly_err_item **err)
 {
     LY_ERR ret;
-    uint64_t u;
-    struct lysc_type_num* type_num = (struct lysc_type_num*)type;
+    uint64_t num;
+    int base;
+    struct lysc_type_num *type_num = (struct lysc_type_num *)type;
     char *str;
 
-    if (options & LY_TYPE_OPTS_SECOND_CALL) {
-        return LY_SUCCESS;
-    }
+    /* check hints */
+    LY_CHECK_RET(type_check_hints(hints, value, value_len, type->basetype, &base, err));
 
     switch (type->basetype) {
     case LY_TYPE_UINT8:
-        LY_CHECK_RET(ly_type_parse_uint("uint8", (options & LY_TYPE_OPTS_SCHEMA) ? 0 : 10, UINT64_C(255), value, value_len, &u, err));
+        LY_CHECK_RET(ly_type_parse_uint("uint8", base, UINT64_C(255), value, value_len, &num, err));
         break;
     case LY_TYPE_UINT16:
-        LY_CHECK_RET(ly_type_parse_uint("uint16", (options & LY_TYPE_OPTS_SCHEMA) ? 0 : 10, UINT64_C(65535), value, value_len, &u, err));
+        LY_CHECK_RET(ly_type_parse_uint("uint16", base, UINT64_C(65535), value, value_len, &num, err));
         break;
     case LY_TYPE_UINT32:
-        LY_CHECK_RET(ly_type_parse_uint("uint32", (options & LY_TYPE_OPTS_SCHEMA) ? 0 : 10, UINT64_C(4294967295), value, value_len, &u, err));
+        LY_CHECK_RET(ly_type_parse_uint("uint32", base, UINT64_C(4294967295), value, value_len, &num, err));
         break;
     case LY_TYPE_UINT64:
-        LY_CHECK_RET(ly_type_parse_uint("uint64", (options & LY_TYPE_OPTS_SCHEMA) ? 0 : 10, UINT64_C(18446744073709551615), value, value_len, &u, err));
+        LY_CHECK_RET(ly_type_parse_uint("uint64", base, UINT64_C(18446744073709551615), value, value_len, &num, err));
         break;
     default:
-        LOGINT_RET(NULL);
+        LOGINT_RET(ctx);
     }
 
-    LY_CHECK_RET(asprintf(&str, "%"PRIu64, u) == -1, LY_EMEM);
+    LY_CHECK_RET(asprintf(&str, "%" PRIu64, num) == -1, LY_EMEM);
 
     /* range of the number */
     if (type_num->range) {
-        LY_CHECK_ERR_RET(ret = ly_type_validate_range(type->basetype, type_num->range, u, str, err), free(str), ret);
+        LY_CHECK_ERR_RET(ret = ly_type_validate_range(type->basetype, type_num->range, num, str, err), free(str), ret);
     }
 
-    if (options & (LY_TYPE_OPTS_CANONIZE | LY_TYPE_OPTS_STORE)) {
-        if (options & LY_TYPE_OPTS_STORE) {
-            storage->int64 = u;
-            ly_type_store_strval(ctx, options, lydict_insert(ctx, value_len ? value : "", value_len),
-                                 lydict_insert_zc(ctx, str), storage, canonized);
-        } else {
-            ly_type_store_strval(ctx, options, NULL, lydict_insert_zc(ctx, str), storage, canonized);
-        }
-        str = NULL;
-    }
-    free(str);
-    if (options & LY_TYPE_OPTS_DYNAMIC) {
-        free((char*)value);
-    }
+    /* store everything */
+    LY_CHECK_RET(lydict_insert_zc(ctx, str, &storage->canonical));
+    storage->int64 = num;
+    storage->realtype = type;
 
+    if (options & LY_TYPE_STORE_DYNAMIC) {
+        free((char *)value);
+    }
     return LY_SUCCESS;
-}
-
-/**
- * @brief Duplication callback of the unsigned integer values.
- *
- * Implementation of the ly_type_dup_clb.
- */
-static LY_ERR
-ly_type_dup_uint(const struct ly_ctx *ctx, const struct lyd_value *original, struct lyd_value *dup)
-{
-    dup->uint64 = original->uint64;
-    return ly_type_dup_canonical(ctx, original, dup);
 }
 
 /**
@@ -672,38 +838,36 @@ ly_type_dup_uint(const struct ly_ctx *ctx, const struct lyd_value *original, str
  * Implementation of the ly_type_store_clb.
  */
 static LY_ERR
-ly_type_store_decimal64(const struct ly_ctx *ctx, struct lysc_type *type, const char *value, size_t value_len, int options,
-                        ly_clb_resolve_prefix UNUSED(resolve_prefix), void *UNUSED(parser), LYD_FORMAT UNUSED(format),
-                        const void *UNUSED(context_node), const struct lyd_node *UNUSED(tree),
-                        struct lyd_value *storage, const char **canonized, struct ly_err_item **err)
+ly_type_store_decimal64(const struct ly_ctx *ctx, const struct lysc_type *type, const char *value, size_t value_len,
+        uint32_t options, LY_PREFIX_FORMAT UNUSED(format), void *UNUSED(prefix_data), uint32_t hints,
+        const struct lysc_node *UNUSED(ctx_node), struct lyd_value *storage, struct ly_err_item **err)
 {
     int64_t d;
-    struct lysc_type_dec* type_dec = (struct lysc_type_dec*)type;
+    struct lysc_type_dec *type_dec = (struct lysc_type_dec *)type;
     char buf[22];
-
-    if (options & LY_TYPE_OPTS_SECOND_CALL) {
-        return LY_SUCCESS;
-    }
 
     if (!value || !value[0] || !value_len) {
         *err = ly_err_new(LY_LLERR, LY_EVALID, LYVE_DATA, strdup("Invalid empty decimal64 value."), NULL, NULL);
         return LY_EVALID;
     }
 
+    /* check hints */
+    LY_CHECK_RET(type_check_hints(hints, value, value_len, type->basetype, NULL, err));
+
     LY_CHECK_RET(ly_type_parse_dec64(type_dec->fraction_digits, value, value_len, &d, err));
     /* prepare canonized value */
     if (d) {
-        int count = sprintf(buf, "%"PRId64" ", d);
-        if ( (d > 0 && (count - 1) <= type_dec->fraction_digits)
-             || (count - 2) <= type_dec->fraction_digits ) {
+        int count = sprintf(buf, "%" PRId64 " ", d);
+        if (((d > 0) && ((count - 1) <= type_dec->fraction_digits)) ||
+                ((count - 2) <= type_dec->fraction_digits)) {
             /* we have 0. value, print the value with the leading zeros
              * (one for 0. and also keep the correct with of num according
              * to fraction-digits value)
              * for (num<0) - extra character for '-' sign */
-            count = sprintf(buf, "%0*"PRId64" ", (d > 0) ? (type_dec->fraction_digits + 1) : (type_dec->fraction_digits + 2), d);
+            count = sprintf(buf, "%0*" PRId64 " ", (d > 0) ? (type_dec->fraction_digits + 1) : (type_dec->fraction_digits + 2), d);
         }
-        for (int i = type_dec->fraction_digits, j = 1; i > 0 ; i--) {
-            if (j && i > 1 && buf[count - 2] == '0') {
+        for (uint8_t i = type_dec->fraction_digits, j = 1; i > 0; i--) {
+            if (j && (i > 1) && (buf[count - 2] == '0')) {
                 /* we have trailing zero to skip */
                 buf[count - 1] = '\0';
             } else {
@@ -723,31 +887,14 @@ ly_type_store_decimal64(const struct ly_ctx *ctx, struct lysc_type *type, const 
         LY_CHECK_RET(ly_type_validate_range(type->basetype, type_dec->range, d, buf, err));
     }
 
-    if (options & (LY_TYPE_OPTS_CANONIZE | LY_TYPE_OPTS_STORE)) {
-        if (options & LY_TYPE_OPTS_STORE) {
-            storage->dec64 = d;
-            ly_type_store_strval(ctx, options, lydict_insert(ctx, value, value_len),
-                                 lydict_insert(ctx, buf, strlen(buf)), storage, canonized);
-        } else {
-            ly_type_store_strval(ctx, options, NULL, lydict_insert(ctx, buf, strlen(buf)), storage, canonized);
-        }
-    }
-    if (options & LY_TYPE_OPTS_DYNAMIC) {
-        free((char*)value);
-    }
+    LY_CHECK_RET(lydict_insert(ctx, buf, strlen(buf), &storage->canonical));
+    storage->dec64 = d;
+    storage->realtype = type;
 
+    if (options & LY_TYPE_STORE_DYNAMIC) {
+        free((char *)value);
+    }
     return LY_SUCCESS;
-}
-
-/* @brief Duplication callback of the decimal64 values.
- *
- * Implementation of the ly_type_dup_clb.
- */
-static LY_ERR
-ly_type_dup_decimal64(const struct ly_ctx *ctx, const struct lyd_value *original, struct lyd_value *dup)
-{
-   dup->dec64 = original->dec64;
-   return ly_type_dup_canonical(ctx, original, dup);
 }
 
 /**
@@ -756,30 +903,28 @@ ly_type_dup_decimal64(const struct ly_ctx *ctx, const struct lyd_value *original
  * Implementation of the ly_type_store_clb.
  */
 static LY_ERR
-ly_type_store_binary(const struct ly_ctx *ctx, struct lysc_type *type, const char *value, size_t value_len, int options,
-                     ly_clb_resolve_prefix UNUSED(resolve_prefix), void *UNUSED(parser), LYD_FORMAT UNUSED(format),
-                     const void *UNUSED(context_node), const struct lyd_node *UNUSED(tree),
-                     struct lyd_value *storage, const char **canonized, struct ly_err_item **err)
+ly_type_store_binary(const struct ly_ctx *ctx, const struct lysc_type *type, const char *value, size_t value_len,
+        uint32_t options, LY_PREFIX_FORMAT UNUSED(format), void *UNUSED(prefix_data), uint32_t hints,
+        const struct lysc_node *UNUSED(ctx_node), struct lyd_value *storage, struct ly_err_item **err)
 {
     size_t start = 0, stop = 0, count = 0, u, termination = 0;
     struct lysc_type_bin *type_bin = (struct lysc_type_bin *)type;
     char *errmsg;
-    int erc = 0;
+    int rc = 0;
 
     LY_CHECK_ARG_RET(ctx, value, LY_EINVAL);
 
     /* initiate */
     *err = NULL;
 
-    if (options & LY_TYPE_OPTS_SECOND_CALL) {
-        return LY_SUCCESS;
-    }
+    /* check hints */
+    LY_CHECK_RET(type_check_hints(hints, value, value_len, type->basetype, NULL, err));
 
     /* validate characters and remember the number of octets for length validation */
     if (value_len) {
         /* silently skip leading/trailing whitespaces */
-        for (start = 0; (start < value_len) && isspace(value[start]); start++);
-        for (stop = value_len - 1; stop > start && isspace(value[stop]); stop--);
+        for (start = 0; (start < value_len) && isspace(value[start]); start++) {}
+        for (stop = value_len - 1; stop > start && isspace(value[stop]); stop--) {}
         if (start == stop) {
             /* empty string */
             goto finish;
@@ -792,23 +937,23 @@ ly_type_store_binary(const struct ly_ctx *ctx, struct lysc_type *type, const cha
             }
             count++;
 
-            if ((value[u] < '/' && value[u] != '+') ||
-                    (value[u] > '9' && value[u] < 'A') ||
-                    (value[u] > 'Z' && value[u] < 'a') || value[u] > 'z') {
+            if (((value[u] < '/') && (value[u] != '+')) ||
+                    ((value[u] > '9') && (value[u] < 'A')) ||
+                    ((value[u] > 'Z') && (value[u] < 'a')) || (value[u] > 'z')) {
                 /* non-encoding characters */
                 if (value[u] == '=') {
                     /* padding */
-                    if (u == stop - 1 && value[stop] == '=') {
+                    if ((u == stop - 1) && (value[stop] == '=')) {
                         termination = 2;
                         count++;
                         u++;
-                    } else if (u == stop){
+                    } else if (u == stop) {
                         termination = 1;
                     }
                 }
                 if (!termination) {
                     /* error */
-                    erc = asprintf(&errmsg, "Invalid Base64 character (%c).", value[u]);
+                    rc = asprintf(&errmsg, "Invalid Base64 character (%c).", value[u]);
                     goto error;
                 }
             }
@@ -826,32 +971,26 @@ finish:
     if (type_bin->length) {
         char buf[22];
         uint64_t len = ((count / 4) * 3) - termination;
-        snprintf(buf, 22, "%"PRIu64, len);
+        snprintf(buf, 22, "%" PRIu64, len);
         LY_CHECK_RET(ly_type_validate_range(LY_TYPE_BINARY, type_bin->length, len, buf, err));
     }
 
-    if (options & (LY_TYPE_OPTS_CANONIZE | LY_TYPE_OPTS_STORE)) {
-        const char *c;
-        if (start != 0 || (value_len && stop != value_len - 1)) {
-            c = lydict_insert_zc(ctx, strndup(&value[start], stop + 1 - start));
-        } else {
-            c = lydict_insert(ctx, value_len ? value : "", value_len);
-        }
-        if (options & LY_TYPE_OPTS_STORE) {
-            ly_type_store_strval(ctx, options, lydict_insert(ctx, value_len ? value : "", value_len), c, storage, canonized);
-        } else {
-            ly_type_store_strval(ctx, options, NULL, c, storage, canonized);
-        }
+    if ((start != 0) || (value_len && (stop != value_len - 1))) {
+        LY_CHECK_RET(lydict_insert(ctx, &value[start], stop + 1 - start, &storage->canonical));
+    } else {
+        LY_CHECK_RET(lydict_insert(ctx, value_len ? value : "", value_len, &storage->canonical));
     }
-    if (options & LY_TYPE_OPTS_DYNAMIC) {
-        free((char*)value);
-    }
+    storage->ptr = NULL;
+    storage->realtype = type;
 
+    if (options & LY_TYPE_STORE_DYNAMIC) {
+        free((char *)value);
+    }
     return LY_SUCCESS;
 
 error:
     if (!*err) {
-        if (erc == -1 || !errmsg) {
+        if ((rc == -1) || !errmsg) {
             *err = ly_err_new(LY_LLERR, LY_EMEM, 0, "Memory allocation failed.", NULL, NULL);
         } else {
             *err = ly_err_new(LY_LLERR, LY_EVALID, LYVE_DATA, errmsg, NULL, NULL);
@@ -866,16 +1005,14 @@ error:
  * Implementation of the ly_type_store_clb.
  */
 static LY_ERR
-ly_type_store_string(const struct ly_ctx *ctx, struct lysc_type *type, const char *value, size_t value_len, int options,
-                     ly_clb_resolve_prefix UNUSED(resolve_prefix), void *UNUSED(parser), LYD_FORMAT UNUSED(format),
-                     const void *UNUSED(context_node), const struct lyd_node *UNUSED(tree),
-                     struct lyd_value *storage, const char **canonized, struct ly_err_item **err)
+ly_type_store_string(const struct ly_ctx *ctx, const struct lysc_type *type, const char *value, size_t value_len,
+        uint32_t options, LY_PREFIX_FORMAT UNUSED(format), void *UNUSED(prefix_data), uint32_t hints,
+        const struct lysc_node *UNUSED(ctx_node), struct lyd_value *storage, struct ly_err_item **err)
 {
     struct lysc_type_str *type_str = (struct lysc_type_str *)type;
 
-    if (options & LY_TYPE_OPTS_SECOND_CALL) {
-        return LY_SUCCESS;
-    }
+    /* check hints */
+    LY_CHECK_RET(type_check_hints(hints, value, value_len, type->basetype, NULL, err));
 
     /* length restriction of the string */
     if (type_str->length) {
@@ -890,16 +1027,13 @@ ly_type_store_string(const struct ly_ctx *ctx, struct lysc_type *type, const cha
     /* pattern restrictions */
     LY_CHECK_RET(ly_type_validate_patterns(type_str->patterns, value, value_len, err));
 
-    if (options & (LY_TYPE_OPTS_CANONIZE | LY_TYPE_OPTS_STORE)) {
-        /* NOTE: despite the pointer is used in storage twice (original and canonical_cache), it is stored in dictionary
-         * just once. This works even without storage - the string is returned as canonized. In case both options are used,
-         * ly_type_store_strval() increases reference count in dictionary for canonized. */
-        const char *str = lydict_insert(ctx, value_len ? value : "", value_len);
-        ly_type_store_strval(ctx, options, str, str, storage, canonized);
+    if (options & LY_TYPE_STORE_DYNAMIC) {
+        LY_CHECK_RET(lydict_insert_zc(ctx, (char *)value, &storage->canonical));
+    } else {
+        LY_CHECK_RET(lydict_insert(ctx, value_len ? value : "", value_len, &storage->canonical));
     }
-    if (options & LY_TYPE_OPTS_DYNAMIC) {
-        free((char*)value);
-    }
+    storage->ptr = NULL;
+    storage->realtype = type;
 
     return LY_SUCCESS;
 }
@@ -910,34 +1044,31 @@ ly_type_store_string(const struct ly_ctx *ctx, struct lysc_type *type, const cha
  * Implementation of the ly_type_store_clb.
  */
 static LY_ERR
-ly_type_store_bits(const struct ly_ctx *ctx, struct lysc_type *type, const char *value, size_t value_len, int options,
-                   ly_clb_resolve_prefix UNUSED(resolve_prefix), void *UNUSED(parser), LYD_FORMAT UNUSED(format),
-                   const void *UNUSED(context_node), const struct lyd_node *UNUSED(tree),
-                   struct lyd_value *storage, const char **canonized, struct ly_err_item **err)
+ly_type_store_bits(const struct ly_ctx *ctx, const struct lysc_type *type, const char *value, size_t value_len,
+        uint32_t options, LY_PREFIX_FORMAT UNUSED(format), void *UNUSED(prefix_data), uint32_t hints,
+        const struct lysc_node *UNUSED(ctx_node), struct lyd_value *storage, struct ly_err_item **err)
 {
-    LY_ERR ret = LY_EVALID;
+    LY_ERR ret = LY_SUCCESS;
     size_t item_len;
     const char *item;
     struct ly_set *items = NULL, *items_ordered = NULL;
     size_t buf_size = 0;
     char *buf = NULL;
     size_t index;
-    LY_ARRAY_COUNT_TYPE u, v;
+    LY_ARRAY_COUNT_TYPE u;
     char *errmsg = NULL;
-    struct lysc_type_bits *type_bits = (struct lysc_type_bits*)type;
-    int iscanonical = 1;
+    struct lysc_type_bits *type_bits = (struct lysc_type_bits *)type;
+    ly_bool iscanonical = 1;
     size_t ws_count;
     size_t lws_count; /* leading whitespace count */
     const char *can = NULL;
-    int erc = 0;
+    int rc = 0;
 
-    if (options & LY_TYPE_OPTS_SECOND_CALL) {
-        return LY_SUCCESS;
-    }
+    /* check hints */
+    LY_CHECK_RET(type_check_hints(hints, value, value_len, type->basetype, NULL, err));
 
     /* remember the present items for further work */
-    items = ly_set_new();
-    LY_CHECK_RET(!items, LY_EMEM);
+    LY_CHECK_RET(ly_set_new(&items));
 
     for (index = ws_count = lws_count = 0; index < value_len; index++, ws_count++) {
         if (isspace(value[index])) {
@@ -952,36 +1083,27 @@ ly_type_store_bits(const struct ly_ctx *ctx, struct lysc_type *type, const char 
 
         /* start of the item */
         item = &value[index];
-        for (item_len = 0; index + item_len < value_len && !isspace(item[item_len]); item_len++);
+        for (item_len = 0; index + item_len < value_len && !isspace(item[item_len]); item_len++) {}
         LY_ARRAY_FOR(type_bits->bits, u) {
             if (!ly_strncmp(type_bits->bits[u].name, item, item_len)) {
                 /* we have the match */
-                int inserted;
+                uint32_t inserted;
 
-                /* check that the bit is not disabled */
-                LY_ARRAY_FOR(type_bits->bits[u].iffeatures, v) {
-                    if (lysc_iffeature_value(&type_bits->bits[u].iffeatures[v]) == LY_ENOT) {
-                        erc = asprintf(&errmsg, "Bit \"%s\" is disabled by its %" LY_PRI_ARRAY_COUNT_TYPE ". if-feature condition.",
-                                       type_bits->bits[u].name, v + 1);
-                        goto error;
-                    }
-                }
-
-                if (iscanonical &&items->count && type_bits->bits[u].position < ((struct lysc_type_bitenum_item*)items->objs[items->count - 1])->position) {
+                if (iscanonical && items->count && (type_bits->bits[u].position < ((struct lysc_type_bitenum_item *)items->objs[items->count - 1])->position)) {
                     iscanonical = 0;
                 }
-                inserted = ly_set_add(items, &type_bits->bits[u], 0);
-                LY_CHECK_ERR_GOTO(inserted == -1, ret = LY_EMEM, error);
-                if ((unsigned int)inserted != items->count - 1) {
-                    erc = asprintf(&errmsg, "Bit \"%s\" used multiple times.", type_bits->bits[u].name);
-                    goto error;
+                ret = ly_set_add(items, &type_bits->bits[u], 0, &inserted);
+                LY_CHECK_GOTO(ret, cleanup);
+                if (inserted != items->count - 1) {
+                    rc = asprintf(&errmsg, "Bit \"%s\" used multiple times.", type_bits->bits[u].name);
+                    goto cleanup;
                 }
                 goto next;
             }
         }
         /* item not found */
-        erc = asprintf(&errmsg, "Invalid bit value \"%.*s\".", (int)item_len, item);
-        goto error;
+        rc = asprintf(&errmsg, "Invalid bit value \"%.*s\".", (int)item_len, item);
+        goto cleanup;
 next:
         /* remember for canonized form: item + space/termination-byte */
         buf_size += item_len + 1;
@@ -989,69 +1111,69 @@ next:
     }
     /* validation done */
 
-    if (options & (LY_TYPE_OPTS_CANONIZE | LY_TYPE_OPTS_STORE)) {
-        if (iscanonical) {
-            /* items are already ordered */
-            items_ordered = items;
-            items = NULL;
+    if (iscanonical) {
+        /* items are already ordered */
+        items_ordered = items;
+        items = NULL;
 
-            if (!ws_count && !lws_count && (options & LY_TYPE_OPTS_DYNAMIC)) {
-                can = lydict_insert_zc(ctx, (char*)value);
-                value = NULL;
-            } else {
-                can = lydict_insert(ctx, value_len ? &value[lws_count] : "", value_len - ws_count - lws_count);
-            }
+        if (!ws_count && !lws_count && (options & LY_TYPE_STORE_DYNAMIC)) {
+            ret = lydict_insert_zc(ctx, (char *)value, &can);
+            LY_CHECK_GOTO(ret, cleanup);
+            value = NULL;
+            options &= ~LY_TYPE_STORE_DYNAMIC;
         } else {
-            buf = malloc(buf_size * sizeof *buf);
-            LY_CHECK_ERR_GOTO(!buf, LOGMEM(ctx); ret = LY_EMEM, error);
-            index = 0;
-
-            items_ordered = ly_set_dup(items, NULL);
-            LY_CHECK_ERR_GOTO(!items_ordered, LOGMEM(ctx); ret = LY_EMEM, error);
-            items_ordered->count = 0;
-
-            /* generate ordered bits list */
-            LY_ARRAY_FOR(type_bits->bits, u) {
-                if (ly_set_contains(items, &type_bits->bits[u]) != -1) {
-                    int c = sprintf(&buf[index], "%s%s", index ? " " : "", type_bits->bits[u].name);
-                    LY_CHECK_ERR_GOTO(c < 0, LOGERR(ctx, LY_ESYS, "sprintf() failed."); ret = LY_ESYS, error);
-                    index += c;
-                    ly_set_add(items_ordered, &type_bits->bits[u], LY_SET_OPT_USEASLIST);
-                }
-            }
-            assert(buf_size == index + 1);
-            /* termination NULL-byte */
-            buf[index] = '\0';
-
-            can = lydict_insert_zc(ctx, buf);
-            buf = NULL;
+            ret = lydict_insert(ctx, value_len ? &value[lws_count] : "", value_len - ws_count - lws_count, &can);
+            LY_CHECK_GOTO(ret, cleanup);
         }
+    } else {
+        buf = malloc(buf_size * sizeof *buf);
+        LY_CHECK_ERR_GOTO(!buf, LOGMEM(ctx); ret = LY_EMEM, cleanup);
+        index = 0;
 
-        ly_type_store_strval(ctx, options, lydict_insert(ctx, value_len ? value : "", value_len), can, storage, canonized);
+        ret = ly_set_dup(items, NULL, &items_ordered);
+        LY_CHECK_GOTO(ret, cleanup);
+        items_ordered->count = 0;
 
-        if (options & LY_TYPE_OPTS_STORE) {
-            /* store data */
-            LY_ARRAY_CREATE_GOTO(ctx, storage->bits_items, items_ordered->count, ret, error);
-            for (uint32_t x = 0; x < items_ordered->count; x++) {
-                storage->bits_items[x] = items_ordered->objs[x];
-                LY_ARRAY_INCREMENT(storage->bits_items);
+        /* generate ordered bits list */
+        LY_ARRAY_FOR(type_bits->bits, u) {
+            if (ly_set_contains(items, &type_bits->bits[u], NULL)) {
+                int c = sprintf(&buf[index], "%s%s", index ? " " : "", type_bits->bits[u].name);
+                LY_CHECK_ERR_GOTO(c < 0, LOGERR(ctx, LY_ESYS, "sprintf() failed."); ret = LY_ESYS, cleanup);
+                index += c;
+                ret = ly_set_add(items_ordered, &type_bits->bits[u], 1, NULL);
+                LY_CHECK_GOTO(ret, cleanup);
             }
         }
-        ly_set_free(items_ordered, NULL);
+        assert(buf_size == index + 1);
+        /* termination NULL-byte */
+        buf[index] = '\0';
+
+        ret = lydict_insert_zc(ctx, buf, &can);
+        buf = NULL;
+        LY_CHECK_GOTO(ret, cleanup);
     }
 
-    if (options & LY_TYPE_OPTS_DYNAMIC) {
-        free((char*)value);
+    /* store all data */
+    storage->canonical = can;
+    can = NULL;
+    LY_ARRAY_CREATE_GOTO(ctx, storage->bits_items, items_ordered->count, ret, cleanup);
+    for (uint32_t x = 0; x < items_ordered->count; x++) {
+        storage->bits_items[x] = items_ordered->objs[x];
+        LY_ARRAY_INCREMENT(storage->bits_items);
+    }
+    storage->realtype = type;
+
+    if (options & LY_TYPE_STORE_DYNAMIC) {
+        free((char *)value);
     }
 
-    ly_set_free(items, NULL);
-    return LY_SUCCESS;
-error:
-    if (erc == -1) {
+cleanup:
+    if (rc == -1) {
         *err = ly_err_new(LY_LLERR, LY_EMEM, 0, "Memory allocation failed.", NULL, NULL);
         ret = LY_EMEM;
     } else if (errmsg) {
         *err = ly_err_new(LY_LLERR, LY_EVALID, LYVE_DATA, errmsg, NULL, NULL);
+        ret = LY_EVALID;
     }
     ly_set_free(items, NULL);
     ly_set_free(items_ordered, NULL);
@@ -1075,7 +1197,9 @@ ly_type_dup_bits(const struct ly_ctx *ctx, const struct lyd_value *original, str
         dup->bits_items[u] = original->bits_items[u];
     }
 
-   return ly_type_dup_canonical(ctx, original, dup);
+    LY_CHECK_RET(lydict_insert(ctx, original->canonical, strlen(original->canonical), &dup->canonical));
+    dup->realtype = original->realtype;
+    return LY_SUCCESS;
 }
 
 /**
@@ -1089,9 +1213,9 @@ ly_type_free_bits(const struct ly_ctx *ctx, struct lyd_value *value)
     LY_ARRAY_FREE(value->bits_items);
     value->bits_items = NULL;
 
-    ly_type_free_canonical(ctx, value);
+    lydict_remove(ctx, value->canonical);
+    value->canonical = NULL;
 }
-
 
 /**
  * @brief Validate, canonize and store value of the YANG built-in enumeration type.
@@ -1099,61 +1223,44 @@ ly_type_free_bits(const struct ly_ctx *ctx, struct lyd_value *value)
  * Implementation of the ly_type_store_clb.
  */
 static LY_ERR
-ly_type_store_enum(const struct ly_ctx *ctx, struct lysc_type *type, const char *value, size_t value_len, int options,
-                   ly_clb_resolve_prefix UNUSED(resolve_prefix), void *UNUSED(parser), LYD_FORMAT UNUSED(format),
-                   const void *UNUSED(context_node), const struct lyd_node *UNUSED(tree),
-                   struct lyd_value *storage, const char **canonized, struct ly_err_item **err)
+ly_type_store_enum(const struct ly_ctx *ctx, const struct lysc_type *type, const char *value, size_t value_len,
+        uint32_t options, LY_PREFIX_FORMAT UNUSED(format), void *UNUSED(prefix_data), uint32_t hints,
+        const struct lysc_node *UNUSED(ctx_node), struct lyd_value *storage, struct ly_err_item **err)
 {
-    LY_ARRAY_COUNT_TYPE u, v;
+    LY_ARRAY_COUNT_TYPE u;
     char *errmsg = NULL;
-    struct lysc_type_enum *type_enum = (struct lysc_type_enum*)type;
-    int erc = 0;
+    struct lysc_type_enum *type_enum = (struct lysc_type_enum *)type;
+    int rc = 0;
 
-    if (options & LY_TYPE_OPTS_SECOND_CALL) {
-        return LY_SUCCESS;
-    }
+    /* check hints */
+    LY_CHECK_RET(type_check_hints(hints, value, value_len, type->basetype, NULL, err));
 
     /* find the matching enumeration value item */
     LY_ARRAY_FOR(type_enum->enums, u) {
         if (!ly_strncmp(type_enum->enums[u].name, value, value_len)) {
-            /* we have the match */
-
-            /* check that the enumeration value is not disabled */
-            LY_ARRAY_FOR(type_enum->enums[u].iffeatures, v) {
-                if (lysc_iffeature_value(&type_enum->enums[u].iffeatures[v]) == LY_ENOT) {
-                    erc = asprintf(&errmsg, "Enumeration \"%s\" is disabled by its %" LY_PRI_ARRAY_COUNT_TYPE ". if-feature condition.",
-                                   type_enum->enums[u].name, v + 1);
-                    goto error;
-                }
-            }
+            /* we have a match */
             goto match;
         }
     }
     /* enum not found */
-    erc = asprintf(&errmsg, "Invalid enumeration value \"%.*s\".", (int)value_len, value);
+    rc = asprintf(&errmsg, "Invalid enumeration value \"%.*s\".", (int)value_len, value);
     goto error;
 
 match:
     /* validation done */
 
-    if (options & (LY_TYPE_OPTS_CANONIZE | LY_TYPE_OPTS_STORE)) {
-        /* NOTE: despite the pointer is used in storage twice (original and canonical_cache), it is stored in dictionary
-         * just once. This works even without storage - the string is returned as canonized. In case both options are used,
-         * ly_type_store_strval() increases reference count in dictionary for canonized. */
-        const char *str = lydict_insert(ctx, value_len ? value : "", value_len);
-        if (options & LY_TYPE_OPTS_STORE) {
-            storage->enum_item = &type_enum->enums[u];
-        }
-        ly_type_store_strval(ctx, options, str, str, storage, canonized);
+    if (options & LY_TYPE_STORE_DYNAMIC) {
+        LY_CHECK_RET(lydict_insert_zc(ctx, (char *)value, &storage->canonical));
+    } else {
+        LY_CHECK_RET(lydict_insert(ctx, value_len ? value : "", value_len, &storage->canonical));
     }
-    if (options & LY_TYPE_OPTS_DYNAMIC) {
-        free((char*)value);
-    }
+    storage->enum_item = &type_enum->enums[u];
+    storage->realtype = type;
 
     return LY_SUCCESS;
 
 error:
-    if (erc == -1) {
+    if (rc == -1) {
         *err = ly_err_new(LY_LLERR, LY_EMEM, 0, "Memory allocation failed.", NULL, NULL);
         return LY_EMEM;
     } else {
@@ -1162,37 +1269,24 @@ error:
     }
 }
 
-/* @brief Duplication callback of the enumeration values.
- *
- * Implementation of the ly_type_dup_clb.
- */
-static LY_ERR
-ly_type_dup_enum(const struct ly_ctx *ctx, const struct lyd_value *original, struct lyd_value *dup)
-{
-    dup->enum_item = original->enum_item;
-    return ly_type_dup_original(ctx, original, dup);
-}
-
 /**
  * @brief Validate and store value of the YANG built-in boolean type.
  *
  * Implementation of the ly_type_store_clb.
  */
 static LY_ERR
-ly_type_store_boolean(const struct ly_ctx *ctx, struct lysc_type *UNUSED(type), const char *value, size_t value_len, int options,
-                      ly_clb_resolve_prefix UNUSED(resolve_prefix), void *UNUSED(parser), LYD_FORMAT UNUSED(format),
-                      const void *UNUSED(context_node), const struct lyd_node *UNUSED(tree),
-                      struct lyd_value *storage, const char **canonized, struct ly_err_item **err)
+ly_type_store_boolean(const struct ly_ctx *ctx, const struct lysc_type *type, const char *value, size_t value_len,
+        uint32_t options, LY_PREFIX_FORMAT UNUSED(format), void *UNUSED(prefix_data), uint32_t hints,
+        const struct lysc_node *UNUSED(ctx_node), struct lyd_value *storage, struct ly_err_item **err)
 {
     int8_t i;
 
-    if (options & LY_TYPE_OPTS_SECOND_CALL) {
-        return LY_SUCCESS;
-    }
+    /* check hints */
+    LY_CHECK_RET(type_check_hints(hints, value, value_len, type->basetype, NULL, err));
 
-    if (value_len == 4 && !strncmp(value, "true", 4)) {
+    if ((value_len == 4) && !strncmp(value, "true", 4)) {
         i = 1;
-    } else if (value_len == 5 && !strncmp(value, "false", 5)) {
+    } else if ((value_len == 5) && !strncmp(value, "false", 5)) {
         i = 0;
     } else {
         char *errmsg;
@@ -1205,32 +1299,15 @@ ly_type_store_boolean(const struct ly_ctx *ctx, struct lysc_type *UNUSED(type), 
         }
     }
 
-    if (options & (LY_TYPE_OPTS_CANONIZE | LY_TYPE_OPTS_STORE)) {
-        /* NOTE: despite the pointer is used in storage twice (original and canonical_cache), it is stored in dictionary
-         * just once. This works even without storage - the string is returned as canonized. In case both options are used,
-         * ly_type_store_strval() increases reference count in dictionary for canonized. */
-        const char *str = lydict_insert(ctx, value, value_len);
-        if (options & LY_TYPE_OPTS_STORE) {
-            storage->boolean = i;
-        }
-        ly_type_store_strval(ctx, options, str, str, storage, canonized);
+    if (options & LY_TYPE_STORE_DYNAMIC) {
+        LY_CHECK_RET(lydict_insert_zc(ctx, (char *)value, &storage->canonical));
+    } else {
+        LY_CHECK_RET(lydict_insert(ctx, value, value_len, &storage->canonical));
     }
-    if (options & LY_TYPE_OPTS_DYNAMIC) {
-        free((char*)value);
-    }
+    storage->boolean = i;
+    storage->realtype = type;
 
     return LY_SUCCESS;
-}
-
-/* @brief Duplication callback of the boolean values.
- *
- * Implementation of the ly_type_dup_clb.
- */
-static LY_ERR
-ly_type_dup_boolean(const struct ly_ctx *ctx, const struct lyd_value *original, struct lyd_value *dup)
-{
-    dup->int64 = original->int64;
-    return ly_type_dup_original(ctx, original, dup);
 }
 
 /**
@@ -1239,14 +1316,12 @@ ly_type_dup_boolean(const struct ly_ctx *ctx, const struct lyd_value *original, 
  * Implementation of the ly_type_store_clb.
  */
 static LY_ERR
-ly_type_store_empty(const struct ly_ctx *ctx, struct lysc_type *UNUSED(type), const char *value, size_t value_len, int options,
-                    ly_clb_resolve_prefix UNUSED(resolve_prefix), void *UNUSED(parser), LYD_FORMAT UNUSED(format),
-                    const void *UNUSED(context_node), const struct lyd_node *UNUSED(tree),
-                    struct lyd_value *storage, const char **canonized, struct ly_err_item **err)
+ly_type_store_empty(const struct ly_ctx *ctx, const struct lysc_type *type, const char *value, size_t value_len,
+        uint32_t UNUSED(options), LY_PREFIX_FORMAT UNUSED(format), void *UNUSED(prefix_data), uint32_t hints,
+        const struct lysc_node *UNUSED(ctx_node), struct lyd_value *storage, struct ly_err_item **err)
 {
-    if (options & LY_TYPE_OPTS_SECOND_CALL) {
-        return LY_SUCCESS;
-    }
+    /* check hints */
+    LY_CHECK_RET(type_check_hints(hints, value, value_len, type->basetype, NULL, err));
 
     if (value_len) {
         char *errmsg;
@@ -1259,13 +1334,9 @@ ly_type_store_empty(const struct ly_ctx *ctx, struct lysc_type *UNUSED(type), co
         }
     }
 
-    if (options & (LY_TYPE_OPTS_CANONIZE | LY_TYPE_OPTS_STORE)) {
-        /* NOTE: despite the pointer is used in storage twice (original and canonical_cache), it is stored in dictionary
-         * just once. This works even without storage - the string is returned as canonized. In case both options are used,
-         * ly_type_store_strval() increases reference count in dictionary for canonized. */
-        const char *str = lydict_insert(ctx, "", 0);
-        ly_type_store_strval(ctx, options, str, str, storage, canonized);
-    }
+    LY_CHECK_RET(lydict_insert(ctx, "", 0, &storage->canonical));
+    storage->ptr = NULL;
+    storage->realtype = type;
 
     return LY_SUCCESS;
 }
@@ -1298,32 +1369,34 @@ ly_type_identity_isderived(struct lysc_ident *base, struct lysc_ident *der)
     return LY_ENOTFOUND;
 }
 
+static const char *ly_type_print_identityref(const struct lyd_value *value, LY_PREFIX_FORMAT format, void *prefix_data,
+        ly_bool *dynamic);
+
 /**
  * @brief Validate, canonize and store value of the YANG built-in identiytref type.
  *
  * Implementation of the ly_type_store_clb.
  */
 static LY_ERR
-ly_type_store_identityref(const struct ly_ctx *ctx, struct lysc_type *type, const char *value, size_t value_len, int options,
-                          ly_clb_resolve_prefix resolve_prefix, void *parser, LYD_FORMAT UNUSED(format),
-                          const void *UNUSED(context_node), const struct lyd_node *UNUSED(tree),
-                          struct lyd_value *storage, const char **canonized, struct ly_err_item **err)
+ly_type_store_identityref(const struct ly_ctx *ctx, const struct lysc_type *type, const char *value, size_t value_len,
+        uint32_t options, LY_PREFIX_FORMAT format, void *prefix_data, uint32_t hints, const struct lysc_node *ctx_node,
+        struct lyd_value *storage, struct ly_err_item **err)
 {
     struct lysc_type_identityref *type_ident = (struct lysc_type_identityref *)type;
     const char *id_name, *prefix = value;
     size_t id_len, prefix_len;
-    char *errmsg = NULL;
+    char *errmsg = NULL, *str;
     const struct lys_module *mod;
     LY_ARRAY_COUNT_TYPE u;
     struct lysc_ident *ident = NULL, *identities;
-    int erc = 0;
+    int rc = 0;
+    ly_bool dyn;
 
-    if (options & LY_TYPE_OPTS_SECOND_CALL) {
-        return LY_SUCCESS;
-    }
+    /* check hints */
+    LY_CHECK_RET(type_check_hints(hints, value, value_len, type->basetype, NULL, err));
 
     /* locate prefix if any */
-    for (prefix_len = 0; prefix_len < value_len && value[prefix_len] != ':'; ++prefix_len);
+    for (prefix_len = 0; prefix_len < value_len && value[prefix_len] != ':'; ++prefix_len) {}
     if (prefix_len < value_len) {
         id_name = &value[prefix_len + 1];
         id_len = value_len - (prefix_len + 1);
@@ -1338,16 +1411,32 @@ ly_type_store_identityref(const struct ly_ctx *ctx, struct lysc_type *type, cons
         goto error;
     }
 
-    mod = resolve_prefix(ctx, prefix, prefix_len, parser);
+    if (prefix_len) {
+        mod = ly_type_store_resolve_prefix(ctx, prefix, prefix_len, format, prefix_data);
+    } else {
+        switch (format) {
+        case LY_PREF_SCHEMA:
+        case LY_PREF_SCHEMA_RESOLVED:
+            /* use context node module, handles augments */
+            mod = ctx_node->module;
+            break;
+        case LY_PREF_JSON:
+            /* use context node module (as specified) */
+            mod = ctx_node->module;
+            break;
+        case LY_PREF_XML:
+            /* use the default namespace */
+            mod = ly_xml_resolve_prefix(ctx, NULL, 0, prefix_data);
+            break;
+        }
+    }
     if (!mod) {
-        erc = asprintf(&errmsg, "Invalid identityref \"%.*s\" value - unable to map prefix to YANG schema.", (int)value_len, value);
+        rc = asprintf(&errmsg, "Invalid identityref \"%.*s\" value - unable to map prefix to YANG schema.",
+                (int)value_len, value);
         goto error;
     }
-    if (mod->compiled) {
-        identities = mod->compiled->identities;
-    } else {
-        identities = mod->dis_identities;
-    }
+
+    identities = mod->identities;
     LY_ARRAY_FOR(identities, u) {
         ident = &identities[u]; /* shortcut */
         if (!ly_strncmp(ident->name, id_name, id_len)) {
@@ -1357,13 +1446,17 @@ ly_type_store_identityref(const struct ly_ctx *ctx, struct lysc_type *type, cons
     }
     if (u == LY_ARRAY_COUNT(identities)) {
         /* no match */
-        erc = asprintf(&errmsg, "Invalid identityref \"%.*s\" value - identity not found.", (int)value_len, value);
+        rc = asprintf(&errmsg, "Invalid identityref \"%.*s\" value - identity not found.", (int)value_len, value);
         goto error;
-    } else if (!mod->compiled) {
+    } else if (!mod->implemented) {
         /* non-implemented module */
-        erc = asprintf(&errmsg, "Invalid identityref \"%.*s\" value - identity found in non-implemented module \"%s\".",
-                 (int)value_len, value, mod->name);
-        goto error;
+        if (options & LY_TYPE_STORE_IMPLEMENT) {
+            LY_CHECK_RET(lys_set_implemented((struct lys_module *)mod, NULL));
+        } else {
+            rc = asprintf(&errmsg, "Invalid identityref \"%.*s\" value - identity found in non-implemented module \"%s\".",
+                    (int)value_len, value, mod->name);
+            goto error;
+        }
     }
 
     /* check that the identity matches some of the type's base identities */
@@ -1375,29 +1468,26 @@ ly_type_store_identityref(const struct ly_ctx *ctx, struct lysc_type *type, cons
     }
     if (u == LY_ARRAY_COUNT(type_ident->bases)) {
         /* no match */
-        erc = asprintf(&errmsg, "Invalid identityref \"%.*s\" value - identity not accepted by the type specification.", (int)value_len, value);
+        rc = asprintf(&errmsg, "Invalid identityref \"%.*s\" value - identity not accepted by the type specification.",
+                (int)value_len, value);
         goto error;
     }
 
-    if (options & LY_TYPE_OPTS_CANONIZE) {
-        /* identityref does not have a canonical form - to make it clear, the canonized form is represented as NULL */
-        *canonized = NULL;
-    }
+    storage->ident = ident;
 
-    if (options & LY_TYPE_OPTS_STORE) {
-        storage->ident = ident;
-        storage->canonical_cache = NULL;
-        storage->original = lydict_insert(ctx, value, value_len);
-    }
+    /* get JSON form since there is no canonical */
+    str = (char *)ly_type_print_identityref(storage, LY_PREF_JSON, NULL, &dyn);
+    assert(str && dyn);
+    LY_CHECK_RET(lydict_insert_zc(ctx, str, &storage->canonical));
+    storage->realtype = type;
 
-    if (options & LY_TYPE_OPTS_DYNAMIC) {
-        free((char*)value);
+    if (options & LY_TYPE_STORE_DYNAMIC) {
+        free((char *)value);
     }
-
     return LY_SUCCESS;
 
 error:
-    if (erc == -1 || !errmsg) {
+    if ((rc == -1) || !errmsg) {
         *err = ly_err_new(LY_LLERR, LY_EMEM, 0, "Memory allocation failed.", NULL, NULL);
         return LY_EMEM;
     } else {
@@ -1426,48 +1516,20 @@ ly_type_compare_identityref(const struct lyd_value *val1, const struct lyd_value
  * Implementation of the ly_type_print_clb.
  */
 static const char *
-ly_type_print_identityref(const struct lyd_value *value, LYD_FORMAT UNUSED(format), ly_clb_get_prefix get_prefix, void *printer, int *dynamic)
+ly_type_print_identityref(const struct lyd_value *value, LY_PREFIX_FORMAT format, void *prefix_data, ly_bool *dynamic)
 {
     char *result = NULL;
 
     *dynamic = 1;
-    if (asprintf(&result, "%s:%s", get_prefix(value->ident->module, printer), value->ident->name) == -1) {
+    if (asprintf(&result, "%s:%s", ly_type_print_get_prefix(value->ident->module, format, prefix_data), value->ident->name) == -1) {
         return NULL;
     } else {
         return result;
     }
 }
 
-/* @brief Duplication callback of the identityref values.
- *
- * Implementation of the ly_type_dup_clb.
- */
-static LY_ERR
-ly_type_dup_identityref(const struct ly_ctx *UNUSED(ctx), const struct lyd_value *original, struct lyd_value *dup)
-{
-    dup->ident = original->ident;
-    return LY_SUCCESS;
-}
-
-/**
- * @brief Helper function for ly_type_store_instanceid_parse_predicate_value() to provide prefix mapping for the
- * validation callbacks for the values used in instance-identifier predicates.
- *
- * Implementation of the ly_clb_resolve_prefix.
- */
-static const struct lys_module *
-ly_type_stored_prefixes_clb(const struct ly_ctx *UNUSED(ctx), const char *prefix, size_t prefix_len, void *private)
-{
-    struct lyd_value_prefix *prefixes = (struct lyd_value_prefix*)private;
-    LY_ARRAY_COUNT_TYPE u;
-
-    LY_ARRAY_FOR(prefixes, u) {
-        if (!ly_strncmp(prefixes[u].prefix, prefix, prefix_len)) {
-            return prefixes[u].mod;
-        }
-    }
-    return NULL;
-}
+static const char *ly_type_print_instanceid(const struct lyd_value *value, LY_PREFIX_FORMAT format, void *prefix_data,
+        ly_bool *dynamic);
 
 /**
  * @brief Validate and store value of the YANG built-in instance-identifier type.
@@ -1475,136 +1537,128 @@ ly_type_stored_prefixes_clb(const struct ly_ctx *UNUSED(ctx), const char *prefix
  * Implementation of the ly_type_store_clb.
  */
 static LY_ERR
-ly_type_store_instanceid(const struct ly_ctx *ctx, struct lysc_type *type, const char *value, size_t value_len, int options,
-                         ly_clb_resolve_prefix resolve_prefix, void *parser, LYD_FORMAT format,
-                         const void *context_node, const struct lyd_node *tree, struct lyd_value *storage,
-                         const char **canonized, struct ly_err_item **err)
+ly_type_store_instanceid(const struct ly_ctx *ctx, const struct lysc_type *type, const char *value, size_t value_len,
+        uint32_t options, LY_PREFIX_FORMAT format, void *prefix_data, uint32_t hints, const struct lysc_node *ctx_node,
+        struct lyd_value *storage, struct ly_err_item **err)
 {
-    LY_ERR ret = LY_EVALID;
+    LY_ERR ret = LY_SUCCESS;
     struct lysc_type_instanceid *type_inst = (struct lysc_type_instanceid *)type;
-    char *errmsg = NULL;
-    struct lyd_value_prefix *prefixes = NULL;
-    LY_ARRAY_COUNT_TYPE u;
+    char *errmsg = NULL, *str;
     struct ly_path *path = NULL;
-    struct ly_set predicates = {0};
     struct lyxp_expr *exp = NULL;
-    const struct lysc_node *ctx_scnode;
-    int erc = 0;
+    int rc = 0;
+    uint32_t prefix_opt = 0;
+    ly_bool dyn;
 
     /* init */
     *err = NULL;
-    ctx_scnode = (options & (LY_TYPE_OPTS_SCHEMA | LY_TYPE_OPTS_INCOMPLETE_DATA)) ?
-                 (struct lysc_node *)context_node : ((struct lyd_node *)context_node)->schema;
 
-    if ((options & LY_TYPE_OPTS_SCHEMA) && (options & LY_TYPE_OPTS_INCOMPLETE_DATA)) {
-        /* we have incomplete schema tree, so we are actually just storing the original value for future validation */
-        if (options & LY_TYPE_OPTS_STORE) {
-            storage->original = lydict_insert(ctx, value_len ? value : "", value_len);
-        }
-        goto cleanup;
+    /* check hints */
+    LY_CHECK_RET(type_check_hints(hints, value, value_len, type->basetype, NULL, err));
+
+    switch (format) {
+    case LY_PREF_SCHEMA:
+    case LY_PREF_SCHEMA_RESOLVED:
+    case LY_PREF_XML:
+        prefix_opt = LY_PATH_PREFIX_MANDATORY;
+        break;
+    case LY_PREF_JSON:
+        prefix_opt = LY_PATH_PREFIX_STRICT_INHERIT;
+        break;
     }
-
-    if (!(options & LY_TYPE_OPTS_SCHEMA) && (options & LY_TYPE_OPTS_SECOND_CALL) && (options & LY_TYPE_OPTS_STORE)) {
-        /* the second run in data tree, the first one ended with LY_EINCOMPLETE, but we have prepared the target structure */
-        if (ly_path_eval(storage->target, tree, NULL)) {
-            /* in error message we print the JSON format of the instance-identifier - in case of XML, it is not possible
-             * to get the exactly same string as original, JSON is less demanding and still well readable/understandable. */
-            int dynamic = 0;
-            const char *id = storage->realtype->plugin->print(storage, LYD_JSON, json_print_get_prefix, NULL, &dynamic);
-            erc = asprintf(&errmsg, "Invalid instance-identifier \"%s\" value - required instance not found.", id);
-            if (dynamic) {
-                free((char*)id);
-            }
-            /* we have to clean up the storage */
-            type->plugin->free(ctx, storage);
-
-            goto error;
-        }
-        return LY_SUCCESS;
-    }
-
-    /* get all used prefixes */
-    prefixes = ly_type_get_prefixes(ctx, value, value_len, resolve_prefix, parser);
 
     /* parse the value */
-    ret = ly_path_parse(ctx, ctx_scnode, value, value_len, LY_PATH_BEGIN_ABSOLUTE, LY_PATH_LREF_FALSE,
-                        LY_PATH_PREFIX_MANDATORY, LY_PATH_PRED_SIMPLE, &exp);
+    ret = ly_path_parse(ctx, ctx_node, value, value_len, LY_PATH_BEGIN_ABSOLUTE, LY_PATH_LREF_FALSE,
+            prefix_opt, LY_PATH_PRED_SIMPLE, &exp);
     if (ret) {
-        erc = asprintf(&errmsg, "Invalid instance-identifier \"%.*s\" value - syntax error.", (int)value_len, value);
+        rc = asprintf(&errmsg, "Invalid instance-identifier \"%.*s\" value - syntax error.", (int)value_len, value);
         goto error;
+    }
+
+    if (options & LY_TYPE_STORE_IMPLEMENT) {
+        /* implement all prefixes */
+        LY_CHECK_GOTO(ret = lys_compile_expr_implement(ctx, exp, format, prefix_data, 1, NULL), error);
     }
 
     /* resolve it on schema tree */
-    ret = ly_path_compile(ctx, ctx_scnode->module, NULL, exp, LY_PATH_LREF_FALSE, lysc_is_output(ctx_scnode) ?
-                          LY_PATH_OPER_OUTPUT : LY_PATH_OPER_INPUT, LY_PATH_TARGET_SINGLE, ly_type_stored_prefixes_clb,
-                          prefixes, format, &path);
+    ret = ly_path_compile(ctx, NULL, ctx_node, exp, LY_PATH_LREF_FALSE, lysc_is_output(ctx_node) ?
+            LY_PATH_OPER_OUTPUT : LY_PATH_OPER_INPUT, LY_PATH_TARGET_SINGLE, format, prefix_data, &path);
     if (ret) {
-        erc = asprintf(&errmsg, "Invalid instance-identifier \"%.*s\" value - semantic error.", (int)value_len, value);
+        rc = asprintf(&errmsg, "Invalid instance-identifier \"%.*s\" value - semantic error.", (int)value_len, value);
         goto error;
     }
 
-    /* find it in data */
-    if (!(options & LY_TYPE_OPTS_INCOMPLETE_DATA) && !(options & LY_TYPE_OPTS_SCHEMA) && type_inst->require_instance) {
-        ret = ly_path_eval(path, tree, NULL);
-        if (ret) {
-            erc = asprintf(&errmsg, "Invalid instance-identifier \"%.*s\" value - instance not found.", (int)value_len, value);
-            goto error;
-        }
-    }
-
     /* store resolved schema path */
-    if (options & LY_TYPE_OPTS_STORE) {
-        storage->target = path;
-        path = NULL;
-        if (!storage->original) {
-            /* it may be already present from the first call, in case this is the second */
-            storage->original = lydict_insert(ctx, value_len ? value : "", value_len);
-        }
-    }
+    storage->target = path;
+    path = NULL;
 
-cleanup:
-    LY_ARRAY_FOR(prefixes, u) {
-        lydict_remove(ctx, prefixes[u].prefix);
-    }
-    LY_ARRAY_FREE(prefixes);
-    ly_set_erase(&predicates, NULL);
+    /* store JSON string value */
+    str = (char *)ly_type_print_instanceid(storage, LY_PREF_JSON, NULL, &dyn);
+    assert(str && dyn);
+    LY_CHECK_GOTO(ret = lydict_insert_zc(ctx, str, &storage->canonical), error);
+
+    storage->realtype = type;
+
+    /* cleanup */
     lyxp_expr_free(ctx, exp);
     ly_path_free(ctx, path);
 
-    if (options & LY_TYPE_OPTS_CANONIZE) {
-        /* instance-identifier does not have a canonical form (lexical representation in in XML and JSON are
-         * even different) - to make it clear, the canonized form is represented as NULL */
-        *canonized = NULL;
+    if (options & LY_TYPE_STORE_DYNAMIC) {
+        free((char *)value);
     }
 
-    if (options & LY_TYPE_OPTS_DYNAMIC) {
-        free((char*)value);
-    }
-
-    if ((options & LY_TYPE_OPTS_INCOMPLETE_DATA) && ((options & LY_TYPE_OPTS_SCHEMA) || type_inst->require_instance)) {
+    if (type_inst->require_instance) {
+        /* needs to be resolved */
         return LY_EINCOMPLETE;
     } else {
         return LY_SUCCESS;
     }
 
 error:
-    LY_ARRAY_FOR(prefixes, u) {
-        lydict_remove(ctx, prefixes[u].prefix);
-    }
-    LY_ARRAY_FREE(prefixes);
-    ly_set_erase(&predicates, NULL);
     lyxp_expr_free(ctx, exp);
     ly_path_free(ctx, path);
 
     if (!*err) {
-        if (erc == -1) {
+        if (rc == -1) {
             *err = ly_err_new(LY_LLERR, LY_EMEM, 0, "Memory allocation failed.", NULL, NULL);
             ret = LY_EMEM;
-        } else {
+        } else if (errmsg) {
             *err = ly_err_new(LY_LLERR, LY_EVALID, LYVE_DATA, errmsg, NULL, NULL);
         }
     }
     return ret;
+}
+
+/**
+ * @brief Validate value of the YANG built-in instance-identifier type.
+ *
+ * Implementation of the ly_type_validate_clb.
+ */
+static LY_ERR
+ly_type_validate_instanceid(const struct ly_ctx *UNUSED(ctx), const struct lysc_type *UNUSED(type),
+        const struct lyd_node *UNUSED(ctx_node), const struct lyd_node *tree, struct lyd_value *storage,
+        struct ly_err_item **err)
+{
+    struct lysc_type_instanceid *type_inst = (struct lysc_type_instanceid *)storage->realtype;
+    LY_ERR ret;
+    char *errmsg;
+
+    *err = NULL;
+
+    if (!type_inst->require_instance) {
+        /* redundant to resolve */
+        return LY_SUCCESS;
+    }
+
+    /* find the target in data */
+    ret = ly_path_eval(storage->target, tree, NULL);
+    if (ret) {
+        asprintf(&errmsg, "Invalid instance-identifier \"%s\" value - required instance not found.", storage->canonical);
+        *err = ly_err_new(LY_LLERR, LY_EVALID, LYVE_DATA, errmsg, NULL, NULL);
+        return ret;
+    }
+
+    return LY_SUCCESS;
 }
 
 /**
@@ -1619,7 +1673,7 @@ ly_type_compare_instanceid(const struct lyd_value *val1, const struct lyd_value 
 
     if (val1 == val2) {
         return LY_SUCCESS;
-    } else if (!val1->target || !val2->target || LY_ARRAY_COUNT(val1->target) != LY_ARRAY_COUNT(val2->target)) {
+    } else if (!val1->target || !val2->target || (LY_ARRAY_COUNT(val1->target) != LY_ARRAY_COUNT(val2->target))) {
         return LY_ENOT;
     }
 
@@ -1627,8 +1681,8 @@ ly_type_compare_instanceid(const struct lyd_value *val1, const struct lyd_value 
         struct ly_path *s1 = &val1->target[u];
         struct ly_path *s2 = &val2->target[u];
 
-        if (s1->node != s2->node || (s1->pred_type != s2->pred_type) ||
-                (s1->predicates && LY_ARRAY_COUNT(s1->predicates) != LY_ARRAY_COUNT(s2->predicates))) {
+        if ((s1->node != s2->node) || (s1->pred_type != s2->pred_type) ||
+                (s1->predicates && (LY_ARRAY_COUNT(s1->predicates) != LY_ARRAY_COUNT(s2->predicates)))) {
             return LY_ENOT;
         }
         if (s1->predicates) {
@@ -1647,7 +1701,7 @@ ly_type_compare_instanceid(const struct lyd_value *val1, const struct lyd_value 
                     break;
                 case LY_PATH_PREDTYPE_LIST:
                     /* key-predicate */
-                    if (pred1->key != pred2->key || ((struct lysc_node_leaf*)pred1->key)->type->plugin->compare(&pred1->value, &pred2->value)) {
+                    if ((pred1->key != pred2->key) || ((struct lysc_node_leaf *)pred1->key)->type->plugin->compare(&pred1->value, &pred2->value)) {
                         return LY_ENOT;
                     }
                     break;
@@ -1670,110 +1724,108 @@ ly_type_compare_instanceid(const struct lyd_value *val1, const struct lyd_value 
  * Implementation of the ly_type_print_clb.
  */
 static const char *
-ly_type_print_instanceid(const struct lyd_value *value, LYD_FORMAT format, ly_clb_get_prefix get_prefix, void *printer,
-                         int *dynamic)
+ly_type_print_instanceid(const struct lyd_value *value, LY_PREFIX_FORMAT format, void *prefix_data, ly_bool *dynamic)
 {
     LY_ARRAY_COUNT_TYPE u, v;
     char *result = NULL;
 
-    if (!value->target && value->canonical_cache) {
-        /* value was not fully processed, but we have the original value so return it's copy */
-        *dynamic = 1;
-        return strdup(value->canonical_cache);
+    if (!value->target) {
+        /* value was not fully processed */
+        return NULL;
     }
 
-    if (format == LYD_XML) {
+    if ((format == LY_PREF_XML) || (format == LY_PREF_SCHEMA)) {
         /* everything is prefixed */
         LY_ARRAY_FOR(value->target, u) {
-            ly_strcat(&result, "/%s:%s", get_prefix(value->target[u].node->module, printer), value->target[u].node->name);
+            ly_strcat(&result, "/%s:%s", ly_type_print_get_prefix(value->target[u].node->module, format, prefix_data),
+                    value->target[u].node->name);
             LY_ARRAY_FOR(value->target[u].predicates, v) {
                 struct ly_path_predicate *pred = &value->target[u].predicates[v];
+
                 switch (value->target[u].pred_type) {
                 case LY_PATH_PREDTYPE_NONE:
                     break;
                 case LY_PATH_PREDTYPE_POSITION:
                     /* position predicate */
-                    ly_strcat(&result, "[%"PRIu64"]", pred->position);
+                    ly_strcat(&result, "[%" PRIu64 "]", pred->position);
                     break;
-                case LY_PATH_PREDTYPE_LIST:
-                {
+                case LY_PATH_PREDTYPE_LIST: {
                     /* key-predicate */
-                    int d = 0;
-                    const char *value = pred->value.realtype->plugin->print(&pred->value, format, get_prefix, printer, &d);
+                    ly_bool d = 0;
+                    const char *value = pred->value.realtype->plugin->print(&pred->value, format, prefix_data, &d);
                     char quot = '\'';
                     if (strchr(value, quot)) {
                         quot = '"';
                     }
-                    ly_strcat(&result, "[%s:%s=%c%s%c]", get_prefix(pred->key->module, printer), pred->key->name, quot, value, quot);
+                    ly_strcat(&result, "[%s:%s=%c%s%c]", ly_type_print_get_prefix(pred->key->module, format, prefix_data),
+                            pred->key->name, quot, value, quot);
                     if (d) {
-                        free((char*)value);
+                        free((char *)value);
                     }
                     break;
                 }
-                case LY_PATH_PREDTYPE_LEAFLIST:
-                {
+                case LY_PATH_PREDTYPE_LEAFLIST: {
                     /* leaf-list-predicate */
-                    int d = 0;
-                    const char *value = pred->value.realtype->plugin->print(&pred->value, format, get_prefix, printer, &d);
+                    ly_bool d = 0;
+                    const char *value = pred->value.realtype->plugin->print(&pred->value, format, prefix_data, &d);
                     char quot = '\'';
                     if (strchr(value, quot)) {
                         quot = '"';
                     }
                     ly_strcat(&result, "[.=%c%s%c]", quot, value, quot);
                     if (d) {
-                        free((char*)value);
+                        free((char *)value);
                     }
                     break;
                 }
                 }
             }
         }
-    } else if (format == LYD_JSON) {
+    } else if (format == LY_PREF_JSON) {
         /* only the first node or the node changing module is prefixed */
         struct lys_module *mod = NULL;
         LY_ARRAY_FOR(value->target, u) {
             if (mod != value->target[u].node->module) {
                 mod = value->target[u].node->module;
-                ly_strcat(&result, "/%s:%s", get_prefix(mod, printer), value->target[u].node->name);
+                ly_strcat(&result, "/%s:%s", ly_type_print_get_prefix(mod, format, prefix_data), value->target[u].node->name);
             } else {
                 ly_strcat(&result, "/%s", value->target[u].node->name);
             }
             LY_ARRAY_FOR(value->target[u].predicates, v) {
                 struct ly_path_predicate *pred = &value->target[u].predicates[v];
+
                 switch (value->target[u].pred_type) {
                 case LY_PATH_PREDTYPE_NONE:
                     break;
                 case LY_PATH_PREDTYPE_POSITION:
                     /* position predicate */
-                    ly_strcat(&result, "[%"PRIu64"]", pred->position);
+                    ly_strcat(&result, "[%" PRIu64 "]", pred->position);
                     break;
-                case LY_PATH_PREDTYPE_LIST:
-                {
+                case LY_PATH_PREDTYPE_LIST: {
                     /* key-predicate */
-                    int d = 0;
-                    const char *value = pred->value.realtype->plugin->print(&pred->value, format, get_prefix, printer, &d);
+                    ly_bool d = 0;
+                    const char *value = pred->value.realtype->plugin->print(&pred->value, format, prefix_data, &d);
                     char quot = '\'';
                     if (strchr(value, quot)) {
                         quot = '"';
                     }
                     ly_strcat(&result, "[%s=%c%s%c]", pred->key->name, quot, value, quot);
                     if (d) {
-                        free((char*)value);
+                        free((char *)value);
                     }
                     break;
                 }
-                case LY_PATH_PREDTYPE_LEAFLIST:
-                {
+                case LY_PATH_PREDTYPE_LEAFLIST: {
                     /* leaf-list-predicate */
-                    int d = 0;
-                    const char *value = pred->value.realtype->plugin->print(&pred->value, format, get_prefix, printer, &d);
+                    ly_bool d = 0;
+                    const char *value = pred->value.realtype->plugin->print(&pred->value, format, prefix_data, &d);
                     char quot = '\'';
                     if (strchr(value, quot)) {
                         quot = '"';
                     }
                     ly_strcat(&result, "[.=%c%s%c]", quot, value, quot);
                     if (d) {
-                        free((char*)value);
+                        free((char *)value);
                     }
                     break;
                 }
@@ -1798,6 +1850,8 @@ ly_type_print_instanceid(const struct lyd_value *value, LYD_FORMAT format, ly_cl
 static LY_ERR
 ly_type_dup_instanceid(const struct ly_ctx *ctx, const struct lyd_value *original, struct lyd_value *dup)
 {
+    LY_CHECK_RET(lydict_insert(ctx, original->canonical, strlen(original->canonical), &dup->canonical));
+    dup->realtype = original->realtype;
     return ly_path_dup(ctx, original->target, &dup->target);
 }
 
@@ -1811,24 +1865,24 @@ ly_type_free_instanceid(const struct ly_ctx *ctx, struct lyd_value *value)
 {
     ly_path_free(ctx, value->target);
     value->target = NULL;
-    ly_type_free_original(ctx, value);
+    ly_type_free_simple(ctx, value);
 }
 
 LY_ERR
 ly_type_find_leafref(const struct lysc_type_leafref *lref, const struct lyd_node *node, struct lyd_value *value,
-                     const struct lyd_node *tree, struct lyd_node **target, char **errmsg)
+        const struct lyd_node *tree, struct lyd_node **target, char **errmsg)
 {
     LY_ERR ret;
     struct lyxp_set set = {0};
     const char *val_str;
-    int dynamic;
+    ly_bool dynamic;
     uint32_t i;
 
     /* find all target data instances */
-    ret = lyxp_eval(lref->path, LYD_SCHEMA, lref->path_context, node, LYXP_NODE_ELEM, tree, &set, 0);
+    ret = lyxp_eval(lref->path, node->schema->module, LY_PREF_SCHEMA_RESOLVED, lref->prefixes, node, tree, &set, 0);
     if (ret) {
         ret = LY_ENOTFOUND;
-        val_str = lref->plugin->print(value, LYD_JSON, json_print_get_prefix, NULL, &dynamic);
+        val_str = lref->plugin->print(value, LY_PREF_JSON, NULL, &dynamic);
         if (asprintf(errmsg, "Invalid leafref value \"%s\" - XPath evaluation error.", val_str) == -1) {
             *errmsg = NULL;
             ret = LY_EMEM;
@@ -1851,9 +1905,9 @@ ly_type_find_leafref(const struct lysc_type_leafref *lref, const struct lyd_node
     }
     if (i == set.used) {
         ret = LY_ENOTFOUND;
-        val_str = lref->plugin->print(value, LYD_JSON, json_print_get_prefix, NULL, &dynamic);
+        val_str = lref->plugin->print(value, LY_PREF_JSON, NULL, &dynamic);
         if (asprintf(errmsg, "Invalid leafref value \"%s\" - no target instance \"%s\" with the same value.", val_str,
-                     lref->path->expr) == -1) {
+                lref->path->expr) == -1) {
             *errmsg = NULL;
             ret = LY_EMEM;
         }
@@ -1876,101 +1930,63 @@ error:
 }
 
 /**
- * @brief Validate, canonize and store value of the YANG built-in leafref type.
+ * @brief Store and canonize value of the YANG built-in leafref type.
  *
  * Implementation of the ly_type_store_clb.
  */
 static LY_ERR
-ly_type_store_leafref(const struct ly_ctx *ctx, struct lysc_type *type, const char *value, size_t value_len, int options,
-                      ly_clb_resolve_prefix resolve_prefix, void *parser, LYD_FORMAT format,
-                      const void *context_node, const struct lyd_node *tree,
-                      struct lyd_value *storage, const char **canonized, struct ly_err_item **err)
+ly_type_store_leafref(const struct ly_ctx *ctx, const struct lysc_type *type, const char *value, size_t value_len,
+        uint32_t options, LY_PREFIX_FORMAT format, void *prefix_data, uint32_t hints, const struct lysc_node *ctx_node,
+        struct lyd_value *storage, struct ly_err_item **err)
 {
     LY_ERR ret = LY_SUCCESS;
+    struct lysc_type_leafref *type_lr = (struct lysc_type_leafref *)type;
+
+    assert(type_lr->realtype);
+
+    /* store the value as the real type of the leafref target */
+    ret = type_lr->realtype->plugin->store(ctx, type_lr->realtype, value, value_len, options, format, prefix_data,
+            hints, ctx_node, storage, err);
+    if (ret == LY_EINCOMPLETE) {
+        /* it is irrelevant whether the target type needs some resolving */
+        ret = LY_SUCCESS;
+    }
+    LY_CHECK_RET(ret);
+
+    if (type_lr->require_instance) {
+        /* needs to be resolved */
+        return LY_EINCOMPLETE;
+    } else {
+        return LY_SUCCESS;
+    }
+}
+
+/**
+ * @brief Validate value of the YANG built-in leafref type.
+ *
+ * Implementation of the ly_type_validate_clb.
+ */
+static LY_ERR
+ly_type_validate_leafref(const struct ly_ctx *UNUSED(ctx), const struct lysc_type *type, const struct lyd_node *ctx_node,
+        const struct lyd_node *tree, struct lyd_value *storage, struct ly_err_item **err)
+{
+    struct lysc_type_leafref *type_lr = (struct lysc_type_leafref *)type;
     char *errmsg = NULL;
-    struct lysc_type_leafref *type_lr = (struct lysc_type_leafref*)type;
-    int storage_dummy = 0;
-    const char *orig = NULL;
-    struct ly_path *p = NULL;
-    struct ly_set *set = NULL;
 
-    if (!type_lr->realtype) {
-        if ((options & LY_TYPE_OPTS_SCHEMA) && (options & LY_TYPE_OPTS_INCOMPLETE_DATA)) {
-            /* leafref's path was not yet resolved - in schema trees, path can be resolved when
-             * the complete schema tree is present, in such a case we need to wait with validating
-             * default values */
+    *err = NULL;
 
-            /* keep the original value for the second call */
-            if (options & LY_TYPE_OPTS_STORE) {
-                storage->original = lydict_insert(ctx, value_len ? value : "", value_len);
-            }
-            return LY_EINCOMPLETE;
-        } else {
-            LOGINT(ctx);
-            return LY_EINT;
-        }
+    if (!type_lr->require_instance) {
+        /* redundant to resolve */
+        return LY_SUCCESS;
     }
 
-    if (!(options & (LY_TYPE_OPTS_STORE | LY_TYPE_OPTS_INCOMPLETE_DATA)) && type_lr->require_instance) {
-        /* if there is no storage, but we will check the instance presence in data tree(s),
-         * we need some (dummy) storage for data comparison */
-        storage = calloc(1, sizeof *storage);
-        storage_dummy = 1;
-    }
-    /* rewrite leafref plugin stored in the storage by default */
-    storage->realtype = type_lr->realtype;
-
-    if ((options & LY_TYPE_OPTS_SCHEMA) && (options & LY_TYPE_OPTS_SECOND_CALL)) {
-        /* second call after missing resolved path (target's type) for a default value */
-        /* correct refcounts - leafref's realtype was set to itself in the first incomplete call,
-         * since we are now changing realtype to point to the target's realtype, we have to decrese
-         * leafref's refcount and increase realtype's refcount. */
-        type->refcount--;
-        storage->realtype->refcount++;
-
-        /* remove temporarily stored original value and let the following store callback
-         * to replace it via a target's type functions */
-        orig = storage->original;
-        storage->original = NULL;
-
-        /* hide the LY_TYPE_OPTS_SECOND_CALL option from the target's store callback, the option is connected
-         * only with the leafref's path, so it is not supposed to be used here. If the previous LY_EINCOMPLETE would
-         * be caused by the target's type, the target type's callback would be used directly, not via leafref's callback */
-        options &= ~LY_TYPE_OPTS_SECOND_CALL;
+    /* check leafref target existence */
+    if (ly_type_find_leafref(type_lr, ctx_node, storage, tree, NULL, &errmsg)) {
+        *err = ly_err_new(LY_LLERR, LY_EVALID, LYVE_DATA, errmsg, NULL, NULL);
+        return LY_EVALID;
     }
 
-    /* check value according to the real type of the leafref target */
-    ret = type_lr->realtype->plugin->store(ctx, type_lr->realtype, value, value_len, options,
-                                           resolve_prefix, parser, format, context_node, tree,
-                                           storage, canonized, err);
-    if (ret != LY_SUCCESS && ret != LY_EINCOMPLETE) {
-        goto cleanup;
-    }
-
-    if (!(options & LY_TYPE_OPTS_SCHEMA) && type_lr->require_instance) {
-        if (options & LY_TYPE_OPTS_INCOMPLETE_DATA) {
-            ret = LY_EINCOMPLETE;
-            goto cleanup;
-        }
-
-        /* check leafref target existence */
-        ret = ly_type_find_leafref(type_lr, (struct lyd_node *)context_node, storage, tree, NULL, &errmsg);
-        if (ret) {
-            *err = ly_err_new(LY_LLERR, LY_EVALID, LYVE_DATA, errmsg, NULL, NULL);
-            ret = LY_EVALID;
-            goto cleanup;
-        }
-    }
-
-cleanup:
-    if (storage_dummy) {
-        storage->realtype->plugin->free(ctx, storage);
-        free(storage);
-    }
-    lydict_remove(ctx, orig);
-    ly_path_free(ctx, p);
-    ly_set_free(set, NULL);
-    return ret;
+    return LY_SUCCESS;
 }
 
 /**
@@ -1990,9 +2006,9 @@ ly_type_compare_leafref(const struct lyd_value *val1, const struct lyd_value *va
  * Implementation of the ly_type_print_clb.
  */
 static const char *
-ly_type_print_leafref(const struct lyd_value *value, LYD_FORMAT format, ly_clb_get_prefix get_prefix, void *printer, int *dynamic)
+ly_type_print_leafref(const struct lyd_value *value, LY_PREFIX_FORMAT format, void *prefix_data, ly_bool *dynamic)
 {
-    return value->realtype->plugin->print(value, format, get_prefix, printer, dynamic);
+    return value->realtype->plugin->print(value, format, prefix_data, dynamic);
 }
 
 /* @brief Duplication callback of the leafref values.
@@ -2016,122 +2032,383 @@ ly_type_free_leafref(const struct ly_ctx *ctx, struct lyd_value *value)
     if (value->realtype->plugin != &ly_builtin_type_plugins[LY_TYPE_LEAFREF]) {
         /* leafref's realtype is again leafref only in case of incomplete store */
         value->realtype->plugin->free(ctx, value);
-    } else {
-        /* freeing incomplete type, there is original value to free */
-        ly_type_free_original(ctx, value);
     }
 }
 
 /**
- * @brief Validate, canonize and store value of the YANG built-in union type.
+ * @brief Free stored prefix data of a union.
+ *
+ * @param[in] format Format of the prefixes.
+ * @param[in] prefix_data Prefix data to free.
+ */
+static void
+ly_type_union_free_prefix_data(LY_PREFIX_FORMAT format, void *prefix_data)
+{
+    struct ly_set *ns_list;
+    struct lysc_prefix *prefixes;
+    uint32_t i;
+    LY_ARRAY_COUNT_TYPE u;
+
+    if (!prefix_data) {
+        return;
+    }
+
+    switch (format) {
+    case LY_PREF_XML:
+        ns_list = prefix_data;
+        for (i = 0; i < ns_list->count; ++i) {
+            free(((struct lyxml_ns *)ns_list->objs[i])->prefix);
+            free(((struct lyxml_ns *)ns_list->objs[i])->uri);
+        }
+        ly_set_free(ns_list, free);
+        break;
+    case LY_PREF_SCHEMA_RESOLVED:
+        prefixes = prefix_data;
+        LY_ARRAY_FOR(prefixes, u) {
+            free(prefixes[u].prefix);
+        }
+        LY_ARRAY_FREE(prefixes);
+        break;
+    case LY_PREF_SCHEMA:
+    case LY_PREF_JSON:
+        break;
+    }
+}
+
+/**
+ * @brief Duplicate prefix data of a union.
+ *
+ * @param[in] ctx libyang context.
+ * @param[in] format Format of the prefixes in the value.
+ * @param[in] prefix_data Prefix data to duplicate.
+ * @param[out] prefix_data_p Duplicated prefix data.
+ * @return LY_ERR value.
+ */
+static LY_ERR
+ly_type_union_dup_prefix_data(const struct ly_ctx *ctx, LY_PREFIX_FORMAT format, const void *prefix_data,
+        void **prefix_data_p)
+{
+    LY_ERR ret = LY_SUCCESS;
+    struct lyxml_ns *ns;
+    struct lysc_prefix *prefixes = NULL, *orig_pref;
+    struct ly_set *ns_list, *orig_ns;
+    uint32_t i;
+    LY_ARRAY_COUNT_TYPE u;
+
+    assert(!*prefix_data_p);
+
+    switch (format) {
+    case LY_PREF_SCHEMA:
+        *prefix_data_p = (void *)prefix_data;
+        break;
+    case LY_PREF_SCHEMA_RESOLVED:
+        /* copy all the value prefixes */
+        orig_pref = (struct lysc_prefix *)prefix_data;
+        LY_ARRAY_CREATE_GOTO(ctx, prefixes, LY_ARRAY_COUNT(orig_pref), ret, cleanup);
+        *prefix_data_p = prefixes;
+
+        LY_ARRAY_FOR(orig_pref, u) {
+            if (orig_pref[u].prefix) {
+                prefixes[u].prefix = strdup(orig_pref[u].prefix);
+                LY_CHECK_ERR_GOTO(!prefixes[u].prefix, LOGMEM(ctx); ret = LY_EMEM, cleanup);
+            }
+            prefixes[u].mod = orig_pref[u].mod;
+            LY_ARRAY_INCREMENT(prefixes);
+        }
+        break;
+    case LY_PREF_XML:
+        /* copy all the namespaces */
+        LY_CHECK_GOTO(ret = ly_set_new(&ns_list), cleanup);
+        *prefix_data_p = ns_list;
+
+        orig_ns = (struct ly_set *)prefix_data;
+        for (i = 0; i < orig_ns->count; ++i) {
+            ns = calloc(1, sizeof *ns);
+            LY_CHECK_ERR_GOTO(!ns, LOGMEM(ctx); ret = LY_EMEM, cleanup);
+            LY_CHECK_GOTO(ret = ly_set_add(ns_list, ns, 1, NULL), cleanup);
+
+            if (((struct lyxml_ns *)orig_ns->objs[i])->prefix) {
+                ns->prefix = strdup(((struct lyxml_ns *)orig_ns->objs[i])->prefix);
+                LY_CHECK_ERR_GOTO(!ns->prefix, LOGMEM(ctx); ret = LY_EMEM, cleanup);
+            }
+            ns->uri = strdup(((struct lyxml_ns *)orig_ns->objs[i])->uri);
+            LY_CHECK_ERR_GOTO(!ns->uri, LOGMEM(ctx); ret = LY_EMEM, cleanup);
+        }
+        break;
+    case LY_PREF_JSON:
+        assert(!prefix_data);
+        *prefix_data_p = NULL;
+        break;
+    }
+
+cleanup:
+    if (ret) {
+        ly_type_union_free_prefix_data(format, *prefix_data_p);
+        *prefix_data_p = NULL;
+    }
+    return ret;
+}
+
+/**
+ * @brief Store used prefixes in a value of a union.
+ *
+ * @param[in] ctx libyang context.
+ * @param[in] value Value string to be parsed.
+ * @param[in] value_len Length of the @p value string.
+ * @param[in] format Format of the prefixes in the value.
+ * @param[in] prefix_data Format-specific data for resolving any prefixes (see ::ly_resolve_prefix).
+ * @param[out] format_p Resulting format of the prefixes.
+ * @param[out] prefix_data_p Resulting prefix data for the value in format @p format_p.
+ * @return LY_ERR value.
+ */
+static LY_ERR
+ly_type_union_store_prefix_data(const struct ly_ctx *ctx, const char *value, size_t value_len, LY_PREFIX_FORMAT format,
+        void *prefix_data, LY_PREFIX_FORMAT *format_p, void **prefix_data_p)
+{
+    LY_ERR ret = LY_SUCCESS;
+    const char *start, *stop;
+    const struct lys_module *mod;
+    struct lyxml_ns *ns;
+    struct ly_set *ns_list;
+    struct lysc_prefix *prefixes = NULL, *val_pref;
+
+    switch (format) {
+    case LY_PREF_SCHEMA:
+    case LY_PREF_XML:
+        /* copy all referenced modules... */
+        if (format == LY_PREF_XML) {
+            /* ...as prefix - namespace pairs */
+            LY_CHECK_GOTO(ret = ly_set_new(&ns_list), cleanup);
+            *format_p = LY_PREF_XML;
+            *prefix_data_p = ns_list;
+        } else {
+            /* ...as prefix - module pairs */
+            assert(format == LY_PREF_SCHEMA);
+            LY_ARRAY_CREATE_GOTO(ctx, prefixes, 0, ret, cleanup);
+            *format_p = LY_PREF_SCHEMA_RESOLVED;
+            *prefix_data_p = prefixes;
+        }
+
+        /* add all used prefixes */
+        for (stop = start = value; (size_t)(stop - value) < value_len; start = stop) {
+            size_t bytes;
+            uint32_t c;
+
+            ly_getutf8(&stop, &c, &bytes);
+            if (is_xmlqnamestartchar(c)) {
+                for (ly_getutf8(&stop, &c, &bytes);
+                        is_xmlqnamechar(c) && (size_t)(stop - value) < value_len;
+                        ly_getutf8(&stop, &c, &bytes)) {}
+                stop = stop - bytes;
+                if (*stop == ':') {
+                    /* we have a possible prefix */
+                    size_t len = stop - start;
+
+                    /* do we already have the prefix? */
+                    mod = ly_type_store_resolve_prefix(ctx, start, len, *format_p, *prefix_data_p);
+                    if (!mod) {
+                        mod = ly_type_store_resolve_prefix(ctx, start, len, format, prefix_data);
+                        if (mod) {
+                            if (*format_p == LY_PREF_XML) {
+                                /* store a new prefix - namespace pair */
+                                ns = calloc(1, sizeof *ns);
+                                LY_CHECK_ERR_GOTO(!ns, LOGMEM(ctx); ret = LY_EMEM, cleanup);
+                                LY_CHECK_GOTO(ret = ly_set_add(ns_list, ns, 1, NULL), cleanup);
+
+                                ns->prefix = strndup(start, len);
+                                LY_CHECK_ERR_GOTO(!ns->prefix, LOGMEM(ctx); ret = LY_EMEM, cleanup);
+                                ns->uri = strdup(mod->ns);
+                                LY_CHECK_ERR_GOTO(!ns->uri, LOGMEM(ctx); ret = LY_EMEM, cleanup);
+                            } else {
+                                assert(*format_p == LY_PREF_SCHEMA_RESOLVED);
+                                /* store a new prefix - module pair */
+                                LY_ARRAY_NEW_GOTO(ctx, prefixes, val_pref, ret, cleanup);
+                                *prefix_data_p = prefixes;
+
+                                val_pref->prefix = strndup(start, len);
+                                LY_CHECK_ERR_GOTO(!val_pref->prefix, LOGMEM(ctx); ret = LY_EMEM, cleanup);
+                                val_pref->mod = mod;
+                            }
+                        } /* else it is not even defined */
+                    } /* else the prefix is already present */
+                }
+                stop = stop + bytes;
+            }
+        }
+        break;
+    case LY_PREF_SCHEMA_RESOLVED:
+    case LY_PREF_JSON:
+        /* simply copy all the prefix data */
+        *format_p = format;
+        LY_CHECK_GOTO(ret = ly_type_union_dup_prefix_data(ctx, format, prefix_data, prefix_data_p), cleanup);
+        break;
+    }
+
+cleanup:
+    if (ret) {
+        ly_type_union_free_prefix_data(*format_p, *prefix_data_p);
+        *prefix_data_p = NULL;
+    }
+    return ret;
+}
+
+static LY_ERR
+ly_type_union_store_type(const struct ly_ctx *ctx, struct lysc_type **types, struct lyd_value_subvalue *subvalue,
+        ly_bool resolve, const struct lyd_node *ctx_node, const struct lyd_node *tree, struct ly_err_item **err)
+{
+    LY_ERR ret = LY_SUCCESS;
+    LY_ARRAY_COUNT_TYPE u;
+    char *errmsg = NULL;
+    uint32_t prev_lo;
+
+    if (!types || !LY_ARRAY_COUNT(types)) {
+        return LY_EINVAL;
+    }
+
+    /* turn logging off */
+    prev_lo = ly_log_options(0);
+
+    /* use the first usable subtype to store the value */
+    for (u = 0; u < LY_ARRAY_COUNT(types); ++u) {
+        ret = types[u]->plugin->store(ctx, types[u], subvalue->original, strlen(subvalue->original),
+                0, subvalue->format, subvalue->prefix_data,
+                subvalue->hints, subvalue->ctx_node, &subvalue->value, err);
+        if ((ret == LY_SUCCESS) || (ret == LY_EINCOMPLETE)) {
+            if (resolve && (ret == LY_EINCOMPLETE)) {
+                /* we need the value resolved */
+                ret = subvalue->value.realtype->plugin->validate(ctx, types[u], ctx_node, tree, &subvalue->value, err);
+                if (!ret) {
+                    /* store and resolve successful */
+                    break;
+                }
+
+                /* resolve failed, we need to free the stored value */
+                types[u]->plugin->free(ctx, &subvalue->value);
+            } else {
+                /* store successful */
+                break;
+            }
+        }
+        ly_err_free(*err);
+        *err = NULL;
+    }
+
+    if (u == LY_ARRAY_COUNT(types)) {
+        if (asprintf(&errmsg, "Invalid union value \"%s\" - no matching subtype found.", subvalue->original) == -1) {
+            *err = ly_err_new(LY_LLERR, LY_EMEM, 0, "Memory allocation failed.", NULL, NULL);
+            ret = LY_EMEM;
+            goto cleanup;
+        }
+        *err = ly_err_new(LY_LLERR, LY_EVALID, LYVE_DATA, errmsg, NULL, NULL);
+        ret = LY_EVALID;
+        goto cleanup;
+    }
+
+cleanup:
+    /* restore logging */
+    ly_log_options(prev_lo);
+    return ret;
+}
+
+/**
+ * @brief Store and canonize value of the YANG built-in union type.
  *
  * Implementation of the ly_type_store_clb.
  */
 static LY_ERR
-ly_type_store_union(const struct ly_ctx *ctx, struct lysc_type *type, const char *value, size_t value_len, int options,
-                    ly_clb_resolve_prefix resolve_prefix, void *parser, LYD_FORMAT format,
-                    const void *context_node, const struct lyd_node *tree,
-                    struct lyd_value *storage, const char **canonized, struct ly_err_item **err)
+ly_type_store_union(const struct ly_ctx *ctx, const struct lysc_type *type, const char *value, size_t value_len,
+        uint32_t options, LY_PREFIX_FORMAT format, void *prefix_data, uint32_t hints, const struct lysc_node *ctx_node,
+        struct lyd_value *storage, struct ly_err_item **err)
 {
     LY_ERR ret = LY_SUCCESS;
-    LY_ARRAY_COUNT_TYPE u;
-    struct lysc_type_union *type_u = (struct lysc_type_union*)type;
-    struct lyd_value_subvalue *subvalue;
-    char *errmsg = NULL;
-    int prev_lo;
+    struct lysc_type_union *type_u = (struct lysc_type_union *)type;
+    struct lyd_value_subvalue *subvalue = NULL;
 
-    if ((options & LY_TYPE_OPTS_SECOND_CALL) && (options & LY_TYPE_OPTS_STORE)) {
-        subvalue = storage->subvalue;
-
-        /* call the callback second time */
-        ret = subvalue->value->realtype->plugin->store(ctx, subvalue->value->realtype, value, value_len,
-                                                       options & ~(LY_TYPE_OPTS_CANONIZE | LY_TYPE_OPTS_DYNAMIC),
-                                                       ly_type_stored_prefixes_clb, subvalue->prefixes, format,
-                                                       context_node, tree, subvalue->value, canonized, err);
-        if (ret) {
-            /* second call failed, we have to try another subtype of the union.
-             * Unfortunately, since the realtype can change (e.g. in leafref), we are not able to detect
-             * which of the subtype's were tried the last time, so we have to try all of them.
-             * We also have to remove the LY_TYPE_OPTS_SECOND_CALL flag since the callbacks will be now
-             * called for the first time.
-             * In the second call we should have all the data instances, so the LY_EINCOMPLETE should not
-             * happen again.
-             */
-            options = options & ~LY_TYPE_OPTS_SECOND_CALL;
-            ly_err_free(*err);
-            *err = NULL;
-            goto search_subtype;
-        }
-    } else {
-        /* prepare subvalue storage */
-        subvalue = calloc(1, sizeof *subvalue);
-        subvalue->value = calloc(1, sizeof *subvalue->value);
-
-        /* store prefixes for later use */
-        subvalue->prefixes = ly_type_get_prefixes(ctx, value, value_len, resolve_prefix, parser);
-
-search_subtype:
-        /* use the first usable sybtype to store the value */
-        LY_ARRAY_FOR(type_u->types, u) {
-            subvalue->value->realtype = type_u->types[u];
-
-            /* turn logging off */
-            prev_lo = ly_log_options(0);
-            ret = type_u->types[u]->plugin->store(ctx, type_u->types[u], value, value_len, options & ~LY_TYPE_OPTS_DYNAMIC,
-                                                  ly_type_stored_prefixes_clb, subvalue->prefixes, format,
-                                                  context_node, tree, subvalue->value, canonized, err);
-            /* restore logging */
-            ly_log_options(prev_lo);
-            if (ret == LY_SUCCESS || ret == LY_EINCOMPLETE) {
-                /* success (or not yet complete) */
-                break;
-            }
-            ly_err_free(*err);
-            *err = NULL;
-        }
-
-        if (u == LY_ARRAY_COUNT(type_u->types)) {
-            if (asprintf(&errmsg, "Invalid union value \"%.*s\" - no matching subtype found.", (int)value_len, value) == -1) {
-                *err = ly_err_new(LY_LLERR, LY_EMEM, 0, "Memory allocation failed.", NULL, NULL);
-                ret = LY_EMEM;
-            } else {
-                *err = ly_err_new(LY_LLERR, LY_EVALID, LYVE_DATA, errmsg, NULL, NULL);
-                ret = LY_EVALID;
-            }
-            LY_ARRAY_FOR(subvalue->prefixes, u) {
-                lydict_remove(ctx, subvalue->prefixes[u].prefix);
-            }
-            LY_ARRAY_FREE(subvalue->prefixes);
-            free(subvalue->value);
-            free(subvalue);
-            if ((options & LY_TYPE_OPTS_SECOND_CALL) && (options & LY_TYPE_OPTS_STORE)) {
-                storage->subvalue = NULL;
-            }
-            return ret;
-        }
-
-        if ((options & LY_TYPE_OPTS_STORE) && !storage->original) {
-            storage->original = lydict_insert(ctx, value_len ? value : "", value_len);
-        }
-    }
-    /* success */
-
-    if (options & LY_TYPE_OPTS_DYNAMIC) {
-        free((char*)value);
+    /* prepare subvalue storage */
+    subvalue = calloc(1, sizeof *subvalue);
+    if (!subvalue) {
+        *err = ly_err_new(LY_LLERR, LY_EMEM, 0, "Memory allocation failed.", NULL, NULL);
+        return LY_EMEM;
     }
 
-    if (options & LY_TYPE_OPTS_STORE) {
-        storage->subvalue = subvalue;
+    /* remember the original value */
+    if (options & LY_TYPE_STORE_DYNAMIC) {
+        ret = lydict_insert_zc(ctx, (char *)value, &subvalue->original);
+        LY_CHECK_GOTO(ret, cleanup);
+
+        options &= ~LY_TYPE_STORE_DYNAMIC;
     } else {
-        LY_ARRAY_FOR(subvalue->prefixes, u) {
-            lydict_remove(ctx, subvalue->prefixes[u].prefix);
-        }
-        LY_ARRAY_FREE(subvalue->prefixes);
-        free(subvalue->value);
+        ret = lydict_insert(ctx, value_len ? value : "", value_len, &subvalue->original);
+        LY_CHECK_GOTO(ret, cleanup);
+    }
+
+    /* store format-specific data for later prefix resolution */
+    ret = ly_type_union_store_prefix_data(ctx, subvalue->original, value_len, format, prefix_data, &subvalue->format,
+            &subvalue->prefix_data);
+    LY_CHECK_GOTO(ret, cleanup);
+    subvalue->hints = hints;
+    subvalue->ctx_node = ctx_node;
+
+    /* use the first usable subtype to store the value */
+    ret = ly_type_union_store_type(ctx, type_u->types, subvalue, 0, NULL, NULL, err);
+    LY_CHECK_GOTO((ret != LY_SUCCESS) && (ret != LY_EINCOMPLETE), cleanup);
+
+cleanup:
+    if ((ret != LY_SUCCESS) && (ret != LY_EINCOMPLETE)) {
+        lydict_remove(ctx, subvalue->original);
+        ly_type_union_free_prefix_data(subvalue->format, subvalue->prefix_data);
         free(subvalue);
+    } else {
+        /* store it as union, the specific type is in the subvalue, but canonical value is the specific type value */
+        ret = lydict_insert(ctx, subvalue->value.canonical, 0, &storage->canonical);
+        LY_CHECK_GOTO(ret, cleanup);
+        storage->subvalue = subvalue;
+        storage->realtype = type;
+    }
+    return ret;
+}
+
+/**
+ * @brief Validate value of the YANG built-in union type.
+ *
+ * Implementation of the ly_type_validate_clb.
+ */
+static LY_ERR
+ly_type_validate_union(const struct ly_ctx *ctx, const struct lysc_type *type, const struct lyd_node *ctx_node,
+        const struct lyd_node *tree, struct lyd_value *storage, struct ly_err_item **err)
+{
+    LY_ERR ret = LY_SUCCESS;
+    struct lysc_type_union *type_u = (struct lysc_type_union *)storage->realtype;
+    struct lyd_value_subvalue *subvalue = storage->subvalue;
+
+    *err = NULL;
+
+    if (!subvalue->value.realtype->plugin->validate) {
+        /* nothing to resolve */
+        return LY_SUCCESS;
     }
 
-    return ret;
+    /* resolve the stored value */
+    if (!subvalue->value.realtype->plugin->validate(ctx, type, ctx_node, tree, &subvalue->value, err)) {
+        /* resolve successful */
+        return LY_SUCCESS;
+    }
+
+    /* Resolve failed, we have to try another subtype of the union.
+     * Unfortunately, since the realtype can change (e.g. in leafref), we are not able to detect
+     * which of the subtype's were tried the last time, so we have to try all of them again.
+     */
+    ly_err_free(*err);
+    *err = NULL;
+
+    /* store and resolve the value */
+    ret = ly_type_union_store_type(ctx, type_u->types, subvalue, 1, ctx_node, tree, err);
+    LY_CHECK_RET(ret);
+
+    /* success, update the canonical value */
+    lydict_remove(ctx, storage->canonical);
+    LY_CHECK_RET(lydict_insert(ctx, subvalue->value.canonical, 0, &storage->canonical));
+    return LY_SUCCESS;
 }
 
 /**
@@ -2142,10 +2419,10 @@ search_subtype:
 static LY_ERR
 ly_type_compare_union(const struct lyd_value *val1, const struct lyd_value *val2)
 {
-    if (val1->subvalue->value->realtype != val2->subvalue->value->realtype) {
+    if (val1->subvalue->value.realtype != val2->subvalue->value.realtype) {
         return LY_ENOT;
     }
-    return val1->subvalue->value->realtype->plugin->compare(val1->subvalue->value, val2->subvalue->value);
+    return val1->subvalue->value.realtype->plugin->compare(&val1->subvalue->value, &val2->subvalue->value);
 }
 
 /**
@@ -2154,36 +2431,33 @@ ly_type_compare_union(const struct lyd_value *val1, const struct lyd_value *val2
  * Implementation of the ly_type_print_clb.
  */
 static const char *
-ly_type_print_union(const struct lyd_value *value, LYD_FORMAT format, ly_clb_get_prefix get_prefix, void *printer, int *dynamic)
+ly_type_print_union(const struct lyd_value *value, LY_PREFIX_FORMAT format, void *prefix_data, ly_bool *dynamic)
 {
-    return value->subvalue->value->realtype->plugin->print(value->subvalue->value, format, get_prefix, printer, dynamic);
+    return value->subvalue->value.realtype->plugin->print(&value->subvalue->value, format, prefix_data, dynamic);
 }
 
-/* @brief Duplication callback of the union values.
+/**
+ * @brief Duplication callback of the union values.
  *
  * Implementation of the ly_type_dup_clb.
  */
 static LY_ERR
 ly_type_dup_union(const struct ly_ctx *ctx, const struct lyd_value *original, struct lyd_value *dup)
 {
-    LY_ARRAY_COUNT_TYPE u;
+    LY_CHECK_RET(lydict_insert(ctx, original->canonical, strlen(original->canonical), &dup->canonical));
 
     dup->subvalue = calloc(1, sizeof *dup->subvalue);
     LY_CHECK_ERR_RET(!dup->subvalue, LOGMEM(ctx), LY_EMEM);
-    if (original->subvalue->prefixes) {
-        LY_ARRAY_CREATE_RET(ctx, dup->subvalue->prefixes, LY_ARRAY_COUNT(original->subvalue->prefixes), LY_EMEM);
-        LY_ARRAY_FOR(original->subvalue->prefixes, u) {
-            LY_ARRAY_INCREMENT(dup->subvalue->prefixes);
-            dup->subvalue->prefixes[u].mod = original->subvalue->prefixes[u].mod;
-            dup->subvalue->prefixes[u].prefix = lydict_insert(ctx, original->subvalue->prefixes[u].prefix, 0);
-        }
-    }
-    dup->subvalue->value = calloc(1, sizeof *dup->subvalue->value);
-    LY_CHECK_ERR_RET(!dup->subvalue->value, LOGMEM(ctx), LY_EMEM);
-    dup->subvalue->value->realtype = original->subvalue->value->realtype;
-    dup->subvalue->value->realtype->plugin->duplicate(ctx, original->subvalue->value, dup->subvalue->value);
+    LY_CHECK_RET(original->subvalue->value.realtype->plugin->duplicate(ctx, &original->subvalue->value, &dup->subvalue->value));
 
-    return ly_type_dup_original(ctx, original, dup);
+    LY_CHECK_RET(lydict_insert(ctx, original->subvalue->original, strlen(original->subvalue->original),
+            &dup->subvalue->original));
+    dup->subvalue->format = original->subvalue->format;
+    LY_CHECK_RET(ly_type_union_dup_prefix_data(ctx, original->subvalue->format, original->subvalue->prefix_data,
+            &dup->subvalue->prefix_data));
+
+    dup->realtype = original->realtype;
+    return LY_SUCCESS;
 }
 
 /**
@@ -2194,21 +2468,16 @@ ly_type_dup_union(const struct ly_ctx *ctx, const struct lyd_value *original, st
 static void
 ly_type_free_union(const struct ly_ctx *ctx, struct lyd_value *value)
 {
-    LY_ARRAY_COUNT_TYPE u;
-
+    lydict_remove(ctx, value->canonical);
     if (value->subvalue) {
-        if (value->subvalue->value) {
-            value->subvalue->value->realtype->plugin->free(ctx, value->subvalue->value);
-            LY_ARRAY_FOR(value->subvalue->prefixes, u) {
-                lydict_remove(ctx, value->subvalue->prefixes[u].prefix);
-            }
-            LY_ARRAY_FREE(value->subvalue->prefixes);
-            free(value->subvalue->value);
+        if (value->subvalue->value.realtype) {
+            value->subvalue->value.realtype->plugin->free(ctx, &value->subvalue->value);
         }
+        ly_type_union_free_prefix_data(value->subvalue->format, value->subvalue->prefix_data);
+        lydict_remove(ctx, value->subvalue->original);
         free(value->subvalue);
         value->subvalue = NULL;
     }
-    ly_type_free_canonical(ctx, value);
 }
 
 /**
@@ -2216,61 +2485,61 @@ ly_type_free_union(const struct ly_ctx *ctx, struct lyd_value *value)
  */
 struct lysc_type_plugin ly_builtin_type_plugins[LY_DATA_TYPE_COUNT] = {
     {0}, /* LY_TYPE_UNKNOWN */
-    {.type = LY_TYPE_BINARY, .store = ly_type_store_binary, .compare = ly_type_compare_canonical,
-        .print = ly_type_print_canonical, .duplicate = ly_type_dup_canonical, .free = ly_type_free_canonical,
+    {.type = LY_TYPE_BINARY, .store = ly_type_store_binary, .validate = NULL, .compare = ly_type_compare_simple,
+        .print = ly_type_print_simple, .duplicate = ly_type_dup_simple, .free = ly_type_free_simple,
         .id = "libyang 2 - binary, version 1"},
-    {.type = LY_TYPE_UINT8, .store = ly_type_store_uint, .compare = ly_type_compare_canonical,
-        .print = ly_type_print_canonical, .duplicate = ly_type_dup_uint, .free = ly_type_free_canonical,
+    {.type = LY_TYPE_UINT8, .store = ly_type_store_uint, .validate = NULL, .compare = ly_type_compare_simple,
+        .print = ly_type_print_simple, .duplicate = ly_type_dup_simple, .free = ly_type_free_simple,
         .id = "libyang 2 - unsigned integer, version 1"},
-    {.type = LY_TYPE_UINT16, .store = ly_type_store_uint, .compare = ly_type_compare_canonical,
-        .print = ly_type_print_canonical, .duplicate = ly_type_dup_uint, .free = ly_type_free_canonical,
+    {.type = LY_TYPE_UINT16, .store = ly_type_store_uint, .validate = NULL, .compare = ly_type_compare_simple,
+        .print = ly_type_print_simple, .duplicate = ly_type_dup_simple, .free = ly_type_free_simple,
         .id = "libyang 2 - unsigned integer, version 1"},
-    {.type = LY_TYPE_UINT32, .store = ly_type_store_uint, .compare = ly_type_compare_canonical,
-        .print = ly_type_print_canonical, .duplicate = ly_type_dup_uint, .free = ly_type_free_canonical,
+    {.type = LY_TYPE_UINT32, .store = ly_type_store_uint, .validate = NULL, .compare = ly_type_compare_simple,
+        .print = ly_type_print_simple, .duplicate = ly_type_dup_simple, .free = ly_type_free_simple,
         .id = "libyang 2 - unsigned integer, version 1"},
-    {.type = LY_TYPE_UINT64, .store = ly_type_store_uint, .compare = ly_type_compare_canonical,
-        .print = ly_type_print_canonical, .duplicate = ly_type_dup_uint, .free = ly_type_free_canonical,
+    {.type = LY_TYPE_UINT64, .store = ly_type_store_uint, .validate = NULL, .compare = ly_type_compare_simple,
+        .print = ly_type_print_simple, .duplicate = ly_type_dup_simple, .free = ly_type_free_simple,
         .id = "libyang 2 - unsigned integer, version 1"},
-    {.type = LY_TYPE_STRING, .store = ly_type_store_string, .compare = ly_type_compare_canonical,
-        .print = ly_type_print_canonical, .duplicate = ly_type_dup_original, .free = ly_type_free_original,
+    {.type = LY_TYPE_STRING, .store = ly_type_store_string, .validate = NULL, .compare = ly_type_compare_simple,
+        .print = ly_type_print_simple, .duplicate = ly_type_dup_simple, .free = ly_type_free_simple,
         .id = "libyang 2 - string, version 1"},
-    {.type = LY_TYPE_BITS, .store = ly_type_store_bits, .compare = ly_type_compare_canonical,
-        .print = ly_type_print_canonical, .duplicate = ly_type_dup_bits, .free = ly_type_free_bits,
+    {.type = LY_TYPE_BITS, .store = ly_type_store_bits, .validate = NULL, .compare = ly_type_compare_simple,
+        .print = ly_type_print_simple, .duplicate = ly_type_dup_bits, .free = ly_type_free_bits,
         .id = "libyang 2 - bits, version 1"},
-    {.type = LY_TYPE_BOOL, .store = ly_type_store_boolean, .compare = ly_type_compare_canonical,
-        .print = ly_type_print_canonical, .duplicate = ly_type_dup_boolean, .free = ly_type_free_original,
+    {.type = LY_TYPE_BOOL, .store = ly_type_store_boolean, .validate = NULL, .compare = ly_type_compare_simple,
+        .print = ly_type_print_simple, .duplicate = ly_type_dup_simple, .free = ly_type_free_simple,
         .id = "libyang 2 - boolean, version 1"},
-    {.type = LY_TYPE_DEC64, .store = ly_type_store_decimal64, .compare = ly_type_compare_canonical,
-        .print = ly_type_print_canonical, .duplicate = ly_type_dup_decimal64, .free = ly_type_free_canonical,
+    {.type = LY_TYPE_DEC64, .store = ly_type_store_decimal64, .validate = NULL, .compare = ly_type_compare_simple,
+        .print = ly_type_print_simple, .duplicate = ly_type_dup_simple, .free = ly_type_free_simple,
         .id = "libyang 2 - decimal64, version 1"},
-    {.type = LY_TYPE_EMPTY, .store = ly_type_store_empty, .compare = ly_type_compare_empty,
-        .print = ly_type_print_canonical, .duplicate = ly_type_dup_original, .free = ly_type_free_original,
+    {.type = LY_TYPE_EMPTY, .store = ly_type_store_empty, .validate = NULL, .compare = ly_type_compare_empty,
+        .print = ly_type_print_simple, .duplicate = ly_type_dup_simple, .free = ly_type_free_simple,
         .id = "libyang 2 - empty, version 1"},
-    {.type = LY_TYPE_ENUM, .store = ly_type_store_enum, .compare = ly_type_compare_canonical,
-        .print = ly_type_print_canonical, .duplicate = ly_type_dup_enum, .free = ly_type_free_original,
+    {.type = LY_TYPE_ENUM, .store = ly_type_store_enum, .validate = NULL, .compare = ly_type_compare_simple,
+        .print = ly_type_print_simple, .duplicate = ly_type_dup_simple, .free = ly_type_free_simple,
         .id = "libyang 2 - enumeration, version 1"},
-    {.type = LY_TYPE_IDENT, .store = ly_type_store_identityref, .compare = ly_type_compare_identityref,
-        .print = ly_type_print_identityref, .duplicate = ly_type_dup_identityref, .free = ly_type_free_canonical,
+    {.type = LY_TYPE_IDENT, .store = ly_type_store_identityref, .validate = NULL, .compare = ly_type_compare_identityref,
+        .print = ly_type_print_identityref, .duplicate = ly_type_dup_simple, .free = ly_type_free_simple,
         .id = "libyang 2 - identityref, version 1"},
-    {.type = LY_TYPE_INST, .store = ly_type_store_instanceid, .compare = ly_type_compare_instanceid,
-        .print = ly_type_print_instanceid, .duplicate = ly_type_dup_instanceid, .free = ly_type_free_instanceid,
-        .id = "libyang 2 - instance-identifier, version 1"},
-    {.type = LY_TYPE_LEAFREF, .store = ly_type_store_leafref, .compare = ly_type_compare_leafref,
-        .print = ly_type_print_leafref, .duplicate = ly_type_dup_leafref, .free = ly_type_free_leafref,
-        .id = "libyang 2 - leafref, version 1"},
-    {.type = LY_TYPE_UNION, .store = ly_type_store_union, .compare = ly_type_compare_union,
+    {.type = LY_TYPE_INST, .store = ly_type_store_instanceid, .validate = ly_type_validate_instanceid,
+        .compare = ly_type_compare_instanceid, .print = ly_type_print_instanceid, .duplicate = ly_type_dup_instanceid,
+        .free = ly_type_free_instanceid, .id = "libyang 2 - instance-identifier, version 1"},
+    {.type = LY_TYPE_LEAFREF, .store = ly_type_store_leafref, .validate = ly_type_validate_leafref,
+        .compare = ly_type_compare_leafref, .print = ly_type_print_leafref, .duplicate = ly_type_dup_leafref,
+        .free = ly_type_free_leafref, .id = "libyang 2 - leafref, version 1"},
+    {.type = LY_TYPE_UNION, .store = ly_type_store_union, .validate = ly_type_validate_union, .compare = ly_type_compare_union,
         .print = ly_type_print_union, .duplicate = ly_type_dup_union, .free = ly_type_free_union,
         .id = "libyang 2 - union,version 1"},
-    {.type = LY_TYPE_INT8, .store = ly_type_store_int, .compare = ly_type_compare_canonical,
-        .print = ly_type_print_canonical, .duplicate = ly_type_dup_int, .free = ly_type_free_canonical,
+    {.type = LY_TYPE_INT8, .store = ly_type_store_int, .validate = NULL, .compare = ly_type_compare_simple,
+        .print = ly_type_print_simple, .duplicate = ly_type_dup_simple, .free = ly_type_free_simple,
         .id = "libyang 2 - integer, version 1"},
-    {.type = LY_TYPE_INT16, .store = ly_type_store_int, .compare = ly_type_compare_canonical,
-        .print = ly_type_print_canonical, .duplicate = ly_type_dup_int, .free = ly_type_free_canonical,
+    {.type = LY_TYPE_INT16, .store = ly_type_store_int, .validate = NULL, .compare = ly_type_compare_simple,
+        .print = ly_type_print_simple, .duplicate = ly_type_dup_simple, .free = ly_type_free_simple,
         .id = "libyang 2 - integer, version 1"},
-    {.type = LY_TYPE_INT32, .store = ly_type_store_int, .compare = ly_type_compare_canonical,
-        .print = ly_type_print_canonical, .duplicate = ly_type_dup_int, .free = ly_type_free_canonical,
+    {.type = LY_TYPE_INT32, .store = ly_type_store_int, .validate = NULL, .compare = ly_type_compare_simple,
+        .print = ly_type_print_simple, .duplicate = ly_type_dup_simple, .free = ly_type_free_simple,
         .id = "libyang 2 - integer, version 1"},
-    {.type = LY_TYPE_INT64, .store = ly_type_store_int, .compare = ly_type_compare_canonical,
-        .print = ly_type_print_canonical, .duplicate = ly_type_dup_int, .free = ly_type_free_canonical,
+    {.type = LY_TYPE_INT64, .store = ly_type_store_int, .validate = NULL, .compare = ly_type_compare_simple,
+        .print = ly_type_print_simple, .duplicate = ly_type_dup_simple, .free = ly_type_free_simple,
         .id = "libyang 2 - integer, version 1"},
 };

@@ -15,11 +15,12 @@
 #ifndef LY_XPATH_H
 #define LY_XPATH_H
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
-#include "config.h"
+#include "compat.h"
 #include "log.h"
+#include "plugins_types.h"
 #include "tree_schema.h"
 
 struct ly_ctx;
@@ -127,7 +128,7 @@ enum lyxp_expr_type {
     LYXP_EXPR_ADDITIVE,
     LYXP_EXPR_MULTIPLICATIVE,
     LYXP_EXPR_UNARY,
-    LYXP_EXPR_UNION,
+    LYXP_EXPR_UNION
 };
 
 /**
@@ -237,7 +238,7 @@ struct lyxp_set {
         } *meta;
         char *str;
         long double num;
-        int bln;
+        ly_bool bln; /* boolean */
     } val;
 
     /* this is valid only for type LYXP_SET_NODE_SET and LYXP_SET_SCNODE_SET */
@@ -252,14 +253,15 @@ struct lyxp_set {
     /* general context */
     struct ly_ctx *ctx;
     union {
-        const struct lyd_node *ctx_node;
-        const struct lysc_node *ctx_scnode;
+        const struct lyd_node *cur_node;
+        const struct lysc_node *cur_scnode;
     };
     enum lyxp_node_type root_type;
     const struct lysc_node *context_op;
-    const struct lys_module *local_mod;
     const struct lyd_node *tree;
-    LYD_FORMAT format;
+    const struct lys_module *cur_mod;
+    LY_PREFIX_FORMAT format;
+    void *prefix_data;
 };
 
 /**
@@ -275,12 +277,10 @@ const char *lyxp_print_token(enum lyxp_token tok);
  * be confusing without thorough understanding of XPath evaluation rules defined in RFC 7950.
  *
  * @param[in] exp Parsed XPath expression to be evaluated.
+ * @param[in] cur_mod Current module for the expression (where it was "instantiated").
  * @param[in] format Format of the XPath expression (more specifcally, of any used prefixes).
- * @param[in] local_mod Local module relative to the @p expr.
- * @param[in] ctx_node Current (context) data node. In case of a root node, set @p ctx_node_type correctly,
- * but @p ctx_node must also be set to any node from the root node module - it will be used for resolving
- * unqualified names.
- * @param[in] ctx_node_type Current (context) data node type.
+ * @param[in] prefix_data Format-specific prefix data (see ::ly_resolve_prefix).
+ * @param[in] ctx_node Current (context) data node, NULL in case of the root node.
  * @param[in] tree Data tree on which to perform the evaluation, it must include all the available data (including
  * the tree of @p ctx_node).
  * @param[out] set Result set.
@@ -289,30 +289,30 @@ const char *lyxp_print_token(enum lyxp_token tok);
  * @return LY_EINCOMPLETE for unresolved when,
  * @return LY_EINVAL, LY_EMEM, LY_EINT for other errors.
  */
-LY_ERR lyxp_eval(struct lyxp_expr *exp, LYD_FORMAT format, const struct lys_module *local_mod, const struct lyd_node *ctx_node,
-                 enum lyxp_node_type ctx_node_type, const struct lyd_node *tree, struct lyxp_set *set, int options);
-
-#define LYXP_SCHEMA 0x01        /**< Apply data node access restrictions defined for 'when' and 'must' evaluation. */
+LY_ERR lyxp_eval(const struct lyxp_expr *exp, const struct lys_module *cur_mod, LY_PREFIX_FORMAT format, void *prefix_data,
+        const struct lyd_node *ctx_node, const struct lyd_node *tree, struct lyxp_set *set, uint32_t options);
 
 /**
  * @brief Get all the partial XPath nodes (atoms) that are required for @p exp to be evaluated.
  *
  * @param[in] exp Parsed XPath expression to be evaluated.
+ * @param[in] cur_mod Current module for the expression (where it was "instantiated").
  * @param[in] format Format of the XPath expression (more specifcally, of any used prefixes).
- * @param[in] local_mod Local module relative to the @p exp.
- * @param[in] ctx_scnode Current (context) schema node. In case of a root node, set @p ctx_scnode_type correctly,
- * but @p ctx_scnode must also be set to any node from the root node module - it will be used for resolving
- * unqualified names.
- * @param[in] ctx_scnode_type Current (context) schema node type.
+ * @param[in] prefix_data Format-specific prefix data (see ::ly_resolve_prefix).
+ * @param[in] ctx_scnode Current (context) schema node, NULL in case of the root node.
  * @param[out] set Result set.
  * @param[in] options Whether to apply some evaluation restrictions, one flag must always be used.
- * @return LY_ERR (same as lyxp_eval()).
+ * @return LY_ERR (same as ::lyxp_eval()).
  */
-LY_ERR lyxp_atomize(struct lyxp_expr *exp, LYD_FORMAT format, const struct lys_module *local_mod, const struct lysc_node *ctx_scnode,
-                    enum lyxp_node_type ctx_scnode_type, struct lyxp_set *set, int options);
+LY_ERR lyxp_atomize(const struct lyxp_expr *exp, const struct lys_module *cur_mod, LY_PREFIX_FORMAT format, void *prefix_data,
+        const struct lysc_node *ctx_scnode, struct lyxp_set *set, uint32_t options);
 
-/* used only internally */
-#define LYXP_SCNODE_ALL 0x0E
+/* used only internally, maps with @ref findxpathoptions */
+#define LYXP_SCHEMA 0x01                      /**< Apply data node access restrictions defined for 'when' and 'must' evaluation. */
+#define LYXP_SCNODE 0x02                      /**< No special tree access modifiers. */
+#define LYXP_SCNODE_SCHEMA LYS_FIND_XP_SCHEMA /**< Apply node access restrictions defined for 'when' and 'must' evaluation. */
+#define LYXP_SCNODE_OUTPUT LYS_FIND_XP_OUTPUT /**< Search RPC/action output nodes instead of input ones. */
+#define LYXP_SCNODE_ALL 0x0E                  /**< mask for all the LYXP_* values */
 
 /**
  * @brief Cast XPath set to another type.
@@ -337,9 +337,11 @@ void lyxp_set_free_content(struct lyxp_set *set);
  * @param[in] set Set to insert into.
  * @param[in] node Node to insert.
  * @param[in] node_type Node type of @p node.
- * @return Index of the inserted node in set.
+ * @param[out] index_p Optional pointer to store index if the inserted @p node.
+ * @return LY_SUCCESS on success.
+ * @return LY_EMEM on memory allocation failure.
  */
-int lyxp_set_scnode_insert_node(struct lyxp_set *set, const struct lysc_node *node, enum lyxp_node_type node_type);
+LY_ERR lyxp_set_scnode_insert_node(struct lyxp_set *set, const struct lysc_node *node, enum lyxp_node_type node_type, uint32_t *index_p);
 
 /**
  * @brief Check for duplicates in a schema node set.
@@ -348,10 +350,11 @@ int lyxp_set_scnode_insert_node(struct lyxp_set *set, const struct lysc_node *no
  * @param[in] node Node to look for in @p set.
  * @param[in] node_type Type of @p node.
  * @param[in] skip_idx Index from @p set to skip.
- * @return Index of the found node, -1 if not found.
+ * @param[out] index_p Optional pointer to store index if the node is found.
+ * @return Boolean value whether the @p node found or not.
  */
-int lyxp_set_scnode_dup_node_check(struct lyxp_set *set, const struct lysc_node *node, enum lyxp_node_type node_type,
-                                   int skip_idx);
+ly_bool lyxp_set_scnode_contains(struct lyxp_set *set, const struct lysc_node *node, enum lyxp_node_type node_type,
+        int skip_idx, uint32_t *index_p);
 
 /**
  * @brief Merge 2 schema node sets.
@@ -368,22 +371,26 @@ void lyxp_set_scnode_merge(struct lyxp_set *set1, struct lyxp_set *set2);
  * https://www.w3.org/TR/1999/REC-xpath-19991116/#exprlex
  *
  * @param[in] ctx Context for errors.
- * @param[in] expr XPath expression to parse. It is duplicated.
+ * @param[in] expr_str XPath expression to parse. It is duplicated.
  * @param[in] expr_len Length of @p expr, can be 0 if @p expr is 0-terminated.
  * @param[in] reparse Whether to re-parse the expression to finalize full XPath parsing and fill
  * information about expressions and their operators (fill repeat).
- * @return Filled expression structure or NULL on error.
+ * @param[out] expr_p Pointer to return the filled expression structure.
+ * @return LY_SUCCESS in case of success.
+ * @return LY_EMEM in case of memory allocation failure.
+ * @return LY_EVALID in case of invalid XPath expression in @p expr_str.
  */
-struct lyxp_expr *lyxp_expr_parse(const struct ly_ctx *ctx, const char *expr, size_t expr_len, int reparse);
+LY_ERR lyxp_expr_parse(const struct ly_ctx *ctx, const char *expr_str, size_t expr_len, ly_bool reparse, struct lyxp_expr **expr_p);
 
 /**
  * @brief Duplicate parsed XPath expression.
  *
  * @param[in] ctx Context with a dictionary.
  * @param[in] exp Parsed expression.
- * @return Duplicated structure, NULL on error.
+ * @param[out] dup Duplicated structure.
+ * @return LY_ERR value.
  */
-struct lyxp_expr *lyxp_expr_dup(const struct ly_ctx *ctx, const struct lyxp_expr *exp);
+LY_ERR lyxp_expr_dup(const struct ly_ctx *ctx, const struct lyxp_expr *exp, struct lyxp_expr **dup);
 
 /**
  * @brief Look at the next token and check its kind.

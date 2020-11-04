@@ -19,10 +19,10 @@
 
 #include <errno.h>
 #include <limits.h>
-#include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #ifndef HAVE_VDPRINTF
@@ -39,6 +39,7 @@ vdprintf(int fd, const char *format, va_list ap)
     }
     return count;
 }
+
 #endif
 
 #ifndef HAVE_ASPRINTF
@@ -53,6 +54,7 @@ asprintf(char **strp, const char *fmt, ...)
     va_end(ap);
     return ret;
 }
+
 #endif
 
 #ifndef HAVE_VASPRINTF
@@ -60,16 +62,19 @@ int
 vasprintf(char **strp, const char *fmt, va_list ap)
 {
     va_list ap2;
+
     va_copy(ap2, ap);
     int l = vsnprintf(0, 0, fmt, ap2);
+
     va_end(ap2);
 
-    if (l < 0 || !(*strp = malloc(l + 1U))) {
+    if ((l < 0) || !(*strp = malloc(l + 1U))) {
         return -1;
     }
 
     return vsnprintf(*strp, l + 1U, fmt, ap);
 }
+
 #endif
 
 #ifndef HAVE_STRNDUP
@@ -80,7 +85,7 @@ strndup(const char *s, size_t n)
     size_t len = 0;
 
     /* strnlen */
-    for (; (len < n) && (s[len] != '\0'); ++len);
+    for ( ; (len < n) && (s[len] != '\0'); ++len) {}
 
     if (!(buf = malloc(len + 1U))) {
         return NULL;
@@ -90,6 +95,7 @@ strndup(const char *s, size_t n)
     buf[len] = '\0';
     return buf;
 }
+
 #endif
 
 #ifndef HAVE_STRNSTR
@@ -115,6 +121,7 @@ strnstr(const char *s, const char *find, size_t slen)
     }
     return (char *)s;
 }
+
 #endif
 
 #ifndef HAVE_GETLINE
@@ -123,7 +130,7 @@ getline(char **lineptr, size_t *n, FILE *stream)
 {
     static char line[256];
     char *ptr;
-    unsigned int len;
+    ssize_t len;
 
     if (!lineptr || !n) {
         errno = EINVAL;
@@ -157,6 +164,7 @@ getline(char **lineptr, size_t *n, FILE *stream)
     strcpy(*lineptr, line);
     return len;
 }
+
 #endif
 
 #ifndef HAVE_GET_CURRENT_DIR_NAME
@@ -175,4 +183,5 @@ get_current_dir_name(void)
 
     return retval;
 }
+
 #endif

@@ -73,12 +73,12 @@ test_invalid_arguments(void **state)
 
     assert_int_equal(LY_SUCCESS, ly_ctx_new(NULL, 0, &ctx));
 
-    assert_null(lydict_insert(NULL, NULL, 0));
+    assert_int_equal(LY_EINVAL, lydict_insert(NULL, NULL, 0, NULL));
     logbuf_assert("Invalid argument ctx (lydict_insert()).");
 
-    assert_null(lydict_insert_zc(NULL, NULL));
+    assert_int_equal(LY_EINVAL, lydict_insert_zc(NULL, NULL, NULL));
     logbuf_assert("Invalid argument ctx (lydict_insert_zc()).");
-    assert_null(lydict_insert_zc(ctx, NULL));
+    assert_int_equal(LY_EINVAL, lydict_insert_zc(ctx, NULL, NULL));
     logbuf_assert("Invalid argument value (lydict_insert_zc()).");
 
     ly_ctx_destroy(ctx, NULL);
@@ -89,19 +89,20 @@ test_dict_hit(void **state)
 {
     (void) state; /* unused */
 
-    const char *str1, *str2;
+    const char *str1, *str2, *str3;
     struct ly_ctx *ctx;
 
     assert_int_equal(LY_SUCCESS, ly_ctx_new(NULL, 0, &ctx));
 
     /* insert 2 strings, one of them repeatedly */
-    str1 = lydict_insert(ctx, "test1", 0);
+    assert_int_equal(LY_SUCCESS, lydict_insert(ctx, "test1", 0, &str1));
     assert_non_null(str1);
     /* via zerocopy we have to get the same pointer as provided */
     assert_non_null(str2 = strdup("test2"));
-    assert_true(str2 == lydict_insert_zc(ctx, (char *)str2));
+    assert_int_equal(LY_SUCCESS, lydict_insert_zc(ctx, (char *)str2, &str3));
+    assert_ptr_equal(str2, str3);
     /* here we get the same pointer as in case the string was inserted first time */
-    str2 = lydict_insert(ctx, "test1", 0);
+    assert_int_equal(LY_SUCCESS, lydict_insert(ctx, "test1", 0, &str2));
     assert_non_null(str2);
     assert_ptr_equal(str1, str2);
 
@@ -119,8 +120,8 @@ test_dict_hit(void **state)
 #endif
 }
 
-static int
-ht_equal_clb(void *val1, void *val2, int mod, void *cb_data)
+static uint8_t
+ht_equal_clb(void *val1, void *val2, uint8_t mod, void *cb_data)
 {
     int *v1, *v2;
     (void)mod;
@@ -149,7 +150,7 @@ test_ht_basic(void **state)
     assert_int_equal(LY_SUCCESS, lyht_remove(ht, &i, i));
     assert_int_equal(LY_ENOTFOUND, lyht_find(ht, &i, i, NULL));
     assert_int_equal(LY_ENOTFOUND, lyht_remove(ht, &i, i));
-    logbuf_assert("Invalid argument hash (lyht_remove()).");
+    logbuf_assert("Invalid argument hash (lyht_remove_with_resize_cb()).");
 
     lyht_free(ht);
 }
@@ -191,7 +192,7 @@ test_ht_resize(void **state)
     for (i = 0; i < 2; ++i) {
         logbuf_clean();
         assert_int_equal(LY_ENOTFOUND, lyht_remove(ht, &i, i));
-        logbuf_assert("Invalid argument hash (lyht_remove()).");
+        logbuf_assert("Invalid argument hash (lyht_remove_with_resize_cb()).");
     }
     /* removing present data, resize should happened
      * when we are below 25% of the table filled, so with 3 records left */

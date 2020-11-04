@@ -14,17 +14,24 @@
 
 #include "hash_table.h"
 
-#include <string.h>
+#include <assert.h>
+#include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <pthread.h>
-#include <assert.h>
+#include <string.h>
 
 #include "common.h"
+#include "compat.h"
 #include "dict.h"
+#include "log.h"
 
-static int
-lydict_val_eq(void *val1_p, void *val2_p, int UNUSED(mod), void *cb_data)
+/**
+ * @brief Comparison callback for dictionary's hash table
+ *
+ * Implementation of ::values_equal_cb.
+ */
+static ly_bool
+lydict_val_eq(void *val1_p, void *val2_p, ly_bool UNUSED(mod), void *cb_data)
 {
     LY_CHECK_ARG_RET(NULL, val1_p, val2_p, cb_data, 0);
 
@@ -44,7 +51,7 @@ lydict_val_eq(void *val1_p, void *val2_p, int UNUSED(mod), void *cb_data)
 void
 lydict_init(struct dict_table *dict)
 {
-    LY_CHECK_ARG_RET(NULL, dict,);
+    LY_CHECK_ARG_RET(NULL, dict, );
 
     dict->hash_tab = lyht_new(1024, sizeof(struct dict_rec), lydict_val_eq, NULL, 1);
     LY_CHECK_ERR_RET(!dict->hash_tab, LOGINT(NULL), );
@@ -54,13 +61,12 @@ lydict_init(struct dict_table *dict)
 void
 lydict_clean(struct dict_table *dict)
 {
-    unsigned int i;
-    struct dict_rec *dict_rec  = NULL;
+    struct dict_rec *dict_rec = NULL;
     struct ht_rec *rec = NULL;
 
-    LY_CHECK_ARG_RET(NULL, dict,);
+    LY_CHECK_ARG_RET(NULL, dict, );
 
-    for (i = 0; i < dict->hash_tab->size; i++) {
+    for (uint32_t i = 0; i < dict->hash_tab->size; i++) {
         /* get ith record */
         rec = (struct ht_rec *)&dict->hash_tab->recs[i * dict->hash_tab->rec_size];
         if (rec->hits == 1) {
@@ -69,7 +75,7 @@ lydict_clean(struct dict_table *dict)
              * dictionary are supposed to be removed using lydict_remove()
              * before calling lydict_clean()
              */
-            dict_rec  = (struct dict_rec *)rec->val;
+            dict_rec = (struct dict_rec *)rec->val;
             LOGWRN(NULL, "String \"%s\" not freed from the dictionary, refcount %d", dict_rec->value, dict_rec->refcount);
             /* if record wasn't removed before free string allocated for that record */
 #ifdef NDEBUG
@@ -124,11 +130,35 @@ dict_hash(const char *key, size_t len)
     return dict_hash_multi(hash, NULL, len);
 }
 
+static ly_bool
+lydict_resize_val_eq(void *val1_p, void *val2_p, ly_bool mod, void *cb_data)
+{
+    LY_CHECK_ARG_RET(NULL, val1_p, val2_p, 0);
+
+    const char *str1 = ((struct dict_rec *)val1_p)->value;
+    const char *str2 = ((struct dict_rec *)val2_p)->value;
+
+    LY_CHECK_ERR_RET(!str1, LOGARG(NULL, val1_p), 0);
+    LY_CHECK_ERR_RET(!str2, LOGARG(NULL, val2_p), 0);
+
+    if (mod) {
+        /* used when inserting new values */
+        if (strcmp(str1, str2) == 0) {
+            return 1;
+        }
+    } else {
+        /* used when finding the original value again in the resized table */
+        return lydict_val_eq(val1_p, val2_p, mod, cb_data);
+    }
+
+    return 0;
+}
+
 API void
 lydict_remove(const struct ly_ctx *ctx, const char *value)
 {
+    LY_ERR ret;
     size_t len;
-    int ret;
     uint32_t hash;
     struct dict_rec rec, *match = NULL;
     char *val_p;
@@ -150,7 +180,7 @@ lydict_remove(const struct ly_ctx *ctx, const char *value)
     /* check if value is already inserted */
     ret = lyht_find(ctx->dict.hash_tab, &rec, hash, (void **)&match);
 
-    if (ret == 0) {
+    if (ret == LY_SUCCESS) {
         LY_CHECK_ERR_GOTO(!match, LOGINT(ctx), finish);
 
         /* if value is already in dictionary, decrement reference counter */
@@ -162,7 +192,7 @@ lydict_remove(const struct ly_ctx *ctx, const char *value)
              * free it after it is removed from hash table
              */
             val_p = match->value;
-            ret = lyht_remove(ctx->dict.hash_tab, &rec, hash);
+            ret = lyht_remove_with_resize_cb(ctx->dict.hash_tab, &rec, hash, lydict_resize_val_eq);
             free(val_p);
             LY_CHECK_ERR_GOTO(ret, LOGINT(ctx), finish);
         }
@@ -172,11 +202,11 @@ finish:
     pthread_mutex_unlock((pthread_mutex_t *)&ctx->dict.lock);
 }
 
-static char *
-dict_insert(const struct ly_ctx *ctx, char *value, size_t len, int zerocopy)
+LY_ERR
+dict_insert(const struct ly_ctx *ctx, char *value, size_t len, ly_bool zerocopy, const char **str_p)
 {
+    LY_ERR ret = LY_SUCCESS;
     struct dict_rec *match = NULL, rec;
-    int ret = 0;
     uint32_t hash;
 
     hash = dict_hash(value, len);
@@ -187,12 +217,13 @@ dict_insert(const struct ly_ctx *ctx, char *value, size_t len, int zerocopy)
     rec.refcount = 1;
 
     LOGDBG(LY_LDGDICT, "inserting \"%s\"", rec.value);
-    ret = lyht_insert(ctx->dict.hash_tab, (void *)&rec, hash, (void **)&match);
+    ret = lyht_insert_with_resize_cb(ctx->dict.hash_tab, (void *)&rec, hash, lydict_resize_val_eq, (void **)&match);
     if (ret == LY_EEXIST) {
         match->refcount++;
         if (zerocopy) {
             free(value);
         }
+        ret = LY_SUCCESS;
     } else if (ret == LY_SUCCESS) {
         if (!zerocopy) {
             /*
@@ -200,49 +231,52 @@ dict_insert(const struct ly_ctx *ctx, char *value, size_t len, int zerocopy)
              * record is already inserted in hash table
              */
             match->value = malloc(sizeof *match->value * (len + 1));
-            LY_CHECK_ERR_RET(!match->value, LOGMEM(ctx), NULL);
+            LY_CHECK_ERR_RET(!match->value, LOGMEM(ctx), LY_EMEM);
             memcpy(match->value, value, len);
             match->value[len] = '\0';
         }
     } else {
         /* lyht_insert returned error */
-        LOGINT(ctx);
         if (zerocopy) {
             free(value);
         }
-        return NULL;
+        return ret;
     }
 
-    return match->value;
+    if (str_p) {
+        *str_p = match->value;
+    }
+
+    return ret;
 }
 
-API const char *
-lydict_insert(const struct ly_ctx *ctx, const char *value, size_t len)
+API LY_ERR
+lydict_insert(const struct ly_ctx *ctx, const char *value, size_t len, const char **str_p)
 {
-    const char *result;
+    LY_ERR result;
 
-    LY_CHECK_ARG_RET(ctx, ctx, value, NULL);
+    LY_CHECK_ARG_RET(ctx, ctx, value, LY_EINVAL);
 
     if (!len) {
         len = strlen(value);
     }
 
     pthread_mutex_lock((pthread_mutex_t *)&ctx->dict.lock);
-    result = dict_insert(ctx, (char *)value, len, 0);
+    result = dict_insert(ctx, (char *)value, len, 0, str_p);
     pthread_mutex_unlock((pthread_mutex_t *)&ctx->dict.lock);
 
     return result;
 }
 
-API const char *
-lydict_insert_zc(const struct ly_ctx *ctx, char *value)
+API LY_ERR
+lydict_insert_zc(const struct ly_ctx *ctx, char *value, const char **str_p)
 {
-    const char *result;
+    LY_ERR result;
 
-    LY_CHECK_ARG_RET(ctx, ctx, value, NULL);
+    LY_CHECK_ARG_RET(ctx, ctx, value, LY_EINVAL);
 
     pthread_mutex_lock((pthread_mutex_t *)&ctx->dict.lock);
-    result = dict_insert(ctx, value, strlen(value), 1);
+    result = dict_insert(ctx, value, strlen(value), 1, str_p);
     pthread_mutex_unlock((pthread_mutex_t *)&ctx->dict.lock);
 
     return result;
@@ -255,7 +289,7 @@ lyht_get_rec(unsigned char *recs, uint16_t rec_size, uint32_t idx)
 }
 
 struct hash_table *
-lyht_new(uint32_t size, uint16_t val_size, values_equal_cb val_equal, void *cb_data, int resize)
+lyht_new(uint32_t size, uint16_t val_size, values_equal_cb val_equal, void *cb_data, uint16_t resize)
 {
     struct hash_table *ht;
 
@@ -275,7 +309,7 @@ lyht_new(uint32_t size, uint16_t val_size, values_equal_cb val_equal, void *cb_d
     ht->size = size;
     ht->val_equal = val_equal;
     ht->cb_data = cb_data;
-    ht->resize = (uint16_t)resize;
+    ht->resize = resize;
 
     ht->rec_size = (sizeof(struct ht_rec) - 1) + val_size;
     /* allocate the records correctly */
@@ -332,12 +366,11 @@ lyht_free(struct hash_table *ht)
 }
 
 static LY_ERR
-lyht_resize(struct hash_table *ht, int enlarge)
+lyht_resize(struct hash_table *ht, ly_bool enlarge)
 {
     struct ht_rec *rec;
     unsigned char *old_recs;
     uint32_t i, old_size;
-    int ret;
 
     old_recs = ht->recs;
     old_size = ht->size;
@@ -360,7 +393,7 @@ lyht_resize(struct hash_table *ht, int enlarge)
     for (i = 0; i < old_size; ++i) {
         rec = lyht_get_rec(old_recs, ht->rec_size, i);
         if (rec->hits > 0) {
-            ret = lyht_insert(ht, rec->val, rec->hash, NULL);
+            LY_ERR ret = lyht_insert(ht, rec->val, rec->hash, NULL);
             assert(!ret);
             (void)ret;
         }
@@ -478,7 +511,7 @@ lyht_find_collision(struct hash_table *ht, struct ht_rec **last, struct ht_rec *
  * @param[in] ht Hash table to search in.
  * @param[in] val_p Pointer to the value to find.
  * @param[in] hash Hash to find.
- * @param[in] mod Operation kind for the val_equal callback.
+ * @param[in] mod Whether the operation modifies the hash table (insert or remove) or not (find).
  * @param[out] crec_p Optional found first record.
  * @param[out] col Optional collision number of @p rec_p, 0 for no collision.
  * @param[out] rec_p Found exact matching record, may be a collision of @p crec_p.
@@ -486,8 +519,8 @@ lyht_find_collision(struct hash_table *ht, struct ht_rec **last, struct ht_rec *
  * @return LY_SUCCESS if record was found.
  */
 static LY_ERR
-lyht_find_rec(struct hash_table *ht, void *val_p, uint32_t hash, int mod, struct ht_rec **crec_p, uint32_t *col,
-              struct ht_rec **rec_p)
+lyht_find_rec(struct hash_table *ht, void *val_p, uint32_t hash, ly_bool mod, struct ht_rec **crec_p, uint32_t *col,
+        struct ht_rec **rec_p)
 {
     struct ht_rec *rec, *crec;
     uint32_t i, c;
@@ -590,11 +623,11 @@ lyht_find_next(struct hash_table *ht, void *val_p, uint32_t hash, void **match_p
 
 LY_ERR
 lyht_insert_with_resize_cb(struct hash_table *ht, void *val_p, uint32_t hash,
-                           values_equal_cb resize_val_equal, void **match_p)
+        values_equal_cb resize_val_equal, void **match_p)
 {
+    LY_ERR r, ret = LY_SUCCESS;
     struct ht_rec *rec, *crec = NULL;
     int32_t i;
-    int r, ret;
     values_equal_cb old_val_equal;
 
     if (!lyht_find_first(ht, hash, &rec)) {
@@ -645,7 +678,6 @@ lyht_insert_with_resize_cb(struct hash_table *ht, void *val_p, uint32_t hash,
     }
 
     /* check size & enlarge if needed */
-    ret = LY_SUCCESS;
     ++ht->used;
     if (ht->resize) {
         r = (ht->used * 100) / ht->size;
@@ -661,7 +693,7 @@ lyht_insert_with_resize_cb(struct hash_table *ht, void *val_p, uint32_t hash,
             /* enlarge */
             ret = lyht_resize(ht, 1);
             /* if hash_table was resized, we need to find new matching value */
-            if (ret == LY_SUCCESS && match_p) {
+            if ((ret == LY_SUCCESS) && match_p) {
                 lyht_find(ht, val_p, hash, match_p);
             }
 
@@ -680,11 +712,13 @@ lyht_insert(struct hash_table *ht, void *val_p, uint32_t hash, void **match_p)
 }
 
 LY_ERR
-lyht_remove(struct hash_table *ht, void *val_p, uint32_t hash)
+lyht_remove_with_resize_cb(struct hash_table *ht, void *val_p, uint32_t hash, values_equal_cb resize_val_equal)
 {
     struct ht_rec *rec, *crec;
     int32_t i;
-    int first_matched = 0, r, ret;
+    ly_bool first_matched = 0;
+    LY_ERR r, ret = LY_SUCCESS;
+    values_equal_cb old_val_equal;
 
     LY_CHECK_ERR_RET(lyht_find_first(ht, hash, &rec), LOGARG(NULL, hash), LY_ENOTFOUND); /* hash not found */
 
@@ -724,15 +758,28 @@ lyht_remove(struct hash_table *ht, void *val_p, uint32_t hash)
     }
 
     /* check size & shrink if needed */
-    ret = LY_SUCCESS;
     --ht->used;
     if (ht->resize == 2) {
         r = (ht->used * 100) / ht->size;
         if ((r < LYHT_SHRINK_PERCENTAGE) && (ht->size > LYHT_MIN_SIZE)) {
+            if (resize_val_equal) {
+                old_val_equal = lyht_set_cb(ht, resize_val_equal);
+            }
+
             /* shrink */
             ret = lyht_resize(ht, 0);
+
+            if (resize_val_equal) {
+                lyht_set_cb(ht, old_val_equal);
+            }
         }
     }
 
     return ret;
+}
+
+LY_ERR
+lyht_remove(struct hash_table *ht, void *val_p, uint32_t hash)
+{
+    return lyht_remove_with_resize_cb(ht, val_p, hash, NULL);
 }

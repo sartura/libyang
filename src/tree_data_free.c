@@ -12,19 +12,30 @@
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
-
 #include <assert.h>
 #include <stdlib.h>
 
 #include "common.h"
 #include "hash_table.h"
-#include "tree.h"
-#include "tree_schema.h"
-#include "tree_data_internal.h"
 #include "plugins_types.h"
+#include "tree.h"
+#include "tree_data_internal.h"
+#include "tree_schema.h"
+
+void
+ly_free_val_prefs(const struct ly_ctx *ctx, struct ly_prefix *val_prefs)
+{
+    LY_ARRAY_COUNT_TYPE u;
+
+    LY_ARRAY_FOR(val_prefs, u) {
+        FREE_STRING(ctx, val_prefs[u].id);
+        FREE_STRING(ctx, val_prefs[u].module_ns);
+    }
+    LY_ARRAY_FREE(val_prefs);
+}
 
 static void
-lyd_free_meta(struct lyd_meta *meta, int siblings)
+lyd_free_meta(struct lyd_meta *meta, ly_bool siblings)
 {
     struct lyd_meta *iter;
 
@@ -40,7 +51,7 @@ lyd_free_meta(struct lyd_meta *meta, int siblings)
                 meta->parent->meta = meta->next;
             }
         } else {
-            for (iter = meta->parent->meta; iter->next != meta; iter = iter->next);
+            for (iter = meta->parent->meta; iter->next != meta; iter = iter->next) {}
             if (iter->next) {
                 if (siblings) {
                     iter->next = NULL;
@@ -78,10 +89,9 @@ lyd_free_meta_siblings(struct lyd_meta *meta)
 }
 
 static void
-ly_free_attr(const struct ly_ctx *ctx, struct ly_attr *attr, int siblings)
+lyd_free_attr(const struct ly_ctx *ctx, struct lyd_attr *attr, ly_bool siblings)
 {
-    struct ly_attr *iter;
-    LY_ARRAY_COUNT_TYPE u;
+    struct lyd_attr *iter;
 
     LY_CHECK_ARG_RET(NULL, ctx, );
     if (!attr) {
@@ -96,7 +106,7 @@ ly_free_attr(const struct ly_ctx *ctx, struct ly_attr *attr, int siblings)
                 attr->parent->attr = attr->next;
             }
         } else {
-            for (iter = attr->parent->attr; iter->next != attr; iter = iter->next);
+            for (iter = attr->parent->attr; iter->next != attr; iter = iter->next) {}
             if (iter->next) {
                 if (siblings) {
                     iter->next = NULL;
@@ -115,41 +125,25 @@ ly_free_attr(const struct ly_ctx *ctx, struct ly_attr *attr, int siblings)
         attr = iter;
         iter = iter->next;
 
-        LY_ARRAY_FOR(attr->val_prefs, u) {
-            FREE_STRING(ctx, attr->val_prefs[u].pref);
-            FREE_STRING(ctx, attr->val_prefs[u].ns);
-        }
-        LY_ARRAY_FREE(attr->val_prefs);
+        ly_free_val_prefs(ctx, attr->val_prefs);
         FREE_STRING(ctx, attr->name);
         FREE_STRING(ctx, attr->value);
-        FREE_STRING(ctx, attr->prefix.pref);
-        FREE_STRING(ctx, attr->prefix.ns);
+        FREE_STRING(ctx, attr->prefix.id);
+        FREE_STRING(ctx, attr->prefix.module_ns);
         free(attr);
     }
 }
 
 API void
-ly_free_attr_single(const struct ly_ctx *ctx, struct ly_attr *attr)
+lyd_free_attr_single(const struct ly_ctx *ctx, struct lyd_attr *attr)
 {
-    ly_free_attr(ctx, attr, 0);
+    lyd_free_attr(ctx, attr, 0);
 }
 
 API void
-ly_free_attr_siblings(const struct ly_ctx *ctx, struct ly_attr *attr)
+lyd_free_attr_siblings(const struct ly_ctx *ctx, struct lyd_attr *attr)
 {
-    ly_free_attr(ctx, attr, 1);
-}
-
-void
-ly_free_val_prefs(const struct ly_ctx *ctx, struct ly_prefix *val_prefs)
-{
-    LY_ARRAY_COUNT_TYPE u;
-
-    LY_ARRAY_FOR(val_prefs, u) {
-        FREE_STRING(ctx, val_prefs[u].pref);
-        FREE_STRING(ctx, val_prefs[u].ns);
-    }
-    LY_ARRAY_FREE(val_prefs);
+    lyd_free_attr(ctx, attr, 1);
 }
 
 /**
@@ -158,7 +152,7 @@ ly_free_val_prefs(const struct ly_ctx *ctx, struct ly_prefix *val_prefs)
  * @param[in] top Recursion flag to unlink the root of the subtree being freed.
  */
 static void
-lyd_free_subtree(struct lyd_node *node, int top)
+lyd_free_subtree(struct lyd_node *node, ly_bool top)
 {
     struct lyd_node *iter, *next;
     struct lyd_node *children;
@@ -170,23 +164,23 @@ lyd_free_subtree(struct lyd_node *node, int top)
         opaq = (struct lyd_node_opaq *)node;
 
         /* free the children */
-        children = lyd_node_children(node, 0);
+        children = lyd_child(node);
         LY_LIST_FOR_SAFE(children, next, iter) {
             lyd_free_subtree(iter, 0);
         }
 
-        FREE_STRING(LYD_NODE_CTX(opaq), opaq->name);
-        FREE_STRING(LYD_NODE_CTX(opaq), opaq->prefix.pref);
-        FREE_STRING(LYD_NODE_CTX(opaq), opaq->prefix.ns);
-        ly_free_val_prefs(LYD_NODE_CTX(opaq), opaq->val_prefs);
-        FREE_STRING(LYD_NODE_CTX(opaq), opaq->value);
+        FREE_STRING(LYD_CTX(opaq), opaq->name);
+        FREE_STRING(LYD_CTX(opaq), opaq->prefix.id);
+        FREE_STRING(LYD_CTX(opaq), opaq->prefix.module_ns);
+        ly_free_val_prefs(LYD_CTX(opaq), opaq->val_prefs);
+        FREE_STRING(LYD_CTX(opaq), opaq->value);
     } else if (node->schema->nodetype & LYD_NODE_INNER) {
         /* remove children hash table in case of inner data node */
         lyht_free(((struct lyd_node_inner *)node)->children_ht);
         ((struct lyd_node_inner *)node)->children_ht = NULL;
 
         /* free the children */
-        children = lyd_node_children(node, 0);
+        children = lyd_child(node);
         LY_LIST_FOR_SAFE(children, next, iter) {
             lyd_free_subtree(iter, 0);
         }
@@ -194,11 +188,11 @@ lyd_free_subtree(struct lyd_node *node, int top)
         /* only frees the value this way */
         lyd_any_copy_value(node, NULL, 0);
     } else if (node->schema->nodetype & LYD_NODE_TERM) {
-        ((struct lysc_node_leaf *)node->schema)->type->plugin->free(LYD_NODE_CTX(node), &((struct lyd_node_term *)node)->value);
+        ((struct lysc_node_leaf *)node->schema)->type->plugin->free(LYD_CTX(node), &((struct lyd_node_term *)node)->value);
     }
 
     if (!node->schema) {
-        ly_free_attr_siblings(LYD_NODE_CTX(node), opaq->attr);
+        lyd_free_attr_siblings(LYD_CTX(node), opaq->attr);
     } else {
         /* free the node's metadata */
         lyd_free_meta_siblings(node->meta);
@@ -223,7 +217,7 @@ lyd_free_tree(struct lyd_node *node)
 }
 
 static void
-lyd_free_(struct lyd_node *node, int top)
+lyd_free_(struct lyd_node *node, ly_bool top)
 {
     struct lyd_node *iter, *next;
 
@@ -233,7 +227,7 @@ lyd_free_(struct lyd_node *node, int top)
 
     /* get the first (top-level) sibling */
     if (top) {
-        for (; node->parent; node = (struct lyd_node *)node->parent);
+        for ( ; node->parent; node = (struct lyd_node *)node->parent) {}
     }
     while (node->prev->next) {
         node = node->prev;

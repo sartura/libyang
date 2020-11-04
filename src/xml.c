@@ -27,27 +27,27 @@
 #include "common.h"
 #include "compat.h"
 #include "dict.h"
-#include "parser_internal.h"
-#include "printer.h"
+#include "in_internal.h"
+#include "out_internal.h"
 #include "tree.h"
 #include "tree_data.h"
 
 /* Move input p by s characters, if EOF log with lyxml_ctx c */
-#define move_input(c,s) ly_in_skip(c->in, s); LY_CHECK_ERR_RET(!c->in->current[0], LOGVAL(c->ctx, LY_VLOG_LINE, &c->line, LY_VCODE_EOF), LY_EVALID)
+#define move_input(c, s) ly_in_skip(c->in, s); LY_CHECK_ERR_RET(!c->in->current[0], LOGVAL(c->ctx, LY_VLOG_LINE, &c->line, LY_VCODE_EOF), LY_EVALID)
 
 /* Ignore whitespaces in the input string p */
 #define ign_xmlws(c) while (is_xmlws(*(c)->in->current)) {if (*(c)->in->current == '\n') {++c->line;} ly_in_skip(c->in, 1);}
 
-static LY_ERR lyxml_next_attr_content(struct lyxml_ctx *xmlctx, const char **value, size_t *value_len, int *ws_only,
-                                      int *dynamic);
+static LY_ERR lyxml_next_attr_content(struct lyxml_ctx *xmlctx, const char **value, size_t *value_len, ly_bool *ws_only,
+        ly_bool *dynamic);
 
 /**
  * @brief Ignore any characters until the delim of the size delim_len is read
  *
  * Detects number of read new lines.
- * Returns 0 if delim was found, non-zero if was not.
+ * Returns Boolean value whether delim was found or not.
  */
-static int
+static ly_bool
 ign_todelim(register const char *input, const char *delim, size_t delim_len, size_t *newlines, size_t *parsed)
 {
     size_t i;
@@ -76,7 +76,7 @@ ign_todelim(register const char *input, const char *delim, size_t delim_len, siz
     }
 
     /* delim not found */
-    return -1;
+    return 1;
 }
 
 /**
@@ -104,12 +104,12 @@ lyxml_parse_identifier(struct lyxml_ctx *xmlctx, const char **start, const char 
 
     /* check NameStartChar (minus colon) */
     LY_CHECK_ERR_RET(ly_getutf8(&in, &c, &parsed),
-                     LOGVAL(xmlctx->ctx, LY_VLOG_LINE, &xmlctx->line, LY_VCODE_INCHAR, in[0]),
-                     LY_EVALID);
+            LOGVAL(xmlctx->ctx, LY_VLOG_LINE, &xmlctx->line, LY_VCODE_INCHAR, in[0]),
+            LY_EVALID);
     LY_CHECK_ERR_RET(!is_xmlqnamestartchar(c),
-                     LOGVAL(xmlctx->ctx, LY_VLOG_LINE, &xmlctx->line, LYVE_SYNTAX,
-                            "Identifier \"%s\" starts with an invalid character.", in - parsed),
-                     LY_EVALID);
+            LOGVAL(xmlctx->ctx, LY_VLOG_LINE, &xmlctx->line, LYVE_SYNTAX,
+            "Identifier \"%s\" starts with an invalid character.", in - parsed),
+            LY_EVALID);
 
     /* check rest of the identifier */
     do {
@@ -145,6 +145,7 @@ lyxml_parse_identifier(struct lyxml_ctx *xmlctx, const char **start, const char 
 LY_ERR
 lyxml_ns_add(struct lyxml_ctx *xmlctx, const char *prefix, size_t prefix_len, char *uri)
 {
+    LY_ERR ret = LY_SUCCESS;
     struct lyxml_ns *ns;
 
     ns = malloc(sizeof *ns);
@@ -163,8 +164,9 @@ lyxml_ns_add(struct lyxml_ctx *xmlctx, const char *prefix, size_t prefix_len, ch
         ns->prefix = NULL;
     }
 
-    LY_CHECK_ERR_RET(ly_set_add(&xmlctx->ns, ns, LY_SET_OPT_USEASLIST) == -1,
-                     free(ns->prefix); free(ns->uri); free(ns), LY_EMEM);
+    ret = ly_set_add(&xmlctx->ns, ns, 1, NULL);
+    LY_CHECK_ERR_RET(ret, free(ns->prefix); free(ns->uri); free(ns), ret);
+
     return LY_SUCCESS;
 }
 
@@ -176,9 +178,7 @@ lyxml_ns_add(struct lyxml_ctx *xmlctx, const char *prefix, size_t prefix_len, ch
 void
 lyxml_ns_rm(struct lyxml_ctx *xmlctx)
 {
-    unsigned int u;
-
-    for (u = xmlctx->ns.count - 1; u + 1 > 0; --u) {
+    for (uint32_t u = xmlctx->ns.count - 1; u + 1 > 0; --u) {
         if (((struct lyxml_ns *)xmlctx->ns.objs[u])->depth != xmlctx->elements.count + 1) {
             /* we are done, the namespaces from a single element are supposed to be together */
             break;
@@ -197,13 +197,12 @@ lyxml_ns_rm(struct lyxml_ctx *xmlctx)
 }
 
 const struct lyxml_ns *
-lyxml_ns_get(struct lyxml_ctx *xmlctx, const char *prefix, size_t prefix_len)
+lyxml_ns_get(const struct ly_set *ns_set, const char *prefix, size_t prefix_len)
 {
-    unsigned int u;
     struct lyxml_ns *ns;
 
-    for (u = xmlctx->ns.count - 1; u + 1 > 0; --u) {
-        ns = (struct lyxml_ns *)xmlctx->ns.objs[u];
+    for (uint32_t u = ns_set->count - 1; u + 1 > 0; --u) {
+        ns = (struct lyxml_ns *)ns_set->objs[u];
         if (prefix && prefix_len) {
             if (ns->prefix && !ly_strncmp(ns->prefix, prefix, prefix_len)) {
                 return ns;
@@ -230,7 +229,7 @@ lyxml_skip_until_end_or_after_otag(struct lyxml_ctx *xmlctx)
     const struct ly_ctx *ctx = xmlctx->ctx; /* shortcut */
     const char *endtag, *sectname;
     size_t endtag_len, newlines, parsed;
-    int rc;
+    ly_bool rc;
 
     while (1) {
         ign_xmlws(xmlctx);
@@ -244,7 +243,7 @@ lyxml_skip_until_end_or_after_otag(struct lyxml_ctx *xmlctx)
             return LY_SUCCESS;
         } else if (xmlctx->in->current[0] != '<') {
             LOGVAL(ctx, LY_VLOG_LINE, &xmlctx->line, LY_VCODE_INSTREXP, LY_VCODE_INSTREXP_len(xmlctx->in->current),
-                   xmlctx->in->current, "element tag start ('<')");
+                    xmlctx->in->current, "element tag start ('<')");
             return LY_EVALID;
         }
         move_input(xmlctx, 1);
@@ -270,7 +269,7 @@ lyxml_skip_until_end_or_after_otag(struct lyxml_ctx *xmlctx)
                 return LY_EVALID;
             } else {
                 LOGVAL(ctx, LY_VLOG_LINE, &xmlctx->line, LYVE_SYNTAX, "Unknown XML section \"%.20s\".",
-                       &xmlctx->in->current[-2]);
+                        &xmlctx->in->current[-2]);
                 return LY_EVALID;
             }
             rc = ign_todelim(xmlctx->in->current, endtag, endtag_len, &newlines, &parsed);
@@ -325,71 +324,6 @@ lyxml_parse_qname(struct lyxml_ctx *xmlctx, const char **prefix, size_t *prefix_
 }
 
 /**
- * Store UTF-8 character specified as 4byte integer into the dst buffer.
- * Returns number of written bytes (4 max), expects that dst has enough space.
- *
- * UTF-8 mapping:
- * 00000000 -- 0000007F:    0xxxxxxx
- * 00000080 -- 000007FF:    110xxxxx 10xxxxxx
- * 00000800 -- 0000FFFF:    1110xxxx 10xxxxxx 10xxxxxx
- * 00010000 -- 001FFFFF:    11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
- *
- * Includes checking for valid characters (following RFC 7950, sec 9.4)
- */
-static LY_ERR
-lyxml_pututf8(char *dst, uint32_t value, size_t *bytes_written)
-{
-    if (value < 0x80) {
-        /* one byte character */
-        if (value < 0x20 &&
-                value != 0x09 &&
-                value != 0x0a &&
-                value != 0x0d) {
-            return LY_EINVAL;
-        }
-
-        dst[0] = value;
-        (*bytes_written) = 1;
-    } else if (value < 0x800) {
-        /* two bytes character */
-        dst[0] = 0xc0 | (value >> 6);
-        dst[1] = 0x80 | (value & 0x3f);
-        (*bytes_written) = 2;
-    } else if (value < 0xfffe) {
-        /* three bytes character */
-        if (((value & 0xf800) == 0xd800) ||
-                (value >= 0xfdd0 && value <= 0xfdef)) {
-            /* exclude surrogate blocks %xD800-DFFF */
-            /* exclude noncharacters %xFDD0-FDEF */
-            return LY_EINVAL;
-        }
-
-        dst[0] = 0xe0 | (value >> 12);
-        dst[1] = 0x80 | ((value >> 6) & 0x3f);
-        dst[2] = 0x80 | (value & 0x3f);
-
-        (*bytes_written) = 3;
-    } else if (value < 0x10fffe) {
-        if ((value & 0xffe) == 0xffe) {
-            /* exclude noncharacters %xFFFE-FFFF, %x1FFFE-1FFFF, %x2FFFE-2FFFF, %x3FFFE-3FFFF, %x4FFFE-4FFFF,
-             * %x5FFFE-5FFFF, %x6FFFE-6FFFF, %x7FFFE-7FFFF, %x8FFFE-8FFFF, %x9FFFE-9FFFF, %xAFFFE-AFFFF,
-             * %xBFFFE-BFFFF, %xCFFFE-CFFFF, %xDFFFE-DFFFF, %xEFFFE-EFFFF, %xFFFFE-FFFFF, %x10FFFE-10FFFF */
-            return LY_EINVAL;
-        }
-        /* four bytes character */
-        dst[0] = 0xf0 | (value >> 18);
-        dst[1] = 0x80 | ((value >> 12) & 0x3f);
-        dst[2] = 0x80 | ((value >> 6) & 0x3f);
-        dst[3] = 0x80 | (value & 0x3f);
-
-        (*bytes_written) = 4;
-    } else {
-	    return LY_EINVAL;
-    }
-    return LY_SUCCESS;
-}
-
-/**
  * @brief Parse XML text content (value).
  *
  * @param[in] xmlctx XML context to use.
@@ -401,7 +335,7 @@ lyxml_pututf8(char *dst, uint32_t value, size_t *bytes_written)
  * @return LY_ERR value.
  */
 static LY_ERR
-lyxml_parse_value(struct lyxml_ctx *xmlctx, char endchar, char **value, size_t *length, int *ws_only, int *dynamic)
+lyxml_parse_value(struct lyxml_ctx *xmlctx, char endchar, char **value, size_t *length, ly_bool *ws_only, ly_bool *dynamic)
 {
 #define BUFSIZE 24
 #define BUFSIZE_STEP 128
@@ -415,7 +349,7 @@ lyxml_parse_value(struct lyxml_ctx *xmlctx, char endchar, char **value, size_t *
     void *p;
     uint32_t n;
     size_t u;
-    int ws = 1;
+    ly_bool ws = 1;
 
     assert(xmlctx);
 
@@ -473,7 +407,7 @@ lyxml_parse_value(struct lyxml_ctx *xmlctx, char endchar, char **value, size_t *
                     in += 6; /* &quot; */
                 } else {
                     LOGVAL(ctx, LY_VLOG_LINE, &xmlctx->line, LYVE_SYNTAX,
-                           "Entity reference \"%.*s\" not supported, only predefined references allowed.", 10, &in[offset-1]);
+                            "Entity reference \"%.*s\" not supported, only predefined references allowed.", 10, &in[offset - 1]);
                     goto error;
                 }
                 offset = 0;
@@ -485,7 +419,7 @@ lyxml_parse_value(struct lyxml_ctx *xmlctx, char endchar, char **value, size_t *
                     for (n = 0; isdigit(in[offset]); offset++) {
                         n = (10 * n) + (in[offset] - '0');
                     }
-                } else if (in[offset] == 'x' && isxdigit(in[offset + 1])) {
+                } else if ((in[offset] == 'x') && isxdigit(in[offset + 1])) {
                     for (n = 0, ++offset; isxdigit(in[offset]); offset++) {
                         if (isdigit(in[offset])) {
                             u = (in[offset] - '0');
@@ -503,14 +437,14 @@ lyxml_parse_value(struct lyxml_ctx *xmlctx, char endchar, char **value, size_t *
                 }
 
                 LY_CHECK_ERR_GOTO(in[offset] != ';',
-                                  LOGVAL(ctx, LY_VLOG_LINE, &xmlctx->line, LY_VCODE_INSTREXP,
-                                         LY_VCODE_INSTREXP_len(&in[offset]), &in[offset], ";"),
-                                  error);
+                        LOGVAL(ctx, LY_VLOG_LINE, &xmlctx->line, LY_VCODE_INSTREXP,
+                        LY_VCODE_INSTREXP_len(&in[offset]), &in[offset], ";"),
+                        error);
                 ++offset;
-                LY_CHECK_ERR_GOTO(lyxml_pututf8(&buf[len], n, &u),
-                                  LOGVAL(ctx, LY_VLOG_LINE, &xmlctx->line, LYVE_SYNTAX,
-                                         "Invalid character reference \"%.*s\" (0x%08x).", 12, p, n),
-                                  error);
+                LY_CHECK_ERR_GOTO(ly_pututf8(&buf[len], n, &u),
+                        LOGVAL(ctx, LY_VLOG_LINE, &xmlctx->line, LYVE_SYNTAX,
+                        "Invalid character reference \"%.*s\" (0x%08x).", 12, p, n),
+                        error);
                 len += u;
                 in += offset;
                 offset = 0;
@@ -584,24 +518,24 @@ success:
  */
 static LY_ERR
 lyxml_close_element(struct lyxml_ctx *xmlctx, const char *prefix, size_t prefix_len, const char *name, size_t name_len,
-                    int empty)
+        ly_bool empty)
 {
     struct lyxml_elem *e;
 
     /* match opening and closing element tags */
     if (!xmlctx->elements.count) {
         LOGVAL(xmlctx->ctx, LY_VLOG_LINE, &xmlctx->line, LYVE_SYNTAX, "Stray closing element tag (\"%.*s\").",
-               name_len, name);
+                name_len, name);
         return LY_EVALID;
     }
 
     e = (struct lyxml_elem *)xmlctx->elements.objs[xmlctx->elements.count - 1];
-    if ((e->prefix_len != prefix_len) || (e->name_len != name_len)
-            || (prefix_len && strncmp(prefix, e->prefix, e->prefix_len)) || strncmp(name, e->name, e->name_len)) {
+    if ((e->prefix_len != prefix_len) || (e->name_len != name_len) ||
+            (prefix_len && strncmp(prefix, e->prefix, e->prefix_len)) || strncmp(name, e->name, e->name_len)) {
         LOGVAL(xmlctx->ctx, LY_VLOG_LINE, &xmlctx->line, LYVE_SYNTAX,
-               "Opening (\"%.*s%s%.*s\") and closing (\"%.*s%s%.*s\") elements tag mismatch.",
-               e->prefix_len, e->prefix ? e->prefix : "", e->prefix ? ":" : "", e->name_len, e->name,
-               prefix_len, prefix ? prefix : "", prefix ? ":" : "", name_len, name);
+                "Opening (\"%.*s%s%.*s\") and closing (\"%.*s%s%.*s\") elements tag mismatch.",
+                e->prefix_len, e->prefix ? e->prefix : "", e->prefix ? ":" : "", e->name_len, e->name,
+                prefix_len, prefix ? prefix : "", prefix ? ":" : "", name_len, name);
         return LY_EVALID;
     }
 
@@ -622,7 +556,7 @@ lyxml_close_element(struct lyxml_ctx *xmlctx, const char *prefix, size_t prefix_
     /* parse closing tag */
     if (xmlctx->in->current[0] != '>') {
         LOGVAL(xmlctx->ctx, LY_VLOG_LINE, &xmlctx->line, LY_VCODE_INSTREXP, LY_VCODE_INSTREXP_len(xmlctx->in->current),
-               xmlctx->in->current, "element tag termination ('>')");
+                xmlctx->in->current, "element tag termination ('>')");
         return LY_EVALID;
     }
 
@@ -650,7 +584,7 @@ lyxml_open_element(struct lyxml_ctx *xmlctx, const char *prefix, size_t prefix_l
     const char *prev_input;
     char *value;
     size_t parsed, value_len;
-    int ws_only, dynamic, is_ns;
+    ly_bool ws_only, dynamic, is_ns;
     uint32_t c;
 
     /* store element opening tag information */
@@ -660,7 +594,7 @@ lyxml_open_element(struct lyxml_ctx *xmlctx, const char *prefix, size_t prefix_l
     e->prefix = prefix;
     e->name_len = name_len;
     e->prefix_len = prefix_len;
-    ly_set_add(&xmlctx->elements, e, LY_SET_OPT_USEASLIST);
+    LY_CHECK_RET(ly_set_add(&xmlctx->elements, e, 1, NULL));
 
     /* skip WS */
     ign_xmlws(xmlctx);
@@ -680,7 +614,7 @@ lyxml_open_element(struct lyxml_ctx *xmlctx, const char *prefix, size_t prefix_l
         /* store every namespace */
         if ((prefix && !ly_strncmp("xmlns", prefix, prefix_len)) || (!prefix && !ly_strncmp("xmlns", name, name_len))) {
             LY_CHECK_GOTO(ret = lyxml_ns_add(xmlctx, prefix ? name : NULL, prefix ? name_len : 0,
-                                             dynamic ? value : strndup(value, value_len)), cleanup);
+                    dynamic ? value : strndup(value, value_len)), cleanup);
             dynamic = 0;
         } else {
             /* not a namespace */
@@ -717,7 +651,7 @@ cleanup:
  * @return LY_ERR value.
  */
 static LY_ERR
-lyxml_next_attr_content(struct lyxml_ctx *xmlctx, const char **value, size_t *value_len, int *ws_only, int *dynamic)
+lyxml_next_attr_content(struct lyxml_ctx *xmlctx, const char **value, size_t *value_len, ly_bool *ws_only, ly_bool *dynamic)
 {
     char quot;
 
@@ -730,7 +664,7 @@ lyxml_next_attr_content(struct lyxml_ctx *xmlctx, const char **value, size_t *va
         return LY_EVALID;
     } else if (xmlctx->in->current[0] != '=') {
         LOGVAL(xmlctx->ctx, LY_VLOG_LINE, &xmlctx->line, LY_VCODE_INSTREXP, LY_VCODE_INSTREXP_len(xmlctx->in->current),
-               xmlctx->in->current, "'='");
+                xmlctx->in->current, "'='");
         return LY_EVALID;
     }
     move_input(xmlctx, 1);
@@ -744,7 +678,7 @@ lyxml_next_attr_content(struct lyxml_ctx *xmlctx, const char **value, size_t *va
         return LY_EVALID;
     } else if ((xmlctx->in->current[0] != '\'') && (xmlctx->in->current[0] != '\"')) {
         LOGVAL(xmlctx->ctx, LY_VLOG_LINE, &xmlctx->line, LY_VCODE_INSTREXP, LY_VCODE_INSTREXP_len(xmlctx->in->current),
-               xmlctx->in->current, "either single or double quotation mark");
+                xmlctx->in->current, "either single or double quotation mark");
         return LY_EVALID;
     }
 
@@ -778,7 +712,7 @@ lyxml_next_attribute(struct lyxml_ctx *xmlctx, const char **prefix, size_t *pref
     char *value;
     uint32_t c;
     size_t parsed, value_len;
-    int ws_only, dynamic;
+    ly_bool ws_only, dynamic;
 
     /* skip WS */
     ign_xmlws(xmlctx);
@@ -791,7 +725,7 @@ lyxml_next_attribute(struct lyxml_ctx *xmlctx, const char **prefix, size_t *pref
             return LY_EVALID;
         } else if ((ly_getutf8(&in, &c, &parsed) || !is_xmlqnamestartchar(c))) {
             LOGVAL(xmlctx->ctx, LY_VLOG_LINE, &xmlctx->line, LY_VCODE_INSTREXP, LY_VCODE_INSTREXP_len(in - parsed), in - parsed,
-                "element tag end ('>' or '/>') or an attribute");
+                    "element tag end ('>' or '/>') or an attribute");
             return LY_EVALID;
         }
 
@@ -824,11 +758,12 @@ lyxml_next_attribute(struct lyxml_ctx *xmlctx, const char **prefix, size_t *pref
  * @param[out] prefix_len Length of @p prefix.
  * @param[out] name Parse element name.
  * @param[out] name_len Length of @p name.
+ * @param[out] closing Flag if the element is closing (includes '/').
  * @return LY_ERR value.
  */
 static LY_ERR
 lyxml_next_element(struct lyxml_ctx *xmlctx, const char **prefix, size_t *prefix_len, const char **name, size_t *name_len,
-                   int *closing)
+        ly_bool *closing)
 {
     /* skip WS until EOF or after opening tag '<' */
     LY_CHECK_RET(lyxml_skip_until_end_or_after_otag(xmlctx));
@@ -860,7 +795,7 @@ lyxml_ctx_new(const struct ly_ctx *ctx, struct ly_in *in, struct lyxml_ctx **xml
 {
     LY_ERR ret = LY_SUCCESS;
     struct lyxml_ctx *xmlctx;
-    int closing;
+    ly_bool closing;
 
     /* new context */
     xmlctx = calloc(1, sizeof *xmlctx);
@@ -871,14 +806,14 @@ lyxml_ctx_new(const struct ly_ctx *ctx, struct ly_in *in, struct lyxml_ctx **xml
 
     /* parse next element, if any */
     LY_CHECK_GOTO(ret = lyxml_next_element(xmlctx, &xmlctx->prefix, &xmlctx->prefix_len, &xmlctx->name,
-                                           &xmlctx->name_len, &closing), cleanup);
+            &xmlctx->name_len, &closing), cleanup);
 
     if (xmlctx->in->current[0] == '\0') {
         /* update status */
         xmlctx->status = LYXML_END;
     } else if (closing) {
         LOGVAL(ctx, LY_VLOG_LINE, &xmlctx->line, LYVE_SYNTAX, "Stray closing element tag (\"%.*s\").",
-               xmlctx->name_len, xmlctx->name);
+                xmlctx->name_len, xmlctx->name);
         ret = LY_EVALID;
         goto cleanup;
     } else {
@@ -902,7 +837,7 @@ LY_ERR
 lyxml_ctx_next(struct lyxml_ctx *xmlctx)
 {
     LY_ERR ret = LY_SUCCESS;
-    int closing;
+    ly_bool closing;
     struct lyxml_elem *e;
 
     /* if the value was not used, free it */
@@ -928,7 +863,7 @@ lyxml_ctx_next(struct lyxml_ctx *xmlctx)
             xmlctx->status = LYXML_ELEM_CLOSE;
             break;
         }
-        /* fallthrough */
+    /* fallthrough */
 
     /* </elem>| <elem2>* */
     case LYXML_ELEM_CLOSE:
@@ -976,7 +911,7 @@ lyxml_ctx_next(struct lyxml_ctx *xmlctx)
 
             /* parse element content */
             ret = lyxml_parse_value(xmlctx, '<', (char **)&xmlctx->value, &xmlctx->value_len, &xmlctx->ws_only,
-                                    &xmlctx->dynamic);
+                    &xmlctx->dynamic);
             LY_CHECK_GOTO(ret, cleanup);
 
             if (!xmlctx->value_len) {
@@ -1032,7 +967,7 @@ lyxml_ctx_peek(struct lyxml_ctx *xmlctx, enum LYXML_PARSER_STATUS *next)
     LY_ERR ret = LY_SUCCESS;
     const char *prefix, *name, *prev_input;
     size_t prefix_len, name_len;
-    int closing;
+    ly_bool closing;
 
     prev_input = xmlctx->in->current;
 
@@ -1042,7 +977,7 @@ lyxml_ctx_peek(struct lyxml_ctx *xmlctx, enum LYXML_PARSER_STATUS *next)
             *next = LYXML_ELEM_CLOSE;
             break;
         }
-        /* fallthrough */
+    /* fallthrough */
     case LYXML_ELEM_CLOSE:
         /* parse next element, if any */
         ret = lyxml_next_element(xmlctx, &prefix, &prefix_len, &name, &name_len, &closing);
@@ -1105,39 +1040,40 @@ lyxml_ctx_free(struct lyxml_ctx *xmlctx)
 }
 
 LY_ERR
-lyxml_dump_text(struct ly_out *out, const char *text, int attribute)
+lyxml_dump_text(struct ly_out *out, const char *text, ly_bool attribute)
 {
-    ssize_t ret = LY_SUCCESS;
-    unsigned int u;
+    LY_ERR ret;
 
     if (!text) {
         return 0;
     }
 
-    for (u = 0; text[u]; u++) {
+    for (uint64_t u = 0; text[u]; u++) {
         switch (text[u]) {
         case '&':
-            ret = ly_print(out, "&amp;");
+            ret = ly_print_(out, "&amp;");
             break;
         case '<':
-            ret = ly_print(out, "&lt;");
+            ret = ly_print_(out, "&lt;");
             break;
         case '>':
             /* not needed, just for readability */
-            ret = ly_print(out, "&gt;");
+            ret = ly_print_(out, "&gt;");
             break;
         case '"':
             if (attribute) {
-                ret = ly_print(out, "&quot;");
+                ret = ly_print_(out, "&quot;");
                 break;
             }
-            /* falls through */
+        /* falls through */
         default:
-            ret = ly_write(out, &text[u], 1);
+            ret = ly_write_(out, &text[u], 1);
+            break;
         }
+        LY_CHECK_RET(ret);
     }
 
-    return ret < 0 ? (-1 * ret) : 0;
+    return LY_SUCCESS;
 }
 
 LY_ERR
@@ -1157,26 +1093,26 @@ lyxml_get_prefixes(struct lyxml_ctx *xmlctx, const char *value, size_t value_len
         if (is_xmlqnamestartchar(c)) {
             for (ly_getutf8(&stop, &c, &bytes);
                     is_xmlqnamechar(c) && (size_t)(stop - value) < value_len;
-                    ly_getutf8(&stop, &c, &bytes));
+                    ly_getutf8(&stop, &c, &bytes)) {}
             stop = stop - bytes;
             if (*stop == ':') {
                 /* we have a possible prefix */
                 len = stop - start;
-                ns = lyxml_ns_get(xmlctx, start, len);
+                ns = lyxml_ns_get(&xmlctx->ns, start, len);
                 if (ns) {
                     struct ly_prefix *p = NULL;
 
                     /* check whether we do not already have this prefix stored */
                     LY_ARRAY_FOR(prefixes, u) {
-                        if (!ly_strncmp(prefixes[u].pref, start, len)) {
+                        if (!ly_strncmp(prefixes[u].id, start, len)) {
                             p = &prefixes[u];
                             break;
                         }
                     }
                     if (!p) {
                         LY_ARRAY_NEW_GOTO(xmlctx->ctx, prefixes, p, ret, error);
-                        p->pref = lydict_insert(xmlctx->ctx, start, len);
-                        p->ns = lydict_insert(xmlctx->ctx, ns->uri, 0);
+                        LY_CHECK_GOTO(ret = lydict_insert(xmlctx->ctx, start, len, &p->id), error);
+                        LY_CHECK_GOTO(ret = lydict_insert(xmlctx->ctx, ns->uri, 0, &p->module_ns), error);
                     } /* else the prefix already present */
                 }
             }
@@ -1189,7 +1125,8 @@ lyxml_get_prefixes(struct lyxml_ctx *xmlctx, const char *value, size_t value_len
 
 error:
     LY_ARRAY_FOR(prefixes, u) {
-        lydict_remove(xmlctx->ctx, prefixes[u].pref);
+        lydict_remove(xmlctx->ctx, prefixes[u].id);
+        lydict_remove(xmlctx->ctx, prefixes[u].module_ns);
     }
     LY_ARRAY_FREE(prefixes);
     return ret;
@@ -1200,7 +1137,6 @@ lyxml_value_compare(const char *value1, const struct ly_prefix *prefs1, const ch
 {
     const char *ptr1, *ptr2, *ns1, *ns2;
     LY_ARRAY_COUNT_TYPE u1, u2;
-    int len;
 
     if (!value1 && !value2) {
         return LY_SUCCESS;
@@ -1214,14 +1150,15 @@ lyxml_value_compare(const char *value1, const struct ly_prefix *prefs1, const ch
     while (ptr1[0] && ptr2[0]) {
         if (ptr1[0] != ptr2[0]) {
             /* it can be a start of prefix that maps to the same module */
+            size_t len;
             ns1 = ns2 = NULL;
             u1 = u2 = 0;
             if (prefs1) {
                 /* find module of the first prefix, if any */
                 LY_ARRAY_FOR(prefs1, u1) {
-                    len = strlen(prefs1[u1].pref);
-                    if (!strncmp(ptr1, prefs1[u1].pref, len) && (ptr1[len] == ':')) {
-                        ns1 = prefs1[u1].ns;
+                    len = strlen(prefs1[u1].id);
+                    if (!strncmp(ptr1, prefs1[u1].id, len) && (ptr1[len] == ':')) {
+                        ns1 = prefs1[u1].module_ns;
                         break;
                     }
                 }
@@ -1229,9 +1166,9 @@ lyxml_value_compare(const char *value1, const struct ly_prefix *prefs1, const ch
             if (prefs2) {
                 /* find module of the second prefix, if any */
                 LY_ARRAY_FOR(prefs2, u2) {
-                    len = strlen(prefs2[u2].pref);
-                    if (!strncmp(ptr2, prefs2[u2].pref, len) && (ptr2[len] == ':')) {
-                        ns2 = prefs2[u2].ns;
+                    len = strlen(prefs2[u2].id);
+                    if (!strncmp(ptr2, prefs2[u2].id, len) && (ptr2[len] == ':')) {
+                        ns2 = prefs2[u2].module_ns;
                         break;
                     }
                 }
@@ -1243,8 +1180,8 @@ lyxml_value_compare(const char *value1, const struct ly_prefix *prefs1, const ch
             }
 
             /* skip prefixes in both values (':' is skipped as iter) */
-            ptr1 += strlen(prefs1[u1].pref);
-            ptr2 += strlen(prefs2[u2].pref);
+            ptr1 += strlen(prefs1[u1].id);
+            ptr2 += strlen(prefs2[u2].id);
         }
 
         ++ptr1;

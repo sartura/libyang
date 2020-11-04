@@ -14,6 +14,39 @@ include(GNUInstallDirs)
 include(CheckSymbolExists)
 include(UseCompat)
 include(ABICheck)
+include(SourceFormat)
+include(Doc)
+
+# set default build type if not specified by user
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Debug)
+endif()
+# normalize build type string
+string(TOUPPER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_UPPER)
+if ("${BUILD_TYPE_UPPER}" STREQUAL "RELEASE")
+  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build Type" FORCE)
+elseif ("${BUILD_TYPE_UPPER}" STREQUAL "DEBUG")
+  set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build Type" FORCE)
+elseif ("${BUILD_TYPE_UPPER}" STREQUAL "RELWITHDEBINFO")
+  set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Build Type" FORCE)
+elseif ("${BUILD_TYPE_UPPER}" STREQUAL "RELWITHDEBUG")
+  set(CMAKE_BUILD_TYPE "RelWithDebug" CACHE STRING "Build Type" FORCE)
+elseif ("${BUILD_TYPE_UPPER}" STREQUAL "ABICHECK")
+  set(CMAKE_BUILD_TYPE "ABICheck" CACHE STRING "Build Type" FORCE)
+elseif ("${BUILD_TYPE_UPPER}" STREQUAL "DOCONLY")
+  set(CMAKE_BUILD_TYPE "DocOnly" CACHE STRING "Build Type" FORCE)
+else ()
+  message(FATAL_ERROR "Unknown CMAKE_BUILD_TYPE \"${CMAKE_BUILD_TYPE}\".")
+endif ()
+
+# check the supported platform
+if(NOT UNIX)
+    message(FATAL_ERROR "Only *nix like systems are supported.")
+endif()
+
+#
+# variables
+#
 
 set(LIBYANG_DESCRIPTION "libyang is YANG data modelling language parser and toolkit written (and providing API) in C.")
 
@@ -32,35 +65,123 @@ set(LIBYANG_MICRO_SOVERSION 0)
 set(LIBYANG_SOVERSION_FULL ${LIBYANG_MAJOR_SOVERSION}.${LIBYANG_MINOR_SOVERSION}.${LIBYANG_MICRO_SOVERSION})
 set(LIBYANG_SOVERSION ${LIBYANG_MAJOR_SOVERSION})
 
-# set default build type if not specified by user
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug)
+if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    set(COMPILER_UNUSED_ATTR "UNUSED_ ## x __attribute__((__unused__))")
+    set(COMPILER_PACKED_ATTR "__attribute__((__packed__))")
+elseif(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    set(COMPILER_UNUSED_ATTR "UNUSED_ ## x __attribute__((__unused__))")
+    set(COMPILER_PACKED_ATTR "__attribute__((__packed__))")
+else()
+    set(COMPILER_UNUSED_ATTR "UNUSED_ ## x")
+    set(COMPILER_PACKED_ATTR "")
 endif()
-# normalize build type string
-string(TOUPPER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_UPPER)
-if ("${BUILD_TYPE_UPPER}" STREQUAL "RELEASE")
-  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build Type" FORCE)
-elseif ("${BUILD_TYPE_UPPER}" STREQUAL "DEBUG")
-  set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build Type" FORCE)
-elseif ("${BUILD_TYPE_UPPER}" STREQUAL "RELWITHDEBINFO")
-  set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Build Type" FORCE)
-elseif ("${BUILD_TYPE_UPPER}" STREQUAL "RELWITHDEBUG")
-  set(CMAKE_BUILD_TYPE "RelWithDebug" CACHE STRING "Build Type" FORCE)
-elseif ("${BUILD_TYPE_UPPER}" STREQUAL "ABICHECK")
-  set(CMAKE_BUILD_TYPE "ABICheck" CACHE STRING "Build Type" FORCE)
-else ()
-  message(FATAL_ERROR "Unknown CMAKE_BUILD_TYPE \"${CMAKE_BUILD_TYPE}\".")
-endif ()
 
+set(CMAKE_C_FLAGS                "${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_COVERAGE} -Wall -Wextra -Wno-missing-field-initializers -std=c99")
+set(CMAKE_C_FLAGS_DEBUG          "-g3 -O0")
+set(CMAKE_C_FLAGS_ABICHECK       "-g -Og")
+
+include_directories(${PROJECT_BINARY_DIR}/src ${PROJECT_SOURCE_DIR}/src)
+configure_file(${PROJECT_SOURCE_DIR}/src/version.h.in ${PROJECT_BINARY_DIR}/src/version.h @ONLY)
+
+#set(EXTENSIONS_PLUGINS_DIR_MACRO "${PLUGINS_DIR}/extensions")
+#set(USER_TYPES_PLUGINS_DIR_MACRO "${PLUGINS_DIR}/user_types")
+
+# setup bindings
+#set(GEN_LANGUAGE_BINDINGS 0 CACHE BOOL "Enable language bindings generation.")
+#set(GEN_CPP_BINDINGS 1 CACHE BOOL "Enable C++ bindings.")
+# Python bindings depend on C++ bindings because of SWIG
+#set(GEN_PYTHON_BINDINGS 1 CACHE BOOL "Enable Python bindings.")
+#set(GEN_PYTHON_VERSION "3" CACHE STRING "Python version")
+#set(GEN_JAVASCRIPT_BINDINGS 0 CACHE BOOL "Enable JavaScript bindings.")
+
+set(libsrc
+    src/common.c
+    src/log.c
+    src/hash_table.c
+    src/set.c
+    src/path.c
+    src/diff.c
+    src/context.c
+    src/json.c
+    src/tree_data.c
+    src/tree_data_free.c
+    src/tree_data_helpers.c
+    src/tree_data_hash.c
+    src/parser_xml.c
+    src/parser_json.c
+    src/parser_lyb.c
+    src/out.c
+    src/printer_data.c
+    src/printer_xml.c
+    src/printer_json.c
+    src/printer_lyb.c
+    src/schema_compile.c
+    src/schema_compile_node.c
+    src/schema_compile_amend.c
+    src/schema_features.c
+    src/tree_schema.c
+    src/tree_schema_free.c
+    src/tree_schema_helpers.c
+    src/in.c
+    src/parser_yang.c
+    src/parser_yin.c
+    src/parser_stmt.c
+    src/printer_schema.c
+    src/printer_yang.c
+    src/printer_yin.c
+    src/plugins_types.c
+    src/plugins_exts.c
+    src/xml.c
+    src/xpath.c
+    src/validation.c)
+
+set(lintsrc
+    tools/lint/main.c
+    tools/lint/main_ni.c
+    tools/lint/commands.c
+    tools/lint/completion.c
+    tools/lint/configuration.c
+    tools/lint/linenoise/linenoise.c)
+
+set(resrc
+    tools/re/main.c)
+
+set(headers
+    src/libyang.h
+    src/context.h
+    src/dict.h
+    src/log.h
+    src/in.h
+    src/parser_data.h
+    src/parser_schema.h
+    src/plugins_exts.h
+    src/plugins_types.h
+    src/out.h
+    src/printer_data.h
+    src/printer_schema.h
+    src/set.h
+    src/tree.h
+    src/tree_data.h
+    src/tree_schema.h)
+
+#
 # options
+#
+
+if("${BUILD_TYPE_UPPER}" STREQUAL "DOCONLY")
+    libyang_doc()
+    return()
+endif()
+
 if(("${BUILD_TYPE_UPPER}" STREQUAL "DEBUG") OR ("${BUILD_TYPE_UPPER}" STREQUAL "RELWITHDEBINFO"))
     option(ENABLE_BUILD_TESTS "Build tests" ON)
     option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" ON)
-    set(INTERNAL_DOCS YES)
+    # TODO enable when the internal docs ready
+    set(INTERNAL_DOCS "Include developers notes and internal API description into generated Documentation" OFF) 
 else()
     option(ENABLE_BUILD_TESTS "Build tests" OFF)
     option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" OFF)
-    set(INTERNAL_DOCS NO)
+    set(INTERNAL_DOCS "Include developers notes and internal API description into generated Documentation" OFF)
 endif()
 option(ENABLE_COVERAGE "Build code coverage report from tests" OFF)
 option(ENABLE_FUZZ_TARGETS "Build target programs suitable for fuzzing with AFL" OFF)
@@ -80,17 +201,6 @@ option(ENABLE_FUZZ_TARGETS "Build target programs suitable for fuzzing with AFL"
 #if(ENABLE_LYD_PRIV)
 #    set(LY_ENABLED_LYD_PRIV 1)
 #endif()
-
-if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    set(COMPILER_UNUSED_ATTR "UNUSED_ ## x __attribute__((__unused__))")
-    set(COMPILER_PACKED_ATTR "__attribute__((__packed__))")
-elseif(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    set(COMPILER_UNUSED_ATTR "UNUSED_ ## x __attribute__((__unused__))")
-    set(COMPILER_PACKED_ATTR "__attribute__((__packed__))")
-else()
-    set(COMPILER_UNUSED_ATTR "UNUSED_ ## x")
-    set(COMPILER_PACKED_ATTR "")
-endif()
 
 if(ENABLE_COVERAGE)
     find_program(PATH_GCOV NAMES gcov)
@@ -120,99 +230,13 @@ if(ENABLE_COVERAGE)
     endif()
 endif()
 
-set(CMAKE_C_FLAGS                "${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_COVERAGE} -Wall -Wextra -Wno-missing-field-initializers -std=c99")
-set(CMAKE_C_FLAGS_DEBUG          "-g3 -O0")
-set(CMAKE_C_FLAGS_ABICHECK       "-g -Og")
-
-include_directories(${PROJECT_BINARY_DIR}/src ${PROJECT_SOURCE_DIR}/src)
-configure_file(${PROJECT_SOURCE_DIR}/src/config.h.in ${PROJECT_BINARY_DIR}/src/config.h @ONLY)
-
-#set(EXTENSIONS_PLUGINS_DIR_MACRO "${PLUGINS_DIR}/extensions")
-#set(USER_TYPES_PLUGINS_DIR_MACRO "${PLUGINS_DIR}/user_types")
-
-# setup bindings
-#set(GEN_LANGUAGE_BINDINGS 0 CACHE BOOL "Enable language bindings generation.")
-#set(GEN_CPP_BINDINGS 1 CACHE BOOL "Enable C++ bindings.")
-# Python bindings depend on C++ bindings because of SWIG
-#set(GEN_PYTHON_BINDINGS 1 CACHE BOOL "Enable Python bindings.")
-#set(GEN_PYTHON_VERSION "3" CACHE STRING "Python version")
-#set(GEN_JAVASCRIPT_BINDINGS 0 CACHE BOOL "Enable JavaScript bindings.")
-
 # by default build shared library
 # static build requires static libpcre2 library
 option(ENABLE_STATIC "Build static (.a) library" OFF)
 
-# check the supported platform
-if(NOT UNIX)
-    message(FATAL_ERROR "Only *nix like systems are supported.")
-endif()
-
-set(libsrc
-    src/common.c
-    src/log.c
-    src/hash_table.c
-    src/set.c
-    src/path.c
-    src/diff.c
-    src/context.c
-    src/tree_data.c
-    src/tree_data_free.c
-    src/tree_data_helpers.c
-    src/tree_data_hash.c
-    src/parser_xml.c
-    src/parser_json.c
-    src/parser_lyb.c
-    src/printer.c
-    src/printer_data.c
-    src/printer_xml.c
-    src/printer_json.c
-    src/printer_lyb.c
-    src/tree_schema.c
-    src/tree_schema_free.c
-    src/tree_schema_compile.c
-    src/tree_schema_helpers.c
-    src/parser.c
-    src/parser_yang.c
-    src/parser_yin.c
-    src/parser_stmt.c
-    src/printer.c
-    src/printer_schema.c
-    src/printer_yang.c
-    src/printer_yin.c
-    src/plugins_types.c
-    src/plugins_exts.c
-    src/xml.c
-    src/xpath.c
-    src/validation.c)
-
-set(lintsrc
-    tools/lint/main.c
-    tools/lint/main_ni.c
-    tools/lint/commands.c
-    tools/lint/completion.c
-    tools/lint/configuration.c
-    tools/lint/linenoise/linenoise.c)
-
-set(resrc
-    tools/re/main.c)
-
-set(headers
-    src/libyang.h
-    src/context.h
-    src/dict.h
-    src/log.h
-    src/parser.h
-    src/parser_data.h
-    src/parser_schema.h
-    src/plugins_exts.h
-    src/plugins_types.h
-    src/printer.h
-    src/printer_data.h
-    src/printer_schema.h
-    src/set.h
-    src/tree.h
-    src/tree_data.h
-    src/tree_schema.h)
+#
+# targets
+#
 
 # link compat
 use_compat()
@@ -257,7 +281,7 @@ include_directories(${PCRE2_INCLUDE_DIRS})
 target_link_libraries(yang ${PCRE2_LIBRARIES})
 
 install(TARGETS yang DESTINATION ${CMAKE_INSTALL_LIBDIR})
-install(FILES ${headers} ${PROJECT_BINARY_DIR}/src/config.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libyang)
+install(FILES ${headers} ${PROJECT_BINARY_DIR}/src/version.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libyang)
 
 find_package(PkgConfig)
 if(PKG_CONFIG_FOUND)
@@ -278,25 +302,16 @@ if(PKG_CONFIG_FOUND)
 endif()
 
 # generate doxygen documentation for libyang API
-find_package(Doxygen)
-if(DOXYGEN_FOUND)
-    find_program(DOT_PATH dot PATH_SUFFIXES graphviz2.38/bin graphviz/bin)
-    if(DOT_PATH)
-        set(HAVE_DOT "YES")
-    else()
-        set(HAVE_DOT "NO")
-        message(AUTHOR_WARNING "Doxygen: to generate UML diagrams please install graphviz")
-    endif()
-    add_custom_target(doc
-            COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_BINARY_DIR}/Doxyfile
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-    string(REPLACE ";" " " DOXY_HEADERS "${headers}")
-    configure_file(Doxyfile.in Doxyfile)
-endif()
+libyang_doc()
 
 # generate API/ABI report
 if ("${BUILD_TYPE_UPPER}" STREQUAL "ABICHECK")
-	libyang_abicheck()
+    libyang_abicheck()
+endif()
+
+# source code format
+if ("${BUILD_TYPE_UPPER}" STREQUAL "DEBUG")
+	source_format(src/* compat/*)
 endif()
 
 # clean cmake cache
@@ -390,7 +405,6 @@ if(ENABLE_FUZZ_TARGETS)
         endif()
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address,undefined -fno-omit-frame-pointer")
     endif()
-    add_subdirectory(tests/fuzz)
 endif()
 
 #if(GEN_LANGUAGE_BINDINGS AND GEN_CPP_BINDINGS)

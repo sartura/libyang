@@ -29,12 +29,20 @@
 
 #ifndef __INT64_C
 #  if __WORDSIZE == 64
-#    define __INT64_C(c)  c ## L
+#    define __INT64_C(c) c ## L
 #    define __UINT64_C(c) c ## UL
 #  else
-#    define __INT64_C(c)  c ## LL
+#    define __INT64_C(c) c ## LL
 #    define __UINT64_C(c) c ## ULL
 #  endif
+#endif
+
+#if (@CMAKE_C_COMPILER_ID@ == GNU) || (@CMAKE_C_COMPILER_ID@ == Clang)
+# define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
+# define _PACKED __attribute__((__packed__))
+#else
+# define UNUSED(x) UNUSED_ ## x
+# define _PACKED
 #endif
 
 #cmakedefine HAVE_VDPRINTF

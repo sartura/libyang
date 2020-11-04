@@ -34,16 +34,127 @@ struct ly_ctx;
 struct ly_set;
 
 /**
- * @defgroup schematree Schema Tree
+ * @page howtoSchema YANG Modules
+ *
+ * To be able to work with YANG data instances, libyang has to represent YANG data models. All the processed modules are stored
+ * in libyang [context](@ref howtoContext) and loaded using [parser functions](@ref howtoSchemaParsers). It means, that there is
+ * no way to create/change YANG module programmatically. However, all the YANG model definitions are available and can be examined
+ * through the C structures. All the context's modules together form YANG Schema for the data being instantiated.
+ *
+ * Any YANG module is represented as ::lys_module. In fact, the module is represented in two different formats. As ::lys_module.parsed,
+ * there is a parsed schema reflecting the source YANG module. It is exactly what is read from the input. This format is good for
+ * converting from one format to another (YANG to YIN and vice versa), but it is not very useful for validating/manipulating YANG
+ * data. Therefore, there is ::lys_module.compiled storing the compiled YANG module. It is based on the parsed module, but all the
+ * references are resolved. It means that, for example, there are no `grouping`s or `typedef`s since they are supposed to be placed instead of
+ * `uses` or `type` references. This split also means, that the YANG module is fully validated after compilation of the parsed
+ * representation of the module. YANG submodules are available only in the parsed representation. When a submodule is compiled, it
+ * is fully integrated into its main module.
+ *
+ * The context can contain even modules without the compiled representation. Such modules are still useful as imports of other
+ * modules. The grouping or typedef definition can be even compiled into the importing modules. This is actually the main
+ * difference between the imported and implemented modules in the libyang context. The implemented modules are compiled while the
+ * imported modules are only parsed.
+ *
+ * By default, the module is implemented (and compiled) in case it is explicitly loaded or referenced in another module as
+ * target of leafref, augment or deviation. This behavior can be changed via context options ::LY_CTX_ALL_IMPLEMENTED, when
+ * all the modules in the context are marked as implemented (note the problem with multiple revisions of a single module),
+ * or by ::LY_CTX_REF_IMPLEMENTED option, extending the set of references making the module implemented by when, must and
+ * default statements.
+ *
+ * All modules with deviation definition are always marked as implemented. The imported (not implemented) module can be set implemented by ::lys_set_implemented(). But
+ * the implemented module cannot be changed back to just imported module. Note also that only one revision of a specific module
+ * can be implemented in a single context. The imported modules are used only as a
+ * source of definitions for types and groupings for uses statements. The data in such modules are ignored - caller
+ * is not allowed to create the data (including instantiating identities) defined in the model via data parsers,
+ * the default nodes are not added into any data tree and mandatory nodes are not checked in the data trees.
+ *
+ * The compiled schema tree nodes are able to hold private objects (::lysc_node.priv as a pointer to a structure, function, variable, ...) used by
+ * a caller application. Such an object can be assigned to a specific node using ::lysc_set_private() function.
+ * Note that the object is not freed by libyang when the context is being destroyed. So the caller is responsible
+ * for freeing the provided structure after the context is destroyed or the private pointer is set to NULL in
+ * appropriate schema nodes where the object was previously set. This can be automated via destructor function
+ * to free these private objects. The destructor is passed to the ::ly_ctx_destroy() function.
+ *
+ * Despite all the schema structures and their members are available as part of the libyang API and callers can use
+ * it to navigate through the schema tree structure or to obtain various information, we recommend to use the following
+ * macros for the specific actions.
+ * - ::LYSC_TREE_DFS_BEGIN and ::LYSC_TREE_DFS_END to traverse the schema tree (depth-first).
+ * - ::LY_LIST_FOR and ::LY_ARRAY_FOR as described on @ref howtoStructures page.
+ *
+ * Further information about modules handling can be found on the following pages:
+ * - @subpage howtoSchemaParsers
+ * - @subpage howtoSchemaFeatures
+ * - @subpage howtoPlugins
+ * - @subpage howtoSchemaPrinters
+ *
+ * \note There are many functions to access information from the schema trees. Details are available in
+ * the [Schema Tree module](@ref schematree).
+ *
+ * For information about difference between implemented and imported modules, see the
+ * [context description](@ref howtoContext).
+ *
+ * Functions List (not assigned to above subsections)
+ * --------------------------------------------------
+ * - ::lys_getnext()
+ * - ::lys_nodetype2str()
+ * - ::lys_set_implemented()
+ * - ::lys_value_validate()
+ *
+ * - ::lysc_set_private()
+ *
+ * - ::lysc_node_children()
+ * - ::lysc_node_children_full()
+ * - ::lysc_node_parent_full()
+ * - ::lysc_node_actions()
+ * - ::lysc_node_notifs()
+ *
+ * - ::lysp_node_children()
+ * - ::lysp_node_actions()
+ * - ::lysp_node_notifs()
+ * - ::lysp_node_groupings()
+ * - ::lysp_node_typedefs()
+ */
+
+/**
+ * @page howtoSchemaFeatures YANG Features
+ *
+ * YANG feature statement is an important part of the language which can significantly affect the meaning of the schemas.
+ * Modifying features may have similar effects as loading/removing schema from the context so it is limited to context
+ * preparation period before working with data. YANG features, respectively their use in if-feature
+ * statements, are evaluated as part of schema compilation so a feature-specific compiled schema tree is generated
+ * as a result.
+ *
+ * To enable any features, they must currently be specified when implementing a new schema with ::lys_parse() or
+ * ::ly_ctx_load_module(). To later examine what the status of a feature is, check its ::LYS_FENABLED flag or
+ * search for it first with ::lys_feature_value(). Lastly, to evaluate compiled if-features, use ::lysc_iffeature_value().
+ *
+ * To iterate over all features of a particular YANG module, use ::lysp_feature_next().
+ *
+ * Note, that the feature's state can affect some of the output formats (e.g. Tree format).
+ *
+ * Functions List
+ * --------------
+ * - ::lys_feature_value()
+ * - ::lysc_iffeature_value()
+ * - ::lysp_feature_next()
+ */
+
+/**
  * @ingroup trees
+ * @defgroup schematree Schema Tree
  * @{
  *
  * Data structures and functions to manipulate and access schema tree.
  */
 
+/* *INDENT-OFF* */
+
 /**
- * @brief Macro to iterate via all elements in a schema tree which can be instantiated in data tree
- * (skips cases, input, output). This is the opening part to the #LYSC_TREE_DFS_END - they always have to be used together.
+ * @brief Macro to iterate via all elements in a schema (sub)tree including input and output.
+ * Note that __actions__ and __notifications__ of traversed nodes __are ignored__! To traverse
+ * on all the nodes including those, use ::lysc_tree_dfs_full() instead.
+ *
+ * This is the opening part to the #LYSC_TREE_DFS_END - they always have to be used together.
  *
  * The function follows deep-first search algorithm:
  * <pre>
@@ -67,8 +178,8 @@ struct ly_set;
  * @param ELEM Iterator intended for use in the block.
  */
 #define LYSC_TREE_DFS_BEGIN(START, ELEM) \
-    { int LYSC_TREE_DFS_continue = 0; struct lysc_node *LYSC_TREE_DFS_next; \
-    for ((ELEM) = (LYSC_TREE_DFS_next) = (START); \
+    { ly_bool LYSC_TREE_DFS_continue = 0; struct lysc_node *LYSC_TREE_DFS_next; \
+    for ((ELEM) = (LYSC_TREE_DFS_next) = (struct lysc_node*)(START); \
          (ELEM); \
          (ELEM) = (LYSC_TREE_DFS_next), LYSC_TREE_DFS_continue = 0)
 
@@ -85,81 +196,77 @@ struct ly_set;
  * @param START Pointer to the starting element processed first.
  * @param ELEM Iterator intended for use in the block.
  */
-
 #define LYSC_TREE_DFS_END(START, ELEM) \
     /* select element for the next run - children first */ \
     if (LYSC_TREE_DFS_continue) { \
         (LYSC_TREE_DFS_next) = NULL; \
     } else { \
-        (LYSC_TREE_DFS_next) = (struct lysc_node*)lysc_node_children(ELEM, 0); \
-    }\
+        (LYSC_TREE_DFS_next) = (struct lysc_node *)lysc_node_children_full(ELEM, 0); \
+    } \
     if (!(LYSC_TREE_DFS_next)) { \
-        /* in case of RPC/action, get also the output children */ \
-        if (!LYSC_TREE_DFS_continue && (ELEM)->nodetype & (LYS_RPC | LYS_ACTION)) { \
-            (LYSC_TREE_DFS_next) = (struct lysc_node*)lysc_node_children(ELEM, LYS_CONFIG_R); \
-        } \
-        if (!(LYSC_TREE_DFS_next)) { \
-            /* no children */ \
-            if ((ELEM) == (struct lysc_node*)(START)) { \
-                /* we are done, (START) has no children */ \
-                break; \
-            } \
-            /* try siblings */ \
-            (LYSC_TREE_DFS_next) = (ELEM)->next; \
-        } \
+        /* no children, try siblings */ \
+        _LYSC_TREE_DFS_NEXT(START, ELEM, LYSC_TREE_DFS_next); \
     } \
     while (!(LYSC_TREE_DFS_next)) { \
         /* parent is already processed, go to its sibling */ \
-        (ELEM) = (ELEM)->parent; \
-        /* no siblings, go back through parents */ \
-        if ((ELEM) == (struct lysc_node*)(START)) { \
-            /* we are done, no next element to process */ \
-            break; \
-        } \
-        if ((ELEM)->nodetype & (LYS_RPC | LYS_ACTION)) { \
-            /* there is actually next node as a child of action's output */ \
-            (LYSC_TREE_DFS_next) = (struct lysc_node*)lysc_node_children(ELEM, LYS_CONFIG_R); \
-        } \
-        if (!(LYSC_TREE_DFS_next)) { \
-            (LYSC_TREE_DFS_next) = (ELEM)->next; \
-        } \
-    } } \
+        (ELEM) = (struct lysc_node *)lysc_node_parent_full(ELEM); \
+        _LYSC_TREE_DFS_NEXT(START, ELEM, LYSC_TREE_DFS_next); \
+    } }
+
+/**
+ * @brief Helper macro for #LYSC_TREE_DFS_END, should not be used directly!
+ */
+#define _LYSC_TREE_DFS_NEXT(START, ELEM, NEXT) \
+    if ((ELEM) == (struct lysc_node *)(START)) { \
+        /* we are done, no next element to process */ \
+        break; \
+    } \
+    if ((ELEM)->nodetype == LYS_INPUT) { \
+        /* after input, get output */ \
+        (NEXT) = (struct lysc_node *)lysc_node_children_full(lysc_node_parent_full(ELEM), LYS_CONFIG_R); \
+    } else if ((ELEM)->nodetype == LYS_OUTPUT) { \
+        /* no sibling of output */ \
+        (NEXT) = NULL; \
+    } else { \
+        (NEXT) = (ELEM)->next; \
+    }
+
+/* *INDENT-ON* */
 
 #define LY_REV_SIZE 11   /**< revision data string length (including terminating NULL byte) */
 
-#define LYS_UNKNOWN 0x0000        /**< uninitalized unknown statement node */
-#define LYS_CONTAINER 0x0001      /**< container statement node */
-#define LYS_CHOICE 0x0002         /**< choice statement node */
-#define LYS_LEAF 0x0004           /**< leaf statement node */
-#define LYS_LEAFLIST 0x0008       /**< leaf-list statement node */
-#define LYS_LIST 0x0010           /**< list statement node */
-#define LYS_ANYXML 0x0020         /**< anyxml statement node */
-#define LYS_ANYDATA 0x0120        /**< anydata statement node, in tests it can be used for both #LYS_ANYXML and #LYS_ANYDATA */
+#define LYS_UNKNOWN     0x0000    /**< uninitalized unknown statement node */
+#define LYS_CONTAINER   0x0001    /**< container statement node */
+#define LYS_CHOICE      0x0002    /**< choice statement node */
+#define LYS_LEAF        0x0004    /**< leaf statement node */
+#define LYS_LEAFLIST    0x0008    /**< leaf-list statement node */
+#define LYS_LIST        0x0010    /**< list statement node */
+#define LYS_ANYXML      0x0020    /**< anyxml statement node */
+#define LYS_ANYDATA     0x0060    /**< anydata statement node, in tests it can be used for both #LYS_ANYXML and #LYS_ANYDATA */
+#define LYS_CASE        0x0080    /**< case statement node */
 
-#define LYS_RPC 0x400             /**< RPC statement node */
-#define LYS_ACTION 0x800          /**< action statement node */
-#define LYS_NOTIF 0x1000           /**< notification statement node */
+#define LYS_RPC         0x0100    /**< RPC statement node */
+#define LYS_ACTION      0x0200    /**< action statement node */
+#define LYS_NOTIF       0x0400    /**< notification statement node */
 
-#define LYS_CASE 0x0040           /**< case statement node */
-#define LYS_USES 0x0080           /**< uses statement node */
-#define LYS_INPUT 0x100
-#define LYS_OUTPUT 0x200
-#define LYS_INOUT 0x300
-#define LYS_GROUPING 0x2000
-#define LYS_AUGMENT 0x4000
+#define LYS_USES        0x0800    /**< uses statement node */
+#define LYS_INPUT       0x1000    /**< RPC/action input node */
+#define LYS_OUTPUT      0x2000    /**< RPC/action output node */
+#define LYS_GROUPING    0x4000
+#define LYS_AUGMENT     0x8000
 
 /**
  * @brief List of YANG statements
  */
 enum ly_stmt {
     LY_STMT_NONE = 0,
-    LY_STMT_STATUS,             /**< in lysc_ext_substmt::storage stored as a pointer to `uint16_t`, only cardinality < #LY_STMT_CARD_SOME is allowed */
-    LY_STMT_CONFIG,             /**< in lysc_ext_substmt::storage stored as a pointer to `uint16_t`, only cardinality < #LY_STMT_CARD_SOME is allowed */
+    LY_STMT_STATUS,             /**< in ::lysc_ext_substmt.storage stored as a pointer to `uint16_t`, only cardinality < #LY_STMT_CARD_SOME is allowed */
+    LY_STMT_CONFIG,             /**< in ::lysc_ext_substmt.storage stored as a pointer to `uint16_t`, only cardinality < #LY_STMT_CARD_SOME is allowed */
     LY_STMT_MANDATORY,
-    LY_STMT_UNITS,              /**< in lysc_ext_substmt::storage stored as a pointer to `const char *` (cardinality < #LY_STMT_CARD_SOME)
+    LY_STMT_UNITS,              /**< in ::lysc_ext_substmt.storage stored as a pointer to `const char *` (cardinality < #LY_STMT_CARD_SOME)
                                      or as a pointer to a [sized array](@ref sizedarrays) `const char **` */
     LY_STMT_DEFAULT,
-    LY_STMT_TYPE,               /**< in lysc_ext_substmt::storage stored as a pointer to `struct lysc_type *` (cardinality < #LY_STMT_CARD_SOME)
+    LY_STMT_TYPE,               /**< in ::lysc_ext_substmt.storage stored as a pointer to `struct lysc_type *` (cardinality < #LY_STMT_CARD_SOME)
                                      or as a pointer to a [sized array](@ref sizedarrays) `struct lysc_type **` */
 
     LY_STMT_ACTION,
@@ -185,7 +292,7 @@ enum ly_stmt {
     LY_STMT_FRACTION_DIGITS,
     LY_STMT_GROUPING,
     LY_STMT_IDENTITY,
-    LY_STMT_IF_FEATURE,         /**< in lysc_ext_substmt::storage stored as a pointer to `struct lysc_iffeature` (cardinality < #LY_STMT_CARD_SOME)
+    LY_STMT_IF_FEATURE,         /**< in ::lysc_ext_substmt.storage stored as a pointer to `struct lysc_iffeature` (cardinality < #LY_STMT_CARD_SOME)
                                      or as a pointer to a [sized array](@ref sizedarrays) `struct lysc_iffeature *` */
     LY_STMT_IMPORT,
     LY_STMT_INCLUDE,
@@ -246,7 +353,6 @@ typedef enum {
     LYEXT_PAR_TYPE,      /**< ::lysc_type */
     LYEXT_PAR_TYPE_BIT,  /**< ::lysc_type_bitenum_item */
     LYEXT_PAR_TYPE_ENUM, /**< ::lysc_type_bitenum_item */
-    LYEXT_PAR_FEATURE,   /**< ::lysc_feature */
     LYEXT_PAR_MUST,      /**< ::lysc_must */
     LYEXT_PAR_PATTERN,   /**< ::lysc_pattern */
     LYEXT_PAR_LENGTH,    /**< ::lysc_range */
@@ -254,14 +360,14 @@ typedef enum {
     LYEXT_PAR_WHEN,      /**< ::lysc_when */
     LYEXT_PAR_IDENT,     /**< ::lysc_ident */
     LYEXT_PAR_EXT,       /**< ::lysc_ext */
-    LYEXT_PAR_IMPORT,    /**< ::lysc_import */
-//    LYEXT_PAR_TPDF,      /**< ::lysp_tpdf */
-//    LYEXT_PAR_EXTINST,   /**< ::lysp_ext_instance */
-//    LYEXT_PAR_REFINE,    /**< ::lysp_refine */
-//    LYEXT_PAR_DEVIATION, /**< ::lysp_deviation */
-//    LYEXT_PAR_DEVIATE,   /**< ::lysp_deviate */
-//    LYEXT_PAR_INCLUDE,   /**< ::lysp_include */
-//    LYEXT_PAR_REVISION,  /**< ::lysp_revision */
+    LYEXT_PAR_IMPORT     /**< ::lysp_import */
+// LYEXT_PAR_TPDF,      /**< ::lysp_tpdf */
+// LYEXT_PAR_EXTINST,   /**< ::lysp_ext_instance */
+// LYEXT_PAR_REFINE,    /**< ::lysp_refine */
+// LYEXT_PAR_DEVIATION, /**< ::lysp_deviation */
+// LYEXT_PAR_DEVIATE,   /**< ::lysp_deviate */
+// LYEXT_PAR_INCLUDE,   /**< ::lysp_include */
+// LYEXT_PAR_REVISION,  /**< ::lysp_revision */
 } LYEXT_PARENT;
 
 /**
@@ -318,7 +424,7 @@ typedef enum {
                                       lys_node_leaflist and lys_deviate */
     LYEXT_SUBSTMT_POSITION,      /**< extension of the position statement, can appear in lys_type_bit */
     LYEXT_SUBSTMT_UNIQUE,        /**< extension of the unique statement, can appear in lys_node_list and lys_deviate */
-    LYEXT_SUBSTMT_IFFEATURE,     /**< extension of the if-feature statement */
+    LYEXT_SUBSTMT_IFFEATURE      /**< extension of the if-feature statement */
 } LYEXT_SUBSTMT;
 
 /**
@@ -399,11 +505,32 @@ struct lysp_ext_instance {
  */
 struct lysp_feature {
     const char *name;                /**< feature name (mandatory) */
-    const char **iffeatures;         /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *iffeatures;   /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
+    struct lysc_iffeature *iffeatures_c;    /**< compiled if-features */
+    struct lysp_feature **depfeatures;  /**< list of pointers to other features depending on this one
+                                          ([sized array](@ref sizedarrays)) */
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement  */
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    uint16_t flags;                  /**< [schema node flags](@ref snodeflags) - only LYS_STATUS_* values allowed */
+    uint16_t flags;                  /**< [schema node flags](@ref snodeflags) - only LYS_STATUS_* values and
+                                          LYS_FENABLED are allowed */
+};
+
+/**
+ * @brief Compiled YANG if-feature-stmt
+ */
+struct lysc_iffeature {
+    uint8_t *expr;                   /**< 2bits array describing the if-feature expression in prefix format, see @ref ifftokens */
+    struct lysp_feature **features;  /**< array of pointers to the features used in expression ([sized array](@ref sizedarrays)) */
+};
+
+/**
+ * @brief Qualified name (optional prefix followed by an identifier).
+ */
+struct lysp_qname {
+    const char *str;                 /**< qualified name string */
+    const struct lysp_module *mod;   /**< module to resolve any prefixes found in the string, it must be
+                                          stored explicitly because of deviations/refines */
 };
 
 /**
@@ -411,7 +538,7 @@ struct lysp_feature {
  */
 struct lysp_ident {
     const char *name;                /**< identity name (mandatory), including possible prefix */
-    const char **iffeatures;         /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *iffeatures;   /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     const char **bases;              /**< list of base identifiers ([sized array](@ref sizedarrays)) */
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement */
@@ -423,7 +550,7 @@ struct lysp_ident {
  * @brief Covers restrictions: range, length, pattern, must
  */
 struct lysp_restr {
-    const char *arg;                 /**< The restriction expression/value (mandatory);
+    struct lysp_qname arg;           /**< The restriction expression/value (mandatory);
                                           in case of pattern restriction, the first byte has a special meaning:
                                           0x06 (ACK) for regular match and 0x15 (NACK) for invert-match */
     const char *emsg;                /**< error-message */
@@ -451,7 +578,7 @@ struct lysp_type_enum {
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement */
     int64_t value;                   /**< enum's value or bit's position */
-    const char **iffeatures;         /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *iffeatures;   /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) - only LYS_STATUS_ and LYS_SET_VALUE
                                           values are allowed */
@@ -474,6 +601,7 @@ struct lysp_type {
     struct lysp_type *types;         /**< list of sub-types ([sized array](@ref sizedarrays)) - union */
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
 
+    const struct lysp_module *pmod;  /**< (sub)module where the type is defined (needed for deviations) */
     struct lysc_type *compiled;      /**< pointer to the compiled type */
 
     uint8_t fraction_digits;         /**< number of fraction digits - decimal64 */
@@ -487,7 +615,7 @@ struct lysp_type {
 struct lysp_tpdf {
     const char *name;                /**< name of the newly defined type (mandatory) */
     const char *units;               /**< units of the newly defined type */
-    const char *dflt;                /**< default value of the newly defined type */
+    struct lysp_qname dflt;          /**< default value of the newly defined type, it may or may not be a qualified name */
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement */
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
@@ -530,10 +658,10 @@ struct lysp_refine {
     const char *nodeid;              /**< target descendant schema nodeid (mandatory) */
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement */
-    const char **iffeatures;         /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *iffeatures;   /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysp_restr *musts;        /**< list of must restrictions ([sized array](@ref sizedarrays)) */
     const char *presence;            /**< presence description */
-    const char **dflts;              /**< list of default values ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *dflts;        /**< list of default values ([sized array](@ref sizedarrays)) */
     uint32_t min;                    /**< min-elements constraint */
     uint32_t max;                    /**< max-elements constraint, 0 means unbounded */
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
@@ -552,14 +680,18 @@ struct lysp_augment {
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement */
     struct lysp_when *when;          /**< when statement */
-    const char **iffeatures;         /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *iffeatures;   /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
     struct lysp_action *actions;     /**< list of actions ([sized array](@ref sizedarrays)) */
     struct lysp_notif *notifs;       /**< list of notifications ([sized array](@ref sizedarrays)) */
 };
 
 /**
+ * @ingroup schematree
  * @defgroup deviatetypes Deviate types
+ *
+ * Type of the deviate operation (used as ::lysp_deviate.mod)
+ *
  * @{
  */
 #define LYS_DEV_NOT_SUPPORTED 1      /**< deviate type not-supported */
@@ -583,8 +715,8 @@ struct lysp_deviate_add {
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
     const char *units;               /**< units of the values */
     struct lysp_restr *musts;        /**< list of must restrictions ([sized array](@ref sizedarrays)) */
-    const char **uniques;            /**< list of uniques specifications ([sized array](@ref sizedarrays)) */
-    const char **dflts;              /**< list of default values ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *uniques;      /**< list of uniques specifications ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *dflts;        /**< list of default values ([sized array](@ref sizedarrays)) */
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
     uint32_t min;                    /**< min-elements constraint */
     uint32_t max;                    /**< max-elements constraint, 0 means unbounded */
@@ -596,8 +728,8 @@ struct lysp_deviate_del {
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
     const char *units;               /**< units of the values */
     struct lysp_restr *musts;        /**< list of must restrictions ([sized array](@ref sizedarrays)) */
-    const char **uniques;            /**< list of uniques specifications ([sized array](@ref sizedarrays)) */
-    const char **dflts;              /**< list of default values ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *uniques;      /**< list of uniques specifications ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *dflts;        /**< list of default values ([sized array](@ref sizedarrays)) */
 };
 
 struct lysp_deviate_rpl {
@@ -606,7 +738,7 @@ struct lysp_deviate_rpl {
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
     struct lysp_type *type;          /**< type of the node */
     const char *units;               /**< units of the values */
-    const char *dflt;                /**< default value */
+    struct lysp_qname dflt;          /**< default value */
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
     uint32_t min;                    /**< min-elements constraint */
     uint32_t max;                    /**< max-elements constraint, 0 means unbounded */
@@ -616,15 +748,15 @@ struct lysp_deviation {
     const char *nodeid;              /**< target absolute schema nodeid (mandatory) */
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement */
-    struct lysp_deviate* deviates;   /**< list of deviate specifications (linked list) */
+    struct lysp_deviate *deviates;   /**< list of deviate specifications (linked list) */
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
 };
 
 /**
- * @defgroup spnodeflags Parsed schema nodes flags
  * @ingroup snodeflags
+ * @defgroup spnodeflags Parsed schema nodes flags
  *
- * Various flags for parsed schema nodes.
+ * Various flags for parsed schema nodes (used as ::lysp_node.flags).
  *
  *     1 - container    6 - anydata/anyxml    11 - output       16 - grouping   21 - enum
  *     2 - choice       7 - case              12 - feature      17 - uses       22 - type
@@ -635,10 +767,10 @@ struct lysp_deviation {
  *                                             1 1 1 1 1 1 1 1 1 1 2 2 2 2
  *     bit name              1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3
  *     ---------------------+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *       1 LYS_CONFIG_W     |x|x|x|x|x|x|x| | | | | | | | | | |x| |x| | | |
+ *       1 LYS_CONFIG_W     |x|x|x|x|x|x| | | | | | | | | | | |x| |x| | | |
  *         LYS_SET_BASE     | | | | | | | | | | | | | | | | | | | | | |x| |
  *                          +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *       2 LYS_CONFIG_R     |x|x|x|x|x|x|x| | | | | | | | | | |x| |x| | | |
+ *       2 LYS_CONFIG_R     |x|x|x|x|x|x| | | | | | | | | | | |x| |x| | | |
  *         LYS_SET_BIT      | | | | | | | | | | | | | | | | | | | | | |x| |
  *                          +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  *       3 LYS_STATUS_CURR  |x|x|x|x|x|x|x|x|x| | |x|x|x|x|x|x| |x|x|x| | |
@@ -652,6 +784,7 @@ struct lysp_deviation {
  *                          +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  *       6 LYS_MAND_TRUE    | |x|x| | |x| | | | | | | | | | | |x| |x| | | |
  *         LYS_SET_PATH     | | | | | | | | | | | | | | | | | | | | | |x| |
+ *         LYS_FENABLED     | | | | | | | | | | | |x| | | | | | | | | | | |
  *                          +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  *       7 LYS_MAND_FALSE   | |x|x| | |x| | | | | | | | | | | |x| |x| | | |
  *         LYS_ORDBY_USER   | | | |x|x| | | | | | | | | | | | | | | | | | |
@@ -673,17 +806,17 @@ struct lysp_deviation {
  *      11 LYS_SET_MAX      | | | |x|x| | | | | | | | | | | | |x| |x| | | |
  *         LYS_USED_GRP     | | | | | | | | | | | | | | | |x| | | | | | | |
  *         LYS_YIN_ATTR     | | | | | | | | | | | | | | | | | | | | | | |x|
- *     ---------------------+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- *     12 LYS_YIN_ARGUMENT  | | | | | | | | | | | | | | | | | | | | | | |x|
+ *                          +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *      12 LYS_YIN_ARGUMENT | | | | | | | | | | | | | | | | | | | | | | |x|
  *     ---------------------+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  *
  */
 
 /**
- * @defgroup scnodeflags Compiled schema nodes flags
  * @ingroup snodeflags
+ * @defgroup scnodeflags Compiled schema nodes flags
  *
- * Various flags for compiled schema nodes.
+ * Various flags for compiled schema nodes (used as ::lysc_node.flags).
  *
  *     1 - container    6 - anydata/anyxml    11 - identity
  *     2 - choice       7 - case              12 - extension
@@ -714,7 +847,6 @@ struct lysp_deviation {
  *         LYS_UNIQUE       | | |x| | | | | | | | | | | |
  *                          +-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  *       9 LYS_KEY          | | |x| | | | | | | | | | | |
- *         LYS_FENABLED     | | | | | | | | | |x| | | | |
  *                          +-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  *      10 LYS_SET_DFLT     | | |x|x| | |x| | | | | | | |
  *         LYS_ISENUM       | | | | | | | | | | | | |x| |
@@ -729,6 +861,9 @@ struct lysp_deviation {
 
 /**
  * @defgroup snodeflags Schema nodes flags
+ *
+ * Various flags for schema nodes ([parsed](@ref spnodeflags) as well as [compiled](@ref scnodeflags)).
+ *
  * @{
  */
 #define LYS_CONFIG_W     0x01        /**< config true; also set for input children nodes */
@@ -747,11 +882,13 @@ struct lysp_deviation {
                                           ::lysp_node_leaf/::lysc_node_leaf and ::lysp_node_anydata/::lysc_node_anydata.
                                           This flag is present only in case the mandatory false statement was explicitly specified. */
 #define LYS_MAND_MASK    0x60        /**< mask for mandatory values */
-#define LYS_PRESENCE     0x80        /**< flag for presence property of a container, applicable only to ::lysc_node_container */
+#define LYS_PRESENCE     0x80        /**< flag for presence property of a container, but it is not only for explicit presence
+                                          containers, but also for NP containers with some meaning, applicable only to
+                                          ::lysc_node_container */
 #define LYS_UNIQUE       0x80        /**< flag for leafs being part of a unique set, applicable only to ::lysc_node_leaf */
 #define LYS_KEY          0x100       /**< flag for leafs being a key of a list, applicable only to ::lysc_node_leaf */
 #define LYS_KEYLESS      0x200       /**< flag for list without any key, applicable only to ::lysc_node_list */
-#define LYS_FENABLED     0x100       /**< feature enabled flag, applicable only to ::lysc_feature */
+#define LYS_FENABLED     0x20        /**< feature enabled flag, applicable only to ::lysp_feature. */
 #define LYS_ORDBY_SYSTEM 0x80        /**< ordered-by user lists, applicable only to ::lysc_node_leaflist/::lysp_node_leaflist and
                                           ::lysc_node_list/::lysp_node_list */
 #define LYS_ORDBY_USER   0x40        /**< ordered-by user lists, applicable only to ::lysc_node_leaflist/::lysp_node_leaflist and
@@ -807,7 +944,8 @@ struct lysp_node {
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement */
     struct lysp_when *when;          /**< when statement */
-    const char **iffeatures;         /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *iffeatures;   /**< list of if-feature expressions ([sized array](@ref sizedarrays)),
+                                          must be qname because of refines */
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
 };
 
@@ -823,7 +961,7 @@ struct lysp_node_container {
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement */
     struct lysp_when *when;          /**< when statement */
-    const char **iffeatures;         /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *iffeatures;   /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
 
     /* container */
@@ -845,14 +983,14 @@ struct lysp_node_leaf {
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement */
     struct lysp_when *when;          /**< when statement */
-    const char **iffeatures;         /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *iffeatures;   /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
 
     /* leaf */
     struct lysp_restr *musts;        /**< list of must restrictions ([sized array](@ref sizedarrays)) */
     struct lysp_type type;           /**< type of the leaf node (mandatory) */
     const char *units;               /**< units of the leaf's type */
-    const char *dflt;                /**< default value */
+    struct lysp_qname dflt;          /**< default value, it may or may not be a qualified name */
 };
 
 struct lysp_node_leaflist {
@@ -864,14 +1002,15 @@ struct lysp_node_leaflist {
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement */
     struct lysp_when *when;          /**< when statement */
-    const char **iffeatures;         /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *iffeatures;   /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
 
     /* leaf-list */
     struct lysp_restr *musts;        /**< list of must restrictions ([sized array](@ref sizedarrays)) */
     struct lysp_type type;           /**< type of the leaf node (mandatory) */
     const char *units;               /**< units of the leaf's type */
-    const char **dflts;              /**< list of default values ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *dflts;        /**< list of default values ([sized array](@ref sizedarrays)), they may or
+                                          may not be qualified names */
     uint32_t min;                    /**< min-elements constraint */
     uint32_t max;                    /**< max-elements constraint, 0 means unbounded */
 };
@@ -885,7 +1024,7 @@ struct lysp_node_list {
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement */
     struct lysp_when *when;          /**< when statement */
-    const char **iffeatures;         /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *iffeatures;   /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
 
     /* list */
@@ -896,7 +1035,7 @@ struct lysp_node_list {
     struct lysp_node *child;         /**< list of data nodes (linked list) */
     struct lysp_action *actions;     /**< list of actions ([sized array](@ref sizedarrays)) */
     struct lysp_notif *notifs;       /**< list of notifications ([sized array](@ref sizedarrays)) */
-    const char **uniques;            /**< list of unique specifications ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *uniques;      /**< list of unique specifications ([sized array](@ref sizedarrays)) */
     uint32_t min;                    /**< min-elements constraint */
     uint32_t max;                    /**< max-elements constraint, 0 means unbounded */
 };
@@ -910,12 +1049,12 @@ struct lysp_node_choice {
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement */
     struct lysp_when *when;          /**< when statement */
-    const char **iffeatures;         /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *iffeatures;   /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
 
     /* choice */
     struct lysp_node *child;         /**< list of data nodes (linked list) */
-    const char* dflt;                /**< default case */
+    struct lysp_qname dflt;          /**< default case */
 };
 
 struct lysp_node_case {
@@ -927,7 +1066,7 @@ struct lysp_node_case {
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement */
     struct lysp_when *when;          /**< when statement */
-    const char **iffeatures;         /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *iffeatures;   /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
 
     /* case */
@@ -936,14 +1075,14 @@ struct lysp_node_case {
 
 struct lysp_node_anydata {
     struct lysp_node *parent;        /**< parent node (NULL if this is a top-level node) */
-    uint16_t nodetype;               /**< LYS_ANYXML || LYS_ANYDATA */
+    uint16_t nodetype;               /**< LYS_ANYXML or LYS_ANYDATA */
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
     struct lysp_node *next;          /**< pointer to the next sibling node (NULL if there is no one) */
     const char *name;                /**< node name (mandatory) */
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement */
     struct lysp_when *when;          /**< when statement */
-    const char **iffeatures;         /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *iffeatures;   /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
 
     /* anyxml/anydata */
@@ -959,7 +1098,7 @@ struct lysp_node_uses {
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement */
     struct lysp_when *when;          /**< when statement */
-    const char **iffeatures;         /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *iffeatures;   /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
 
     /* uses */
@@ -972,7 +1111,7 @@ struct lysp_node_uses {
  */
 struct lysp_action_inout {
     struct lysp_node *parent;        /**< parent node (NULL if this is a top-level node) */
-    uint16_t nodetype;               /**< LYS_INOUT */
+    uint16_t nodetype;               /**< LYS_INPUT or LYS_OUTPUT */
     struct lysp_restr *musts;        /**< list of must restrictions ([sized array](@ref sizedarrays)) */
     struct lysp_tpdf *typedefs;      /**< list of typedefs ([sized array](@ref sizedarrays)) */
     struct lysp_grp *groupings;      /**< list of groupings ([sized array](@ref sizedarrays)) */
@@ -987,15 +1126,17 @@ struct lysp_action {
     struct lysp_node *parent;        /**< parent node (NULL if this is a top-level node) */
     uint16_t nodetype;               /**< LYS_RPC or LYS_ACTION */
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
+    struct lysp_tpdf *typedefs;      /**< list of typedefs ([sized array](@ref sizedarrays)) */
     const char *name;                /**< grouping name reference (mandatory) */
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement */
-    const char **iffeatures;         /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
-    struct lysp_tpdf *typedefs;      /**< list of typedefs ([sized array](@ref sizedarrays)) */
     struct lysp_grp *groupings;      /**< list of groupings ([sized array](@ref sizedarrays)) */
+    struct lysp_qname *iffeatures;   /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
+    struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
+
+    /* action */
     struct lysp_action_inout input;  /**< RPC's/Action's input */
     struct lysp_action_inout output; /**< RPC's/Action's output */
-    struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
 };
 
 /**
@@ -1005,15 +1146,17 @@ struct lysp_notif {
     struct lysp_node *parent;        /**< parent node (NULL if this is a top-level node) */
     uint16_t nodetype;               /**< LYS_NOTIF */
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) - only LYS_STATUS_* values are allowed */
+    struct lysp_tpdf *typedefs;      /**< list of typedefs ([sized array](@ref sizedarrays)) */
     const char *name;                /**< grouping name reference (mandatory) */
     const char *dsc;                 /**< description statement */
     const char *ref;                 /**< reference statement */
-    const char **iffeatures;         /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
-    struct lysp_restr *musts;        /**< list of must restrictions ([sized array](@ref sizedarrays)) */
-    struct lysp_tpdf *typedefs;      /**< list of typedefs ([sized array](@ref sizedarrays)) */
     struct lysp_grp *groupings;      /**< list of groupings ([sized array](@ref sizedarrays)) */
-    struct lysp_node *data;          /**< list of data nodes (linked list) */
+    struct lysp_qname *iffeatures;   /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
+
+    /* notif */
+    struct lysp_restr *musts;        /**< list of must restrictions ([sized array](@ref sizedarrays)) */
+    struct lysp_node *data;          /**< list of data nodes (linked list) */
 };
 
 /**
@@ -1021,7 +1164,7 @@ struct lysp_notif {
  */
 typedef enum LYS_VERSION {
     LYS_VERSION_UNDEF = 0,  /**< no specific version, YANG 1.0 as default */
-    LYS_VERSION_1_0 = 1,    /**< YANG 1.0 */
+    LYS_VERSION_1_0 = 1,    /**< YANG 1 (1.0) */
     LYS_VERSION_1_1 = 2     /**< YANG 1.1 */
 } LYS_VERSION;
 
@@ -1047,13 +1190,15 @@ struct lysp_module {
     struct lysp_action *rpcs;        /**< list of RPCs ([sized array](@ref sizedarrays)) */
     struct lysp_notif *notifs;       /**< list of notifications ([sized array](@ref sizedarrays)) */
     struct lysp_deviation *deviations; /**< list of deviations ([sized array](@ref sizedarrays)) */
-    struct lysp_ext_instance *exts; /**< list of the extension instances ([sized array](@ref sizedarrays)) */
+    struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
 
-    uint8_t parsing:1;               /**< flag for circular check */
+    uint8_t version;                 /**< yang-version (LYS_VERSION values) */
+    uint8_t parsing : 1;             /**< flag for circular check */
+    uint8_t is_submod : 1;           /**< always 0 */
 };
 
 struct lysp_submodule {
-    const char *belongsto;           /**< belongs to parent module (submodule - mandatory) */
+    struct lys_module *mod;          /**< belongs to parent module (submodule - mandatory) */
 
     struct lysp_revision *revs;      /**< list of the module revisions ([sized array](@ref sizedarrays)), the first revision
                                           in the list is always the last (newest) revision of the module */
@@ -1069,11 +1214,13 @@ struct lysp_submodule {
     struct lysp_action *rpcs;        /**< list of RPCs ([sized array](@ref sizedarrays)) */
     struct lysp_notif *notifs;       /**< list of notifications ([sized array](@ref sizedarrays)) */
     struct lysp_deviation *deviations; /**< list of deviations ([sized array](@ref sizedarrays)) */
-    struct lysp_ext_instance *exts; /**< list of the extension instances ([sized array](@ref sizedarrays)) */
+    struct lysp_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
 
-    uint8_t parsing:1;               /**< flag for circular check */
+    uint8_t version;                 /**< yang-version (LYS_VERSION values) */
+    uint8_t parsing : 1;             /**< flag for circular check */
+    uint8_t is_submod : 1;           /**< always 1 */
 
-    uint8_t latest_revision:2;       /**< flag to mark the latest available revision:
+    uint8_t latest_revision : 2;     /**< flag to mark the latest available revision:
                                           1 - the latest revision in searchdirs was not searched yet and this is the
                                           latest revision in the current context
                                           2 - searchdirs were searched and this is the latest available revision */
@@ -1084,33 +1231,31 @@ struct lysp_submodule {
     const char *contact;             /**< contact information for the module */
     const char *dsc;                 /**< description of the module */
     const char *ref;                 /**< cross-reference for the module */
-    uint8_t version;                 /**< yang-version (LYS_VERSION values) */
 };
 
 /**
- * @brief Free the printable YANG schema tree structure.
+ * @brief Get the parsed module or submodule name.
+ *
+ * @param[in] PMOD Parsed module or submodule.
+ * @return Module or submodule name.
+ */
+#define LYSP_MODULE_NAME(PMOD) (PMOD->is_submod ? ((struct lysp_submodule *)PMOD)->name : ((struct lysp_module *)PMOD)->mod->name)
+
+/**
+ * @brief Free the printable YANG schema tree structure. Works for both modules and submodules.
  *
  * @param[in] module Printable YANG schema tree structure to free.
  */
 void lysp_module_free(struct lysp_module *module);
 
 /**
- * @defgroup scflags Schema compile flags
- * @ingroup schematree
- *
- * @{
+ * @brief Compiled prefix data pair mapping of prefixes to modules. In case the format is ::LY_PREF_SCHEMA_RESOLVED,
+ * the expected prefix data is a sized array of these structures.
  */
-#define LYSC_OPT_RPC_INPUT  LYS_CONFIG_W       /**< Internal option when compiling schema tree of RPC/action input */
-#define LYSC_OPT_RPC_OUTPUT LYS_CONFIG_R       /**< Internal option when compiling schema tree of RPC/action output */
-#define LYSC_OPT_RPC_MASK   LYS_CONFIG_MASK    /**< mask for the internal RPC options */
-#define LYSC_OPT_FREE_SP    0x04               /**< Free the input printable schema */
-#define LYSC_OPT_INTERNAL   0x08               /**< Internal compilation caused by dependency */
-#define LYSC_OPT_NOTIFICATION 0x10             /**< Internal option when compiling schema tree of Notification */
-
-#define LYSC_OPT_GROUPING   0x20               /** Compiling (validation) of a non-instantiated grouping.
-                                                   In this case not all the restrictions are checked since they can be valid only
-                                                   in the real placement of the grouping. TODO - what specifically is not done */
-/** @} scflags */
+struct lysc_prefix {
+    char *prefix;                   /**< used prefix */
+    const struct lys_module *mod;   /**< mapping to a module */
+};
 
 /**
  * @brief Compiled YANG extension-stmt
@@ -1143,29 +1288,12 @@ struct lysc_ext_instance {
 };
 
 /**
- * @brief Compiled YANG if-feature-stmt
- */
-struct lysc_iffeature {
-    uint8_t *expr;                   /**< 2bits array describing the if-feature expression in prefix format, see @ref ifftokens */
-    struct lysc_feature **features;  /**< array of pointers to the features used in expression ([sized array](@ref sizedarrays)) */
-};
-
-/**
- * @brief YANG import-stmt
- */
-struct lysc_import {
-    struct lys_module *module;       /**< link to the imported module */
-    const char *prefix;              /**< prefix for the data from the imported schema (mandatory) */
-    struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-};
-
-/**
  * @brief YANG when-stmt
  */
 struct lysc_when {
-    struct lys_module *module;       /**< module where the must was defined */
     struct lyxp_expr *cond;          /**< XPath when condition */
     struct lysc_node *context;       /**< context node for evaluating the expression, NULL if the context is root node */
+    struct lysc_prefix *prefixes;    /**< compiled used prefixes in the condition */
     const char *dsc;                 /**< description */
     const char *ref;                 /**< reference */
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
@@ -1183,28 +1311,12 @@ struct lysc_ident {
     struct lys_module *module;       /**< module structure */
     struct lysc_ident **derived;     /**< list of (pointers to the) derived identities ([sized array](@ref sizedarrays)) */
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) - only LYS_STATUS_ values are allowed */
 };
 
 /**
- * @brief YANG feature-stmt
- */
-struct lysc_feature {
-    const char *name;                /**< feature name (mandatory) */
-    const char *dsc;                 /**< description */
-    const char *ref;                 /**< reference */
-    struct lys_module *module;       /**< module structure */
-    struct lysc_feature **depfeatures;/**< list of pointers to other features depending on this one ([sized array](@ref sizedarrays)) */
-    struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
-    uint16_t flags;                  /**< [schema node flags](@ref snodeflags) - only LYS_STATUS_* and
-                                          #LYS_FENABLED values allowed */
-};
-
-/**
  * @defgroup ifftokens if-feature expression tokens
- * Tokens of if-feature expression used in ::lysc_iffeature#expr
+ * Tokens of if-feature expression used in ::lysc_iffeature.expr.
  *
  * @{
  */
@@ -1248,13 +1360,13 @@ struct lysc_pattern {
     const char *emsg;                /**< error-message */
     const char *eapptag;             /**< error-app-tag value */
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    uint32_t inverted:1;             /**< invert-match flag */
-    uint32_t refcount:31;            /**< reference counter */
+    uint32_t inverted : 1;             /**< invert-match flag */
+    uint32_t refcount : 31;            /**< reference counter */
 };
 
 struct lysc_must {
-    struct lys_module *module;       /**< module where the must was defined */
     struct lyxp_expr *cond;          /**< XPath when condition */
+    struct lysc_prefix *prefixes;    /**< compiled used prefixes in the condition */
     const char *dsc;                 /**< description */
     const char *ref;                 /**< reference */
     const char *emsg;                /**< error-message */
@@ -1264,8 +1376,6 @@ struct lysc_must {
 
 struct lysc_type {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lyd_value *dflt;          /**< type's default value if any */
-    struct lys_module *dflt_mod;     /**< module where the lysc_type::dflt value was defined (needed to correctly map prefixes). */
     struct lysc_type_plugin *plugin; /**< type's plugin with built-in as well as user functions to canonize or validate the value of the type */
     LY_DATA_TYPE basetype;           /**< Base type of the type */
     uint32_t refcount;               /**< reference counter for type sharing */
@@ -1273,8 +1383,6 @@ struct lysc_type {
 
 struct lysc_type_num {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lyd_value *dflt;          /**< type's default value if any */
-    struct lys_module *dflt_mod;     /**< module where the lysc_type::dflt value was defined (needed to correctly map prefixes). */
     struct lysc_type_plugin *plugin; /**< type's plugin with built-in as well as user functions to canonize or validate the value of the type */
     LY_DATA_TYPE basetype;           /**< Base type of the type */
     uint32_t refcount;               /**< reference counter for type sharing */
@@ -1283,8 +1391,6 @@ struct lysc_type_num {
 
 struct lysc_type_dec {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lyd_value *dflt;          /**< type's default value if any */
-    struct lys_module *dflt_mod;     /**< module where the lysc_type::dflt value was defined (needed to correctly map prefixes). */
     struct lysc_type_plugin *plugin; /**< type's plugin with built-in as well as user functions to canonize or validate the value of the type */
     LY_DATA_TYPE basetype;           /**< Base type of the type */
     uint32_t refcount;               /**< reference counter for type sharing */
@@ -1294,8 +1400,6 @@ struct lysc_type_dec {
 
 struct lysc_type_str {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lyd_value *dflt;          /**< type's default value if any */
-    struct lys_module *dflt_mod;     /**< module where the lysc_type::dflt value was defined (needed to correctly map prefixes). */
     struct lysc_type_plugin *plugin; /**< type's plugin with built-in as well as user functions to canonize or validate the value of the type */
     LY_DATA_TYPE basetype;           /**< Base type of the type */
     uint32_t refcount;               /**< reference counter for type sharing */
@@ -1308,7 +1412,6 @@ struct lysc_type_bitenum_item {
     const char *dsc;             /**< description */
     const char *ref;             /**< reference */
     struct lysc_ext_instance *exts;    /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     union {
         int32_t value;           /**< integer value associated with the enumeration */
         uint32_t position;       /**< non-negative integer value associated with the bit */
@@ -1319,8 +1422,6 @@ struct lysc_type_bitenum_item {
 
 struct lysc_type_enum {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    const char *dflt;                /**< type's default value if any */
-    struct lys_module *dflt_mod;     /**< module where the lysc_type::dflt value was defined (needed to correctly map prefixes). */
     struct lysc_type_plugin *plugin; /**< type's plugin with built-in as well as user functions to canonize or validate the value of the type */
     LY_DATA_TYPE basetype;           /**< Base type of the type */
     uint32_t refcount;               /**< reference counter for type sharing */
@@ -1329,8 +1430,6 @@ struct lysc_type_enum {
 
 struct lysc_type_bits {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    const char *dflt;                /**< type's default value if any */
-    struct lys_module *dflt_mod;     /**< module where the lysc_type::dflt value was defined (needed to correctly map prefixes). */
     struct lysc_type_plugin *plugin; /**< type's plugin with built-in as well as user functions to canonize or validate the value of the type */
     LY_DATA_TYPE basetype;           /**< Base type of the type */
     uint32_t refcount;               /**< reference counter for type sharing */
@@ -1340,21 +1439,17 @@ struct lysc_type_bits {
 
 struct lysc_type_leafref {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    const char *dflt;                /**< type's default value if any */
-    struct lys_module *dflt_mod;     /**< module where the lysc_type::dflt value was defined (needed to correctly map prefixes). */
     struct lysc_type_plugin *plugin; /**< type's plugin with built-in as well as user functions to canonize or validate the value of the type */
     LY_DATA_TYPE basetype;           /**< Base type of the type */
     uint32_t refcount;               /**< reference counter for type sharing */
     struct lyxp_expr *path;          /**< parsed target path, compiled path cannot be stored because of type sharing */
-    struct lys_module *path_context; /**< module where the path is defined, so it provides context to resolve prefixes */
+    struct lysc_prefix *prefixes;    /**< resolved prefixes used in the path */
     struct lysc_type *realtype;      /**< pointer to the real (first non-leafref in possible leafrefs chain) type. */
     uint8_t require_instance;        /**< require-instance flag */
 };
 
 struct lysc_type_identityref {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    const char *dflt;                /**< type's default value if any */
-    struct lys_module *dflt_mod;     /**< module where the lysc_type::dflt value was defined (needed to correctly map prefixes). */
     struct lysc_type_plugin *plugin; /**< type's plugin with built-in as well as user functions to canonize or validate the value of the type */
     LY_DATA_TYPE basetype;           /**< Base type of the type */
     uint32_t refcount;               /**< reference counter for type sharing */
@@ -1364,8 +1459,6 @@ struct lysc_type_identityref {
 
 struct lysc_type_instanceid {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    const char *dflt;                /**< type's default value if any */
-    struct lys_module *dflt_mod;     /**< module where the lysc_type::dflt value was defined (needed to correctly map prefixes). */
     struct lysc_type_plugin *plugin; /**< type's plugin with built-in as well as user functions to canonize or validate the value of the type */
     LY_DATA_TYPE basetype;           /**< Base type of the type */
     uint32_t refcount;               /**< reference counter for type sharing */
@@ -1374,8 +1467,6 @@ struct lysc_type_instanceid {
 
 struct lysc_type_union {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    const char *dflt;                /**< type's default value if any */
-    struct lys_module *dflt_mod;     /**< module where the lysc_type::dflt value was defined (needed to correctly map prefixes). */
     struct lysc_type_plugin *plugin; /**< type's plugin with built-in as well as user functions to canonize or validate the value of the type */
     LY_DATA_TYPE basetype;           /**< Base type of the type */
     uint32_t refcount;               /**< reference counter for type sharing */
@@ -1384,8 +1475,6 @@ struct lysc_type_union {
 
 struct lysc_type_bin {
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    const char *dflt;                /**< type's default value if any */
-    struct lys_module *dflt_mod;     /**< module where the lysc_type::dflt value was defined (needed to correctly map prefixes). */
     struct lysc_type_plugin *plugin; /**< type's plugin with built-in as well as user functions to canonize or validate the value of the type */
     LY_DATA_TYPE basetype;           /**< Base type of the type */
     uint32_t refcount;               /**< reference counter for type sharing */
@@ -1393,6 +1482,7 @@ struct lysc_type_bin {
 };
 
 struct lysc_action_inout {
+    uint16_t nodetype;               /**< LYS_INPUT or LYS_OUTPUT */
     struct lysc_node *data;          /**< first child node (linked list) */
     struct lysc_must *musts;         /**< list of must restrictions ([sized array](@ref sizedarrays)) */
 };
@@ -1407,7 +1497,6 @@ struct lysc_action {
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
     uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser */
     struct lys_module *module;       /**< module structure */
-    struct lysp_action *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node - RPC) */
 
     struct lysc_ext_instance *input_exts;  /**< list of the extension instances of input ([sized array](@ref sizedarrays)) */
@@ -1416,13 +1505,11 @@ struct lysc_action {
     const char *name;                /**< action/RPC name (mandatory) */
     const char *dsc;                 /**< description */
     const char *ref;                 /**< reference */
-
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
 
     struct lysc_action_inout input;  /**< RPC's/action's input */
     struct lysc_action_inout output; /**< RPC's/action's output */
-
+    struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
     void *priv;                      /** private arbitrary user data, not used by libyang */
 
 };
@@ -1432,7 +1519,6 @@ struct lysc_notif {
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
     uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser */
     struct lys_module *module;       /**< module structure */
-    struct lysp_notif *sp;           /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node) */
 
     struct lysc_node *data;          /**< first child node (linked list) */
@@ -1441,10 +1527,8 @@ struct lysc_notif {
     const char *name;                /**< Notification name (mandatory) */
     const char *dsc;                 /**< description */
     const char *ref;                 /**< reference */
-
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
-
+    struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
     void *priv;                      /** private arbitrary user data, not used by libyang */
 };
 
@@ -1456,8 +1540,6 @@ struct lysc_node {
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
     uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser */
     struct lys_module *module;       /**< module structure */
-    struct lysp_node *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or
-                                          in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node) */
     struct lysc_node *next;          /**< next sibling node (NULL if there is no one) */
     struct lysc_node *prev;          /**< pointer to the previous sibling node \note Note that this pointer is
@@ -1468,7 +1550,6 @@ struct lysc_node {
     const char *dsc;                 /**< description */
     const char *ref;                 /**< reference */
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
     void *priv;                      /**< private arbitrary user data, not used by libyang */
 };
@@ -1478,7 +1559,6 @@ struct lysc_node_container {
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
     uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser */
     struct lys_module *module;       /**< module structure */
-    struct lysp_node *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node) */
     struct lysc_node *next;          /**< next sibling node (NULL if there is no one) */
     struct lysc_node *prev;          /**< pointer to the previous sibling node \note Note that this pointer is
@@ -1489,7 +1569,6 @@ struct lysc_node_container {
     const char *dsc;                 /**< description */
     const char *ref;                 /**< reference */
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
     void *priv;                      /**< private arbitrary user data, not used by libyang */
 
@@ -1504,7 +1583,6 @@ struct lysc_node_case {
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
     uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser, unused */
     struct lys_module *module;       /**< module structure */
-    struct lysp_node *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node) */
     struct lysc_node *next;          /**< next sibling node (NULL if there is no one) */
     struct lysc_node *prev;          /**< pointer to the previous sibling node \note Note that this pointer is
@@ -1515,7 +1593,6 @@ struct lysc_node_case {
     const char *dsc;                 /**< description */
     const char *ref;                 /**< reference */
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
     void *priv;                      /**< private arbitrary user data, not used by libyang */
 
@@ -1528,7 +1605,6 @@ struct lysc_node_choice {
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
     uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser, unused */
     struct lys_module *module;       /**< module structure */
-    struct lysp_node *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node) */
     struct lysc_node *next;          /**< next sibling node (NULL if there is no one) */
     struct lysc_node *prev;          /**< pointer to the previous sibling node \note Note that this pointer is
@@ -1539,7 +1615,6 @@ struct lysc_node_choice {
     const char *dsc;                 /**< description */
     const char *ref;                 /**< reference */
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
     void *priv;                      /**< private arbitrary user data, not used by libyang */
 
@@ -1554,7 +1629,6 @@ struct lysc_node_leaf {
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
     uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser */
     struct lys_module *module;       /**< module structure */
-    struct lysp_node *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node) */
     struct lysc_node *next;          /**< next sibling node (NULL if there is no one) */
     struct lysc_node *prev;          /**< pointer to the previous sibling node \note Note that this pointer is
@@ -1565,7 +1639,6 @@ struct lysc_node_leaf {
     const char *dsc;                 /**< description */
     const char *ref;                 /**< reference */
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
     void *priv;                      /**< private arbitrary user data, not used by libyang */
 
@@ -1574,7 +1647,6 @@ struct lysc_node_leaf {
 
     const char *units;               /**< units of the leaf's type */
     struct lyd_value *dflt;          /**< default value */
-    struct lys_module *dflt_mod;     /**< module where the lysc_node_leaf::dflt value was defined (needed to correctly map prefixes). */
 };
 
 struct lysc_node_leaflist {
@@ -1582,7 +1654,6 @@ struct lysc_node_leaflist {
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
     uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser */
     struct lys_module *module;       /**< module structure */
-    struct lysp_node *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node) */
     struct lysc_node *next;          /**< next sibling node (NULL if there is no one) */
     struct lysc_node *prev;          /**< pointer to the previous sibling node \note Note that this pointer is
@@ -1593,7 +1664,6 @@ struct lysc_node_leaflist {
     const char *dsc;                 /**< description */
     const char *ref;                 /**< reference */
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
     void *priv;                      /**< private arbitrary user data, not used by libyang */
 
@@ -1602,8 +1672,7 @@ struct lysc_node_leaflist {
 
     const char *units;               /**< units of the leaf's type */
     struct lyd_value **dflts;        /**< list ([sized array](@ref sizedarrays)) of default values */
-    struct lys_module **dflts_mods;  /**< list ([sized array](@ref sizedarrays)) of modules where the lysc_node_leaflist::dflts values were defined
-                                          (needed to correctly map prefixes). */
+
     uint32_t min;                    /**< min-elements constraint */
     uint32_t max;                    /**< max-elements constraint */
 
@@ -1614,7 +1683,6 @@ struct lysc_node_list {
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
     uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser */
     struct lys_module *module;       /**< module structure */
-    struct lysp_node *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node) */
     struct lysc_node *next;          /**< next sibling node (NULL if there is no one) */
     struct lysc_node *prev;          /**< pointer to the previous sibling node \note Note that this pointer is
@@ -1625,7 +1693,6 @@ struct lysc_node_list {
     const char *dsc;                 /**< description */
     const char *ref;                 /**< reference */
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
     void *priv;                      /**< private arbitrary user data, not used by libyang */
 
@@ -1644,7 +1711,6 @@ struct lysc_node_anydata {
     uint16_t flags;                  /**< [schema node flags](@ref snodeflags) */
     uint8_t hash[LYS_NODE_HASH_COUNT]; /**< schema hash required for LYB printer/parser */
     struct lys_module *module;       /**< module structure */
-    struct lysp_node *sp;            /**< simply parsed (SP) original of the node, NULL if the SP schema was removed or in case of implicit case node. */
     struct lysc_node *parent;        /**< parent node (NULL in case of top level node) */
     struct lysc_node *next;          /**< next sibling node (NULL if there is no one) */
     struct lysc_node *prev;          /**< pointer to the previous sibling node \note Note that this pointer is
@@ -1655,7 +1721,6 @@ struct lysc_node_anydata {
     const char *dsc;                 /**< description */
     const char *ref;                 /**< reference */
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lysc_iffeature *iffeatures; /**< list of if-feature expressions ([sized array](@ref sizedarrays)) */
     struct lysc_when **when;         /**< list of pointers to when statements ([sized array](@ref sizedarrays)) */
     void *priv;                      /**< private arbitrary user data, not used by libyang */
 
@@ -1670,16 +1735,11 @@ struct lysc_node_anydata {
  */
 struct lysc_module {
     struct lys_module *mod;          /**< covering module structure */
-    struct lysc_import *imports;     /**< list of imported modules ([sized array](@ref sizedarrays)) */
 
-    struct lysc_feature *features;   /**< list of feature definitions ([sized array](@ref sizedarrays)) */
-    struct lysc_ident *identities;   /**< list of identities ([sized array](@ref sizedarrays)) */
     struct lysc_node *data;          /**< list of module's top-level data nodes (linked list) */
     struct lysc_action *rpcs;        /**< list of RPCs ([sized array](@ref sizedarrays)) */
     struct lysc_notif *notifs;       /**< list of notifications ([sized array](@ref sizedarrays)) */
     struct lysc_ext_instance *exts;  /**< list of the extension instances ([sized array](@ref sizedarrays)) */
-    struct lys_module **deviated_by; /**< List of modules that deviate this module ([sized array](@ref sizedarrays)) */
-    struct lys_module **augmented_by;/**< List of modules that augment this module ([sized array](@ref sizedarrays)) */
 };
 
 /**
@@ -1740,7 +1800,8 @@ const struct lysc_notif *lysc_node_notifs(const struct lysc_node *node);
 
 /**
  * @brief Get the children linked list of the given (compiled) schema node.
- * Decides the node's type and in case it has a children list, returns it.
+ * Skips over input and output nodes. To return them, use ::lysc_node_children_full().
+ *
  * @param[in] node Node to examine.
  * @param[in] flags Config flag to distinguish input (LYS_CONFIG_W) and output (LYS_CONFIG_R) data in case of RPC/action node.
  * @return The node's children linked list if any, NULL otherwise.
@@ -1748,24 +1809,88 @@ const struct lysc_notif *lysc_node_notifs(const struct lysc_node *node);
 const struct lysc_node *lysc_node_children(const struct lysc_node *node, uint16_t flags);
 
 /**
- * @brief Examine whether a node is user-ordered list or leaf-list.
+ * @brief Get the children linked list of the given (compiled) schema node.
+ * Returns all children node types including input and output. To skip them, use ::lysc_node_children().
  *
  * @param[in] node Node to examine.
- * @return non-zero if it is,
- * @return 0 if not.
+ * @param[in] flags Config flag to distinguish input (LYS_CONFIG_W) and output (LYS_CONFIG_R) child in case of RPC/action node.
+ * @return Children linked list if any,
+ * @return NULL otherwise.
  */
-int lysc_is_userordered(const struct lysc_node *schema);
+const struct lysc_node *lysc_node_children_full(const struct lysc_node *node, uint16_t flags);
+
+/**
+ * @brief Get the parent pointer from any type of (compiled) schema node.
+ * Returns input or output for direct descendants of RPC/action nodes.
+ * To skip them, use ::lysc_node.parent pointer directly.
+ *
+ * @param[in] node Node whose parent to get.
+ * @return Node parent.
+ * @return NULL is there is none.
+ */
+const struct lysc_node *lysc_node_parent_full(const struct lysc_node *node);
+
+/**
+ * @brief Callback to be called for every schema node in a DFS traversal.
+ *
+ * @param[in] node Current node.
+ * @param[in] data Arbitrary user data.
+ * @param[out] dfs_continue Set to true if the current subtree should be skipped and continue with siblings instead.
+ * @return LY_SUCCESS on success,
+ * @return LY_ERR value to terminate DFS and return this value.
+ */
+typedef LY_ERR (*lysc_dfs_clb)(struct lysc_node *node, void *data, ly_bool *dfs_continue);
+
+/**
+ * @brief DFS traversal of all the schema nodes in a (sub)tree including any actions and nested notifications.
+ *
+ * Node with children, actions, and notifications is traversed in this order:
+ * 1) each child subtree;
+ * 2) each action subtree;
+ * 3) each notification subtree.
+ *
+ * For algorithm illustration or traversal with actions and notifications skipped, see ::LYSC_TREE_DFS_BEGIN.
+ *
+ * @param[in] root Schema root to fully traverse.
+ * @param[in] dfs_clb Callback to call for each node.
+ * @param[in] data Arbitrary user data passed to @p dfs_clb.
+ * @return LY_SUCCESS on success,
+ * @return LY_ERR value returned by @p dfs_clb.
+ */
+LY_ERR lysc_tree_dfs_full(const struct lysc_node *root, lysc_dfs_clb dfs_clb, void *data);
+
+/**
+ * @brief DFS traversal of all the schema nodes in a module including RPCs and notifications.
+ *
+ * For more details, see ::lysc_tree_dfs_full().
+ *
+ * @param[in] mod Module to fully traverse.
+ * @param[in] dfs_clb Callback to call for each node.
+ * @param[in] data Arbitrary user data passed to @p dfs_clb.
+ * @return LY_SUCCESS on success,
+ * @return LY_ERR value returned by @p dfs_clb.
+ */
+LY_ERR lysc_module_dfs_full(const struct lys_module *mod, lysc_dfs_clb dfs_clb, void *data);
+
+/**
+ * @brief Examine whether a node is user-ordered list or leaf-list.
+ *
+ * @param[in] schema Schema node to examine.
+ * @return non-zero if it is,
+ * @return Boolean value whether the @p node is user-ordered or not.
+ */
+ly_bool lysc_is_userordered(const struct lysc_node *schema);
 
 /**
  * @brief Set a schema private pointer to a user pointer.
  *
  * @param[in] node Node, whose private field will be assigned. Works also for RPCs, actions, and notifications.
  * @param[in] priv Arbitrary user-specified pointer.
- * @param[out] prev Optional previous private object of the \p node. Note, that
+ * @param[out] prev_priv_p Optional previous private object of the \p node. Note, that
  * the caller is in this case responsible (if it is necessary) for freeing the replaced private object.
  * @return LY_ERR value.
  */
-LY_ERR lysc_set_private(const struct lysc_node *node, void *priv, void **prev);
+LY_ERR lysc_set_private(const struct lysc_node *node, void *priv, void **prev_priv_p);
 
 /**
  * @brief Get how the if-feature statement currently evaluates.
@@ -1778,37 +1903,81 @@ LY_ERR lysc_set_private(const struct lysc_node *node, void *priv, void **prev);
 LY_ERR lysc_iffeature_value(const struct lysc_iffeature *iff);
 
 /**
- * @brief Get the current status of the provided feature.
+ * @brief Get the next feature in the module or submodules.
  *
- * @param[in] feature Compiled feature statement to examine.
- * @return LY_SUCCESS if feature is enabled,
- * @return LY_ENOT if feature is disabled,
- * @return LY_ERR in case of error (invalid argument)
+ * @param[in] last Last returned feature.
+ * @param[in] pmod Parsed module and submodoules whose features to iterate over.
+ * @param[in,out] idx Submodule index, set to 0 on first call.
+ * @return Next found feature, NULL if the last has already been returned.
  */
-LY_ERR lysc_feature_value(const struct lysc_feature *feature);
+struct lysp_feature *lysp_feature_next(const struct lysp_feature *last, const struct lysp_module *pmod, uint32_t *idx);
 
 /**
- * @brief Get all the schema nodes (atoms) that are required for \p xpath to be evaluated.
+ * @defgroup findxpathoptions Atomize XPath options
+ * Options to modify behavior of ::lys_find_xpath() and ::lys_find_xpath_atoms() searching for schema nodes in schema tree.
+ * @{
+ */
+#define LYS_FIND_XP_SCHEMA 0x04 /**< Apply node access restrictions defined for 'when' and 'must' evaluation. */
+#define LYS_FIND_XP_OUTPUT 0x08 /**< Search RPC/action output nodes instead of input ones. */
+/*
+ * }@
+ */
+
+/**
+ * @brief Get all the schema nodes that are required for @p xpath to be evaluated (atoms).
  *
  * @param[in] ctx_node XPath schema context node.
- * @param[in] xpath Data XPath expression filtering the matching nodes. ::LYD_JSON format is expected.
- * @param[in] options Whether to apply some node access restrictions, one of the options should always be used.
- * If none is set, ::LYXP_SCNODE is used.
+ * @param[in] xpath Data XPath expression filtering the matching nodes. ::LY_PREF_JSON prefix format is expected.
+ * @param[in] options Whether to apply some node access restrictions, see @ref findxpathoptions.
  * @param[out] set Set of found atoms (schema nodes).
+ * @return LY_SUCCESS on success, @p set is returned.
+ * @return LY_ERR value on error.
+ */
+LY_ERR lys_find_xpath_atoms(const struct lysc_node *ctx_node, const char *xpath, uint32_t options, struct ly_set **set);
+
+/**
+ * @brief Get all the schema nodes that are required for @p path to be evaluated (atoms).
+ *
+ * @param[in] path Compiled path to use.
+ * @param[out] set Set of found atoms (schema nodes).
+ * @return LY_SUCCESS on success, @p set is returned.
+ * @return LY_ERR value on error.
+ */
+LY_ERR lys_find_path_atoms(const struct ly_path *path, struct ly_set **set);
+
+/**
+ * @brief Get all the schema nodes that are required for @p expr to be evaluated (atoms).
+ *
+ * @param[in] ctx_node XPath schema context node.
+ * @param[in] cur_mod Current module for the expression (where it was "instantiated").
+ * @param[in] expr Parsed expression to use.
+ * @param[in] prefixes Sized array of compiled prefixes.
+ * @param[in] options Whether to apply some node access restrictions, see @ref findxpathoptions.
+ * @param[out] set Set of found atoms (schema nodes).
+ * @return LY_SUCCESS on success, @p set is returned.
+ * @return LY_ERR value on error.
+ */
+LY_ERR lys_find_expr_atoms(const struct lysc_node *ctx_node, const struct lys_module *cur_mod,
+        const struct lyxp_expr *expr, const struct lysc_prefix *prefixes, uint32_t options, struct ly_set **set);
+
+/**
+ * @brief Evaluate an @p xpath expression on schema nodes.
+ *
+ * @param[in] ctx_node XPath schema context node.
+ * @param[in] xpath Data XPath expression filtering the matching nodes. ::LY_PREF_JSON prefix format is expected.
+ * @param[in] options Whether to apply some node access restrictions, see @ref findxpathoptions.
+ * @param[out] set Set of found schema nodes.
  * @return LY_SUCCESS on success, @p set is returned.
  * @return LY_ERR value if an error occurred.
  */
-LY_ERR lys_atomize_xpath(const struct lysc_node *ctx_node, const char *xpath, int options, struct ly_set **set);
-
-#define LYXP_SCNODE 0x02        /**< No special tree access modifiers. */
-#define LYXP_SCNODE_SCHEMA 0x04 /**< Apply node access restrictions defined for 'when' and 'must' evaluation. */
-#define LYXP_SCNODE_OUTPUT 0x08 /**< Search RPC/action output nodes instead of input ones. */
+LY_ERR lys_find_xpath(const struct lysc_node *ctx_node, const char *xpath, uint32_t options, struct ly_set **set);
 
 /**
  * @brief Types of the different schema paths.
  */
 typedef enum {
-    LYSC_PATH_LOG /**< Descriptive path format used in log messages */
+    LYSC_PATH_LOG,  /**< Descriptive path format used in log messages */
+    LYSC_PATH_DATA  /**< Similar to ::LYSC_PATH_LOG except that schema-only nodes (choice, case) are skipped */
 } LYSC_PATH_TYPE;
 
 /**
@@ -1842,87 +2011,23 @@ struct lys_module {
     struct lysp_module *parsed;      /**< Simply parsed (unresolved) YANG schema tree */
     struct lysc_module *compiled;    /**< Compiled and fully validated YANG schema tree for data parsing.
                                           Available only for implemented modules. */
-    struct lysc_feature *dis_features;/**< List of pre-compiled features in a non implemented module ([sized array](@ref sizedarrays)).
-                                          These features are always disabled and cannot be enabled until the module
-                                          is implemented. The features are present in this form to allow their linkage
-                                          from if-feature statements of the compiled schemas and their proper use in case
-                                          the module became implemented in future (no matter if implicitly via augment/deviate
-                                          or explicitly via ly_ctx_module_implement()). */
-    struct lysc_ident *dis_identities;/**< List of pre-compiled identities in a non-implemented module ([sized array](@ref sizedarrays))
-                                          These identities cannot be instantiated in data (in identityrefs) until
-                                          the module is implemented but can be linked by identities in implemented
-                                          modules. */
-    uint8_t implemented;             /**< flag if the module is implemented, not just imported. The module is implemented if
-                                          the flag has non-zero value. Specific values are used internally:
-                                          1 - implemented module
-                                          2 - recently implemented module by dependency, it can be reverted in rollback procedure */
+
+    struct lysc_ident *identities;   /**< List of compiled identities of the module ([sized array](@ref sizedarrays))
+                                          Identities are outside the compiled tree to allow their linkage to the identities from
+                                          the implemented modules. This avoids problems when the module became implemented in
+                                          future (no matter if implicitly via augment/deviate or explicitly via
+                                          ::lys_set_implemented()). Note that if the module is not implemented (compiled), the
+                                          identities cannot be instantiated in data (in identityrefs). */
+
+    struct lys_module **augmented_by;/**< List of modules that augment this module ([sized array](@ref sizedarrays)) */
+    struct lys_module **deviated_by; /**< List of modules that deviate this module ([sized array](@ref sizedarrays)) */
+
+    ly_bool implemented;             /**< flag if the module is implemented, not just imported */
     uint8_t latest_revision;         /**< flag to mark the latest available revision:
                                           1 - the latest revision in searchdirs was not searched yet and this is the
                                           latest revision in the current context
                                           2 - searchdirs were searched and this is the latest available revision */
-    uint8_t version;                 /**< yang-version (LYS_VERSION values) */
 };
-
-/**
- * @brief Enable specified feature in the module
- *
- * By default, when the module is loaded by libyang parser, all features are disabled.
- *
- * If all features are being enabled, it must be possible respecting their if-feature conditions. For example,
- * enabling all features on the following feature set will fail since it is not possible to enable both features
- * (and it is unclear which of them should be enabled then). In this case the LY_EDENIED is returned and the feature
- * is untouched.
- *
- *     feature f1;
- *     feature f2 { if-feature 'not f1';}
- *
- * @param[in] module Module where the feature will be enabled.
- * @param[in] feature Name of the feature to enable. To enable all features at once, use asterisk (`*`) character.
- * @return LY_SUCCESS on success,
- * @return LY_EINVAL if @p module is not implemented,
- * @return LY_ENOTFOUND if @p feature was not found,
- * @return LY_EDENIED if @p feature could not be enabled because it has some false if-feature statements.
- */
-LY_ERR lys_feature_enable(const struct lys_module *module, const char *feature);
-
-/**
- * @brief Disable specified feature in the module
- *
- * By default, when the module is loaded by libyang parser, all features are disabled.
- *
- * If disabling a feature causes some other features that depend on this feature to become disabled.
- *
- * @param[in] module Module where the feature will be disabled.
- * @param[in] feature Name of the feature to disable. To disable all features at once, use asterisk (`*`) character.
- * @return LY_SUCCESS on success,
- * @return LY_EINVAL if @p module is not implemented,
- * @return LY_ENOTFOUND if @p feature was not found.
- */
-LY_ERR lys_feature_disable(const struct lys_module *module, const char *feature);
-
-/**
- * @brief Enable specified feature in the module disregarding its if-features.
- *
- * @param[in] module Module where the feature will be enabled.
- * @param[in] feature Name of the feature to enable. To enable all features at once, use asterisk character.
- * @return LY_SUCCESS on success,
- * @return LY_EINVAL if @p module is not implemented,
- * @return LY_ENOTFOUND if @p feature was not found.
- */
-LY_ERR lys_feature_enable_force(const struct lys_module *module, const char *feature);
-
-/**
- * @brief Disable specified feature in the module disregarding dependant features.
- *
- * By default, when the module is loaded by libyang parser, all features are disabled.
- *
- * @param[in] module Module where the feature will be disabled.
- * @param[in] feature Name of the feature to disable. To disable all features at once, use asterisk character.
- * @return LY_SUCCESS on success,
- * @return LY_EINVAL if @p module is not implemented,
- * @return LY_ENOTFOUND if @p feature was not found.
- */
-LY_ERR lys_feature_disable_force(const struct lys_module *module, const char *feature);
 
 /**
  * @brief Get the current real status of the specified feature in the module.
@@ -1942,7 +2047,7 @@ LY_ERR lys_feature_value(const struct lys_module *module, const char *feature);
  * @brief Get next schema tree (sibling) node element that can be instantiated in a data tree. Returned node can
  * be from an augment.
  *
- * lys_getnext() is supposed to be called sequentially. In the first call, the \p last parameter is usually NULL
+ * ::lys_getnext() is supposed to be called sequentially. In the first call, the \p last parameter is usually NULL
  * and function starts returning i) the first \p parent's child or ii) the first top level element of the \p module.
  * Consequent calls suppose to provide the previously returned node as the \p last parameter and still the same
  * \p parent and \p module parameters.
@@ -1959,19 +2064,20 @@ LY_ERR lys_feature_value(const struct lys_module *module, const char *feature);
  * @return Next schema tree node that can be instantiated in a data tree, NULL in case there is no such element.
  */
 const struct lysc_node *lys_getnext(const struct lysc_node *last, const struct lysc_node *parent,
-                                    const struct lysc_module *module, int options);
+        const struct lysc_module *module, uint32_t options);
 
 /**
- * @defgroup sgetnextflags lys_getnext() flags
+ * @defgroup sgetnextflags Options for ::lys_getnext().
+ *
+ * Various options setting behavior of ::lys_getnext().
+ *
  * @{
  */
-#define LYS_GETNEXT_WITHCHOICE   0x01 /**< lys_getnext() option to allow returning #LYS_CHOICE nodes instead of looking into them */
-#define LYS_GETNEXT_NOCHOICE     0x02 /**< lys_getnext() option to ignore (kind of conditional) nodes within choice node */
-#define LYS_GETNEXT_WITHCASE     0x04 /**< lys_getnext() option to allow returning #LYS_CASE nodes instead of looking into them */
-#define LYS_GETNEXT_INTONPCONT   0x40 /**< lys_getnext() option to look into non-presence container, instead of returning container itself */
-#define LYS_GETNEXT_NOSTATECHECK 0x100 /**< lys_getnext() option to skip checking module validity (import-only, disabled) and
-                                            relevant if-feature conditions state */
-#define LYS_GETNEXT_OUTPUT       0x200 /**< lys_getnext() option to provide RPC's/action's output schema nodes instead of input schema nodes
+#define LYS_GETNEXT_WITHCHOICE   0x01 /**< ::lys_getnext() option to allow returning #LYS_CHOICE nodes instead of looking into them */
+#define LYS_GETNEXT_NOCHOICE     0x02 /**< ::lys_getnext() option to ignore (kind of conditional) nodes within choice node */
+#define LYS_GETNEXT_WITHCASE     0x04 /**< ::lys_getnext() option to allow returning #LYS_CASE nodes instead of looking into them */
+#define LYS_GETNEXT_INTONPCONT   0x08 /**< ::lys_getnext() option to look into non-presence container, instead of returning container itself */
+#define LYS_GETNEXT_OUTPUT       0x10 /**< ::lys_getnext() option to provide RPC's/action's output schema nodes instead of input schema nodes
                                             provided by default */
 /** @} sgetnextflags */
 
@@ -1988,74 +2094,51 @@ const struct lysc_node *lys_getnext(const struct lysc_node *last, const struct l
  * @return Found node if any.
  */
 const struct lysc_node *lys_find_child(const struct lysc_node *parent, const struct lys_module *module,
-                                       const char *name, size_t name_len, uint16_t nodetype, int options);
-
-/**
- * @brief Get schema node specified by the schema path.
- *
- * In case the @p qpath uses prefixes (from imports or of the schema itself), the @p context_node must be specified
- * even if the path is absolute. In case the @p context_node is not provided, the names of the schemas are expected as the
- * node's prefixes in the @qpath. It also means that the relative paths are accepted only with the schema prefixes,
- * not the full names.
- *
- * @param[in] ctx libyang context for logging and getting the correct schema if @p contet_node not provided.
- * @param[in] context_node Context node for relative paths and/or as a source of the context module to resolve node's
- * prefixes in @qpath.
- * @param[in] qpath Schema path to be resolved. Not prefixed nodes inherits the prefix from its parent nodes. It means
- * that the first node in the path must be prefixed. Both, import prefixes as well as full schema names are accepted as
- * prefixes according to the @p context_node parameter presence.
- * @return NULL in case of invalid path.
- * @return found schema node.
- */
-const struct lysc_node *lys_find_node(struct ly_ctx *ctx, const struct lysc_node *context_node, const char *qpath);
+        const char *name, size_t name_len, uint16_t nodetype, uint32_t options);
 
 /**
  * @brief Make the specific module implemented.
  *
  * @param[in] mod Module to make implemented. It is not an error
  * to provide already implemented module, it just does nothing.
+ * @param[in] features Optional array of features ended with NULL to be enabled if the module is being implemented.
+ * NULL for all features disabled and '*' for all enabled.
  * @return LY_SUCCESS on success.
  * @return LY_EDENIED in case the context contains some other revision of the same module which is already implemented.
+ * @return LY_ERR on other errors during module compilation.
  */
-LY_ERR lys_set_implemented(struct lys_module *mod);
-
-/**
- * @brief Check if the schema node is disabled in the schema tree, i.e. there is any disabled if-feature statement
- * affecting the node.
- *
- * @param[in] node Schema node to check.
- * @param[in] recursive - 0 to check if-feature only in the \p node schema node,
- * - 1 to check if-feature in all ascendant schema nodes until there is a node possibly having an instance in a data tree
- * @return NULL if enabled,
- * @return pointer to the node with the unsatisfied (disabled) if-feature expression.
- */
-const struct lysc_node *lysc_node_is_disabled(const struct lysc_node *node, int recursive);
+LY_ERR lys_set_implemented(struct lys_module *mod, const char **features);
 
 /**
  * @brief Check type restrictions applicable to the particular leaf/leaf-list with the given string @p value.
  *
  * This function check just the type's restriction, if you want to check also the data tree context (e.g. in case of
- * require-instance restriction), use lyd_value_validate().
+ * require-instance restriction), use ::lyd_value_validate().
  *
  * @param[in] ctx libyang context for logging (function does not log errors when @p ctx is NULL)
  * @param[in] node Schema node for the @p value.
- * @param[in] value String value to be checked.
+ * @param[in] value String value to be checked, expected to be in JSON format.
  * @param[in] value_len Length of the given @p value (mandatory).
- * @param[in] get_prefix Callback function to resolve prefixes used in the @p value string.
- * @param[in] get_prefix_data Private data for the @p get_prefix callback.
- * @param[in] format Input format of the @p value.
  * @return LY_SUCCESS on success
  * @return LY_ERR value if an error occurred.
  */
-LY_ERR lys_value_validate(const struct ly_ctx *ctx, const struct lysc_node *node, const char *value, size_t value_len,
-                          ly_clb_resolve_prefix get_prefix, void *get_prefix_data, LYD_FORMAT format);
+LY_ERR lys_value_validate(const struct ly_ctx *ctx, const struct lysc_node *node, const char *value, size_t value_len);
 
 /**
  * @brief Stringify schema nodetype.
+ *
  * @param[in] nodetype Nodetype to stringify.
  * @return Constant string with the name of the node's type.
  */
 const char *lys_nodetype2str(uint16_t nodetype);
+
+/**
+ * @brief Getter for original XPath expression from a parsed expression.
+ *
+ * @param[in] path Parsed expression.
+ * @return Original string expression.
+ */
+const char *lyxp_get_expr(const struct lyxp_expr *path);
 
 /** @} schematree */
 

@@ -223,8 +223,6 @@ test_hash(void **state)
     "</c>";
     struct lyd_node *tree, *node;
     struct ly_set *set;
-    int dynamic;
-    const char *val_str;
 
     assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(ctx, data, LYD_XML, LYD_PARSE_STRICT, LYD_VALIDATE_PRESENT, &tree));
     assert_non_null(tree);
@@ -235,11 +233,9 @@ test_hash(void **state)
 
     node = set->objs[0];
     assert_string_equal(node->schema->name, "l1");
-    node = lyd_node_children(node, 0);
+    node = lyd_child(node);
     assert_string_equal(node->schema->name, "a");
-    val_str = lyd_value2str((struct lyd_node_term *)node, &dynamic);
-    assert_int_equal(0, dynamic);
-    assert_string_equal(val_str, "a3");
+    assert_string_equal(LYD_CANON_VALUE(node), "a3");
 
     ly_set_free(set, NULL);
 
@@ -249,11 +245,9 @@ test_hash(void **state)
 
     node = set->objs[0];
     assert_string_equal(node->schema->name, "ll");
-    node = lyd_node_children(node, 0);
+    node = lyd_child(node);
     assert_string_equal(node->schema->name, "a");
-    val_str = lyd_value2str((struct lyd_node_term *)node, &dynamic);
-    assert_int_equal(0, dynamic);
-    assert_string_equal(val_str, "val_b");
+    assert_string_equal(LYD_CANON_VALUE(node), "val_b");
     node = node->next;
     assert_string_equal(node->schema->name, "b");
     assert_null(node->next);
@@ -272,9 +266,7 @@ test_hash(void **state)
 
     node = set->objs[0];
     assert_string_equal(node->schema->name, "ll2");
-    val_str = lyd_value2str((struct lyd_node_term *)node, &dynamic);
-    assert_int_equal(0, dynamic);
-    assert_string_equal(val_str, "three");
+    assert_string_equal(LYD_CANON_VALUE(node), "three");
 
     ly_set_free(set, NULL);
 
@@ -378,18 +370,18 @@ test_atomize(void **state)
     mod = ly_ctx_get_module_latest(ctx, "a");
 
     /* some random paths just making sure the API function works */
-    assert_int_equal(LY_SUCCESS, lys_atomize_xpath(mod->compiled->data, "/a:*", 0, &set));
+    assert_int_equal(LY_SUCCESS, lys_find_xpath_atoms(mod->compiled->data, "/a:*", 0, &set));
     assert_int_equal(4, set->count);
 
     ly_set_free(set, NULL);
 
     /* all nodes from all modules (including internal, which can change easily, so check just the test modules) */
-    assert_int_equal(LY_SUCCESS, lys_atomize_xpath(mod->compiled->data, "//.", 0, &set));
+    assert_int_equal(LY_SUCCESS, lys_find_xpath_atoms(mod->compiled->data, "//.", 0, &set));
     assert_in_range(set->count, 16, UINT32_MAX);
 
     ly_set_free(set, NULL);
 
-    assert_int_equal(LY_SUCCESS, lys_atomize_xpath(mod->compiled->data->next->next, "/a:c/ll[a='val1']/ll[a='val2']/b",
+    assert_int_equal(LY_SUCCESS, lys_find_xpath_atoms(mod->compiled->data->next->next, "/a:c/ll[a='val1']/ll[a='val2']/b",
                                                    0, &set));
     assert_int_equal(7, set->count);
 

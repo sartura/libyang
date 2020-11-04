@@ -21,9 +21,9 @@
 #include <string.h>
 
 #include "context.h"
-#include "parser.h"
+#include "in.h"
 #include "parser_data.h"
-#include "printer.h"
+#include "out.h"
 #include "printer_data.h"
 #include "tests/config.h"
 #include "tree_data_internal.h"
@@ -75,15 +75,15 @@ setup(void **state)
             "leaf foo3 { type uint32; }"
             "notification n2;}";
     const struct lys_module *mod;
+    const char *feats[] = {"writable-running", NULL};
 
 #if ENABLE_LOGGER_CHECKING
     ly_set_log_clb(logger, 1);
 #endif
 
     assert_int_equal(LY_SUCCESS, ly_ctx_new(TESTS_DIR_MODULES_YANG, 0, &ctx));
-    assert_non_null(ly_ctx_load_module(ctx, "ietf-netconf-with-defaults", "2011-06-01"));
-    assert_non_null((mod = ly_ctx_load_module(ctx, "ietf-netconf", "2011-06-01")));
-    assert_int_equal(LY_SUCCESS, lys_feature_enable(mod, "writable-running"));
+    assert_non_null((mod = ly_ctx_load_module(ctx, "ietf-netconf", "2011-06-01", feats)));
+    assert_non_null(ly_ctx_load_module(ctx, "ietf-netconf-with-defaults", "2011-06-01", NULL));
     assert_int_equal(LY_SUCCESS, lys_parse_mem(ctx, schema_a, LYS_IN_YANG, NULL));
 
     return 0;
@@ -132,12 +132,12 @@ test_leaf(void **state)
     assert_int_equal(LYS_LEAF, tree->schema->nodetype);
     assert_string_equal("foo", tree->schema->name);
     leaf = (struct lyd_node_term*)tree;
-    assert_string_equal("foo value", leaf->value.original);
+    assert_string_equal("foo value", leaf->value.canonical);
 
     assert_int_equal(LYS_LEAF, tree->next->next->schema->nodetype);
     assert_string_equal("foo2", tree->next->next->schema->name);
     leaf = (struct lyd_node_term*)tree->next->next;
-    assert_string_equal("default-val", leaf->value.original);
+    assert_string_equal("default-val", leaf->value.canonical);
     assert_true(leaf->flags & LYD_DEFAULT);
 
     lyd_free_all(tree);
@@ -149,19 +149,19 @@ test_leaf(void **state)
     assert_int_equal(LYS_LEAF, tree->schema->nodetype);
     assert_string_equal("foo2", tree->schema->name);
     leaf = (struct lyd_node_term*)tree;
-    assert_string_equal("default-val", leaf->value.original);
+    assert_string_equal("default-val", leaf->value.canonical);
     assert_false(leaf->flags & LYD_DEFAULT);
 
     lyd_free_all(tree);
 
-    /* parse foo2 but make it implicit */
-    data = "<foo2 xmlns=\"urn:tests:a\" xmlns:wd=\"urn:ietf:params:xml:ns:yang:ietf-netconf-with-defaults\" wd:default=\"true\">default-val</foo2>";
+    /* parse foo2 but make it implicit, skip metadata xxx from missing schema */
+    data = "<foo2 xmlns=\"urn:tests:a\" xmlns:wd=\"urn:ietf:params:xml:ns:yang:ietf-netconf-with-defaults\" wd:default=\"true\" xmlns:x=\"urn:x\" x:xxx=\"false\">default-val</foo2>";
     assert_int_equal(LY_SUCCESS, lyd_parse_data_mem(ctx, data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &tree));
     assert_non_null(tree);
     assert_int_equal(LYS_LEAF, tree->schema->nodetype);
     assert_string_equal("foo2", tree->schema->name);
     leaf = (struct lyd_node_term*)tree;
-    assert_string_equal("default-val", leaf->value.original);
+    assert_string_equal("default-val", leaf->value.canonical);
     assert_true(leaf->flags & LYD_DEFAULT);
 
     lyd_free_all(tree);
@@ -193,7 +193,7 @@ test_anydata(void **state)
     assert_int_equal(LYS_ANYDATA, tree->schema->nodetype);
     assert_string_equal("any", tree->schema->name);
 
-    lyd_print_tree(out, tree, LYD_XML, 0);
+    lyd_print_tree(out, tree, LYD_XML, LYD_PRINT_SHRINK);
     assert_string_equal(str,
         "<any xmlns=\"urn:tests:a\">"
             "<element1>"
@@ -343,7 +343,7 @@ test_opaq(void **state)
     assert_string_equal(((struct lyd_node_opaq *)tree)->name, "foo3");
     assert_string_equal(((struct lyd_node_opaq *)tree)->value, "");
 
-    lyd_print_tree(out, tree, LYD_XML, 0);
+    lyd_print_tree(out, tree, LYD_XML, LYD_PRINT_SHRINK);
     assert_string_equal(str, "<foo3 xmlns=\"urn:tests:a\"/>");
     ly_out_reset(out);
     lyd_free_all(tree);
@@ -361,7 +361,7 @@ test_opaq(void **state)
     assert_string_equal(((struct lyd_node_opaq *)tree)->name, "l1");
     assert_string_equal(((struct lyd_node_opaq *)tree)->value, "");
 
-    lyd_print_tree(out, tree, LYD_XML, 0);
+    lyd_print_tree(out, tree, LYD_XML, LYD_PRINT_SHRINK);
     assert_string_equal(str, data);
     ly_out_reset(out);
     lyd_free_all(tree);
@@ -379,7 +379,7 @@ test_opaq(void **state)
     assert_string_equal(((struct lyd_node_opaq *)tree)->name, "l1");
     assert_string_equal(((struct lyd_node_opaq *)tree)->value, "");
 
-    lyd_print_tree(out, tree, LYD_XML, 0);
+    lyd_print_tree(out, tree, LYD_XML, LYD_PRINT_SHRINK);
     assert_string_equal(str, data);
     ly_out_reset(out);
     lyd_free_all(tree);
@@ -387,8 +387,8 @@ test_opaq(void **state)
     /* opaq flag and fail */
     assert_int_equal(LY_EVALID, lyd_parse_data_mem(ctx, "<a xmlns=\"ns\"><b>x</b><c xml:id=\"D\">1</c></a>", LYD_XML,
                                                    LYD_PARSE_OPAQ, LYD_VALIDATE_PRESENT, &tree));
+    logbuf_assert("Unknown XML prefix \"xml\". Line number 1.");
     assert_null(tree);
-
     ly_out_free(out, NULL, 1);
 
     *state = NULL;
@@ -437,15 +437,15 @@ test_rpc(void **state)
     assert_null(tree->schema);
     assert_string_equal(((struct lyd_node_opaq *)tree)->name, "rpc");
     assert_non_null(((struct lyd_node_opaq *)tree)->attr);
-    node = lyd_node_children(tree, 0);
+    node = lyd_child(tree);
     assert_string_equal(node->schema->name, "edit-config");
-    node = lyd_node_children(node, 0)->next;
+    node = lyd_child(node)->next;
     assert_string_equal(node->schema->name, "config");
 
     node = ((struct lyd_node_any *)node)->value.tree;
     assert_non_null(node->schema);
     assert_string_equal(node->schema->name, "cp");
-    node = lyd_node_children(node, 0);
+    node = lyd_child(node);
     /* z has no value */
     assert_null(node->schema);
     assert_string_equal(((struct lyd_node_opaq *)node)->name, "z");
@@ -454,7 +454,7 @@ test_rpc(void **state)
     assert_null(node->schema);
     assert_string_equal(((struct lyd_node_opaq *)node)->name, "l1");
 
-    lyd_print_tree(out, tree, LYD_XML, 0);
+    lyd_print_tree(out, tree, LYD_XML, LYD_PRINT_SHRINK);
     assert_string_equal(str,
         "<rpc xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" msgid=\"25\" custom-attr=\"val\">"
             "<edit-config>"
@@ -519,12 +519,12 @@ test_action(void **state)
     assert_null(tree->schema);
     assert_string_equal(((struct lyd_node_opaq *)tree)->name, "rpc");
     assert_non_null(((struct lyd_node_opaq *)tree)->attr);
-    node = lyd_node_children(tree, 0);
+    node = lyd_child(tree);
     assert_null(node->schema);
     assert_string_equal(((struct lyd_node_opaq *)node)->name, "action");
     assert_null(((struct lyd_node_opaq *)node)->attr);
 
-    lyd_print_tree(out, tree, LYD_XML, 0);
+    lyd_print_tree(out, tree, LYD_XML, LYD_PRINT_SHRINK);
     assert_string_equal(str,
         "<rpc xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" msgid=\"25\" custom-attr=\"val\">"
             "<action xmlns=\"urn:ietf:params:xml:ns:yang:1\">"
@@ -580,7 +580,7 @@ test_notification(void **state)
     assert_null(tree->schema);
     assert_string_equal(((struct lyd_node_opaq *)tree)->name, "notification");
     assert_null(((struct lyd_node_opaq *)tree)->attr);
-    node = lyd_node_children(tree, 0);
+    node = lyd_child(tree);
     assert_null(node->schema);
     assert_string_equal(((struct lyd_node_opaq *)node)->name, "eventTime");
     assert_string_equal(((struct lyd_node_opaq *)node)->value, "2037-07-08T00:01:00Z");
@@ -589,7 +589,7 @@ test_notification(void **state)
     assert_non_null(node->schema);
     assert_string_equal(node->schema->name, "c");
 
-    lyd_print_tree(out, tree, LYD_XML, 0);
+    lyd_print_tree(out, tree, LYD_XML, LYD_PRINT_SHRINK);
     assert_string_equal(str, data);
     ly_out_reset(out);
     lyd_free_all(tree);
@@ -606,7 +606,7 @@ test_notification(void **state)
     assert_non_null(tree);
     assert_ptr_equal(ntf, tree);
 
-    lyd_print_tree(out, tree, LYD_XML, 0);
+    lyd_print_tree(out, tree, LYD_XML, LYD_PRINT_SHRINK);
     assert_string_equal(str, data);
     ly_out_reset(out);
     lyd_free_all(tree);
@@ -654,7 +654,7 @@ test_reply(void **state)
 
     assert_non_null(op);
     assert_string_equal(op->schema->name, "act");
-    node = lyd_node_children(op, 0);
+    node = lyd_child(op);
     assert_non_null(node->schema);
     assert_string_equal(node->schema->name, "al");
     assert_true(node->schema->flags & LYS_CONFIG_R);
@@ -663,12 +663,12 @@ test_reply(void **state)
     assert_null(tree->schema);
     assert_string_equal(((struct lyd_node_opaq *)tree)->name, "rpc-reply");
     assert_non_null(((struct lyd_node_opaq *)tree)->attr);
-    node = lyd_node_children(tree, 0);
+    node = lyd_child(tree);
     assert_non_null(node->schema);
     assert_string_equal(node->schema->name, "c");
 
     /* TODO print only rpc-reply node and then output subtree */
-    lyd_print_tree(out, lyd_node_children(op, 0), LYD_XML, 0);
+    lyd_print_tree(out, lyd_child(op), LYD_XML, LYD_PRINT_SHRINK);
     assert_string_equal(str,
         "<al xmlns=\"urn:tests:a\">25</al>");
     ly_out_reset(out);

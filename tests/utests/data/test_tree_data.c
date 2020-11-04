@@ -277,8 +277,7 @@ test_target(void **state)
     struct lyd_node *tree;
     struct lyxp_expr *exp;
     struct ly_path *path;
-    const char *path_str = "/a:l2[2]/c/d[3]", *val;
-    int dynamic;
+    const char *path_str = "/a:l2[2]/c/d[3]";
     const char *data =
         "<l2 xmlns=\"urn:tests:a\"><c>"
             "<d>a</d>"
@@ -296,16 +295,12 @@ test_target(void **state)
     assert_int_equal(LY_SUCCESS, ly_path_parse(ctx, NULL, path_str, strlen(path_str), LY_PATH_BEGIN_EITHER, LY_PATH_LREF_FALSE,
                                                LY_PATH_PREFIX_OPTIONAL, LY_PATH_PRED_SIMPLE, &exp));
     assert_int_equal(LY_SUCCESS, ly_path_compile(ctx, NULL, NULL, exp, LY_PATH_LREF_FALSE, LY_PATH_OPER_INPUT,
-                                                 LY_PATH_TARGET_SINGLE, lydjson_resolve_prefix, NULL, LYD_JSON, &path));
+                                                 LY_PATH_TARGET_SINGLE, LY_PREF_JSON, NULL, &path));
     term = lyd_target(path, tree);
 
     assert_string_equal(term->schema->name, "d");
-    val = lyd_value2str(term, &dynamic);
-    assert_int_equal(dynamic, 0);
-    assert_string_equal(val, "b");
-    val = lyd_value2str((struct lyd_node_term *)term->prev, &dynamic);
-    assert_int_equal(dynamic, 0);
-    assert_string_equal(val, "b");
+    assert_string_equal(LYD_CANON_VALUE(term), "b");
+    assert_string_equal(LYD_CANON_VALUE(term->prev), "b");
 
     lyd_free_all(tree);
     ly_path_free(ctx, path);

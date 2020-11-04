@@ -31,12 +31,12 @@
 #include "tree_data.h"
 #include "tree_schema.h"
 
-volatile uint8_t ly_log_level = LY_LLWRN;
-volatile uint8_t ly_log_opts = LY_LOLOG | LY_LOSTORE_LAST;
-static void (*ly_log_clb)(LY_LOG_LEVEL level, const char *msg, const char *path);
-static volatile int path_flag = 1;
+volatile LY_LOG_LEVEL ly_ll = LY_LLWRN;
+volatile uint32_t ly_log_opts = LY_LOLOG | LY_LOSTORE_LAST;
+static ly_log_clb log_clb;
+static volatile ly_bool path_flag = 1;
 #ifndef NDEBUG
-volatile int ly_log_dbg_groups = 0;
+volatile uint32_t ly_ldbg_groups = 0;
 #endif
 
 /* how many bytes add when enlarging buffers */
@@ -47,9 +47,9 @@ ly_errcode(const struct ly_ctx *ctx)
 {
     struct ly_err_item *i;
 
-    i = ly_err_first(ctx);
+    i = ly_err_last(ctx);
     if (i) {
-        return i->prev->no;
+        return i->no;
     }
 
     return LY_SUCCESS;
@@ -60,9 +60,9 @@ ly_vecode(const struct ly_ctx *ctx)
 {
     struct ly_err_item *i;
 
-    i = ly_err_first(ctx);
+    i = ly_err_last(ctx);
     if (i) {
-        return i->prev->vecode;
+        return i->vecode;
     }
 
     return LYVE_SUCCESS;
@@ -75,9 +75,9 @@ ly_errmsg(const struct ly_ctx *ctx)
 
     LY_CHECK_ARG_RET(NULL, ctx, NULL);
 
-    i = ly_err_first(ctx);
+    i = ly_err_last(ctx);
     if (i) {
-        return i->prev->msg;
+        return i->msg;
     }
 
     return NULL;
@@ -90,9 +90,9 @@ ly_errpath(const struct ly_ctx *ctx)
 
     LY_CHECK_ARG_RET(NULL, ctx, NULL);
 
-    i = ly_err_first(ctx);
+    i = ly_err_last(ctx);
     if (i) {
-        return i->prev->path;
+        return i->path;
     }
 
     return NULL;
@@ -105,9 +105,9 @@ ly_errapptag(const struct ly_ctx *ctx)
 
     LY_CHECK_ARG_RET(NULL, ctx, NULL);
 
-    i = ly_err_first(ctx);
+    i = ly_err_last(ctx);
     if (i) {
-        return i->prev->apptag;
+        return i->apptag;
     }
 
     return NULL;
@@ -142,6 +142,17 @@ ly_err_first(const struct ly_ctx *ctx)
     return pthread_getspecific(ctx->errlist_key);
 }
 
+API struct ly_err_item *
+ly_err_last(const struct ly_ctx *ctx)
+{
+    const struct ly_err_item *e;
+
+    LY_CHECK_ARG_RET(NULL, ctx, NULL);
+
+    e = pthread_getspecific(ctx->errlist_key);
+    return e ? e->prev : NULL;
+}
+
 API void
 ly_err_free(void *ptr)
 {
@@ -168,7 +179,7 @@ ly_err_clean(struct ly_ctx *ctx, struct ly_err_item *eitem)
     }
     if (eitem) {
         /* disconnect the error */
-        for (i = first; i && (i->next != eitem); i = i->next);
+        for (i = first; i && (i->next != eitem); i = i->next) {}
         assert(i);
         i->next = NULL;
         first->prev = i;
@@ -182,44 +193,44 @@ ly_err_clean(struct ly_ctx *ctx, struct ly_err_item *eitem)
 }
 
 API LY_LOG_LEVEL
-ly_verb(LY_LOG_LEVEL level)
+ly_log_level(LY_LOG_LEVEL level)
 {
-    LY_LOG_LEVEL prev = ly_log_level;
+    LY_LOG_LEVEL prev = ly_ll;
 
-    ly_log_level = level;
+    ly_ll = level;
     return prev;
 }
 
-API int
-ly_log_options(int opts)
+API uint32_t
+ly_log_options(uint32_t opts)
 {
-    uint8_t prev = ly_log_opts;
+    uint32_t prev = ly_log_opts;
 
     ly_log_opts = opts;
     return prev;
 }
 
 API void
-ly_verb_dbg(int dbg_groups)
+ly_log_dbg_groups(uint32_t dbg_groups)
 {
 #ifndef NDEBUG
-    ly_log_dbg_groups = dbg_groups;
+    ly_ldbg_groups = dbg_groups;
 #else
     (void)dbg_groups;
 #endif
 }
 
 API void
-ly_set_log_clb(void (*clb)(LY_LOG_LEVEL level, const char *msg, const char *path), int path)
+ly_set_log_clb(ly_log_clb clb, ly_bool path)
 {
-    ly_log_clb = clb;
+    log_clb = clb;
     path_flag = path;
 }
 
-API void
-(*ly_get_log_clb(void))(LY_LOG_LEVEL, const char *, const char *)
+API ly_log_clb
+ly_get_log_clb(void)
 {
-    return ly_log_clb;
+    return log_clb;
 }
 
 static LY_ERR
@@ -291,20 +302,15 @@ mem_fail:
 
 static void
 log_vprintf(const struct ly_ctx *ctx, LY_LOG_LEVEL level, LY_ERR no, LY_VECODE vecode, char *path,
-            const char *format, va_list args)
+        const char *format, va_list args)
 {
     char *msg = NULL;
-    int free_strs;
+    ly_bool free_strs;
 
-    if (level > ly_log_level) {
+    if (level > ly_ll) {
         /* do not print or store the message */
         free(path);
         return;
-    }
-
-    if (((no & ~LY_EPLUGIN) == LY_EVALID) && (vecode == LYVE_SUCCESS)) {
-        /* assume we are inheriting the error, so inherit vecode as well */
-        vecode = ly_vecode(ctx);
     }
 
     /* store the error/warning (if we need to store errors internally, it does not matter what are the user log options) */
@@ -314,6 +320,10 @@ log_vprintf(const struct ly_ctx *ctx, LY_LOG_LEVEL level, LY_ERR no, LY_VECODE v
             LOGMEM(ctx);
             free(path);
             return;
+        }
+        if (((no & ~LY_EPLUGIN) == LY_EVALID) && (vecode == LYVE_SUCCESS)) {
+            /* assume we are inheriting the error, so inherit vecode as well */
+            vecode = ly_vecode(ctx);
         }
         if (log_store(ctx, level, no, vecode, msg, path, NULL)) {
             return;
@@ -330,8 +340,8 @@ log_vprintf(const struct ly_ctx *ctx, LY_LOG_LEVEL level, LY_ERR no, LY_VECODE v
 
     /* if we are only storing errors internally, never print the message (yet) */
     if (ly_log_opts & LY_LOLOG) {
-        if (ly_log_clb) {
-            ly_log_clb(level, msg, path);
+        if (log_clb) {
+            log_clb(level, msg, path);
         } else {
             fprintf(stderr, "libyang[%d]: %s%s", level, msg, path ? " " : "\n");
             if (path) {
@@ -349,13 +359,13 @@ log_vprintf(const struct ly_ctx *ctx, LY_LOG_LEVEL level, LY_ERR no, LY_VECODE v
 #ifndef NDEBUG
 
 void
-ly_log_dbg(int group, const char *format, ...)
+ly_log_dbg(uint32_t group, const char *format, ...)
 {
     char *dbg_format;
     const char *str_group;
     va_list ap;
 
-    if (!(ly_log_dbg_groups & group)) {
+    if (!(ly_ldbg_groups & group)) {
         return;
     }
 
@@ -413,7 +423,7 @@ ly_vlog_build_path(const struct ly_ctx *ctx, enum LY_VLOG_ELEM elem_type, const 
         LY_CHECK_ERR_RET(!(*path), LOGMEM(ctx), LY_EMEM);
         break;
     case LY_VLOG_LINE:
-        rc = asprintf(path, "Line number %"PRIu64".", *((uint64_t*)elem));
+        rc = asprintf(path, "Line number %" PRIu64 ".", *((uint64_t *)elem));
         LY_CHECK_ERR_RET(rc == -1, LOGMEM(ctx), LY_EMEM);
         break;
     case LY_VLOG_LYSC:
@@ -436,7 +446,7 @@ void
 ly_vlog(const struct ly_ctx *ctx, enum LY_VLOG_ELEM elem_type, const void *elem, LY_VECODE code, const char *format, ...)
 {
     va_list ap;
-    char* path = NULL;
+    char *path = NULL;
     const struct ly_err_item *first;
 
     if (path_flag && (elem_type != LY_VLOG_NONE)) {
@@ -470,7 +480,7 @@ lyext_log(const struct lysc_ext_instance *ext, LY_LOG_LEVEL level, LY_ERR err_no
     char *plugin_msg;
     int ret;
 
-    if (ly_log_level < level) {
+    if (ly_ll < level) {
         return;
     }
     ret = asprintf(&plugin_msg, "Extension plugin \"%s\": %s)", ext->def->plugin->id, format);
@@ -490,25 +500,13 @@ API void
 ly_err_print(struct ly_err_item *eitem)
 {
     if (ly_log_opts & LY_LOLOG) {
-        if (ly_log_clb) {
-            ly_log_clb(eitem->level, eitem->msg, eitem->path);
+        if (log_clb) {
+            log_clb(eitem->level, eitem->msg, eitem->path);
         } else {
             fprintf(stderr, "libyang[%d]: %s%s", eitem->level, eitem->msg, eitem->path ? " " : "\n");
             if (eitem->path) {
                 fprintf(stderr, "(path: %s)\n", eitem->path);
             }
         }
-    }
-}
-
-void
-ly_err_last_set_apptag(const struct ly_ctx *ctx, const char *apptag)
-{
-    struct ly_err_item *i;
-
-    i = ly_err_first(ctx);
-    if (i) {
-        i = i->prev;
-        i->apptag = strdup(apptag);
     }
 }

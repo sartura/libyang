@@ -29,6 +29,38 @@
 #include "tree_data_internal.h"
 #include "tree_schema.h"
 
+struct lyd_node *
+lys_getnext_data(const struct lyd_node *last, const struct lyd_node *sibling, const struct lysc_node **slast,
+        const struct lysc_node *parent, const struct lysc_module *module)
+{
+    const struct lysc_node *siter = NULL;
+    struct lyd_node *match = NULL;
+
+    assert(parent || module);
+    assert(!last || (slast && *slast));
+
+    if (slast) {
+        siter = *slast;
+    }
+
+    if (last && last->next && (last->next->schema == siter)) {
+        /* return next data instance */
+        return last->next;
+    }
+
+    /* find next schema node data instance */
+    while ((siter = lys_getnext(siter, parent, module, 0))) {
+        if (!lyd_find_sibling_val(sibling, siter, NULL, 0, &match)) {
+            break;
+        }
+    }
+
+    if (slast) {
+        *slast = siter;
+    }
+    return match;
+}
+
 struct lyd_node **
 lyd_node_children_p(struct lyd_node *node)
 {
@@ -51,21 +83,56 @@ lyd_node_children_p(struct lyd_node *node)
 }
 
 API struct lyd_node *
-lyd_node_children(const struct lyd_node *node, int options)
+lyd_parent(const struct lyd_node *node)
 {
-    struct lyd_node **children, *child;
+    if (!node) {
+        return NULL;
+    }
+
+    return (struct lyd_node *)(node)->parent;
+}
+
+API struct lyd_node *
+lyd_child(const struct lyd_node *node)
+{
+    struct lyd_node **children;
 
     if (!node) {
         return NULL;
     }
 
+    if (!node->schema) {
+        /* opaq node */
+        return ((struct lyd_node_opaq *)(node))->child;
+    }
+
     children = lyd_node_children_p((struct lyd_node *)node);
     if (children) {
-        child = *children;
-        if (options & LYD_CHILDREN_SKIP_KEYS) {
-            while (child && child->schema && (child->schema->flags & LYS_KEY)) {
-                child = child->next;
-            }
+        return *children;
+    } else {
+        return NULL;
+    }
+}
+
+API struct lyd_node *
+lyd_child_no_keys(const struct lyd_node *node)
+{
+    struct lyd_node **children;
+
+    if (!node) {
+        return NULL;
+    }
+
+    if (!node->schema) {
+        /* opaq node */
+        return ((struct lyd_node_opaq *)(node))->child;
+    }
+
+    children = lyd_node_children_p((struct lyd_node *)node);
+    if (children) {
+        struct lyd_node *child = *children;
+        while (child && child->schema && (child->schema->flags & LYS_KEY)) {
+            child = child->next;
         }
         return child;
     } else {
@@ -82,13 +149,13 @@ lyd_owner_module(const struct lyd_node *node)
         return NULL;
     }
 
-    for (schema = node->schema; schema->parent; schema = schema->parent);
+    for (schema = node->schema; schema->parent; schema = schema->parent) {}
     return schema->module;
 }
 
 const struct lys_module *
 lyd_mod_next_module(struct lyd_node *tree, const struct lys_module *module, const struct ly_ctx *ctx, uint32_t *i,
-                    struct lyd_node **first)
+        struct lyd_node **first)
 {
     struct lyd_node *iter;
     const struct lys_module *mod;
@@ -153,10 +220,10 @@ lyd_parse_check_keys(struct lyd_node *node)
 
     assert(node->schema->nodetype == LYS_LIST);
 
-    key = lyd_node_children(node, 0);
+    key = lyd_child(node);
     while ((skey = lys_getnext(skey, node->schema, NULL, 0)) && (skey->flags & LYS_KEY)) {
         if (!key || (key->schema != skey)) {
-            LOGVAL(node->schema->module->ctx, LY_VLOG_LYD, node, LY_VCODE_NOKEY, skey->name);
+            LOGVAL(LYD_CTX(node), LY_VLOG_LYD, node, LY_VCODE_NOKEY, skey->name);
             return LY_EVALID;
         }
 
@@ -167,7 +234,7 @@ lyd_parse_check_keys(struct lyd_node *node)
 }
 
 void
-lyd_parse_set_data_flags(struct lyd_node *node, struct ly_set *when_check, struct lyd_meta **meta, int options)
+lyd_parse_set_data_flags(struct lyd_node *node, struct ly_set *when_check, struct lyd_meta **meta, uint32_t options)
 {
     struct lyd_meta *meta2, *prev_meta = NULL;
 
@@ -177,7 +244,7 @@ lyd_parse_set_data_flags(struct lyd_node *node, struct ly_set *when_check, struc
             node->flags |= LYD_WHEN_TRUE;
         } else {
             /* remember we need to evaluate this node's when */
-            ly_set_add(when_check, node, LY_SET_OPT_USEASLIST);
+            LY_CHECK_RET(ly_set_add(when_check, node, 1, NULL), );
         }
     }
 
@@ -187,8 +254,8 @@ lyd_parse_set_data_flags(struct lyd_node *node, struct ly_set *when_check, struc
     }
 
     LY_LIST_FOR(*meta, meta2) {
-        if (!strcmp(meta2->name, "default") && !strcmp(meta2->annotation->module->name, "ietf-netconf-with-defaults")
-                && meta2->value.boolean) {
+        if (!strcmp(meta2->name, "default") && !strcmp(meta2->annotation->module->name, "ietf-netconf-with-defaults") &&
+                meta2->value.boolean) {
             /* node is default according to the metadata */
             node->flags |= LYD_DEFAULT;
 
@@ -206,11 +273,10 @@ lyd_parse_set_data_flags(struct lyd_node *node, struct ly_set *when_check, struc
     }
 }
 
-LY_ERR
+API LY_ERR
 lyd_any_copy_value(struct lyd_node *trg, const union lyd_any_value *value, LYD_ANYDATA_VALUETYPE value_type)
 {
     struct lyd_node_any *t;
-    int len;
 
     assert(trg->schema->nodetype & LYS_ANYDATA);
 
@@ -224,7 +290,7 @@ lyd_any_copy_value(struct lyd_node *trg, const union lyd_any_value *value, LYD_A
     case LYD_ANYDATA_STRING:
     case LYD_ANYDATA_XML:
     case LYD_ANYDATA_JSON:
-        FREE_STRING(LYD_NODE_CTX(trg), t->value.str);
+        FREE_STRING(LYD_CTX(trg), t->value.str);
         break;
     case LYD_ANYDATA_LYB:
         free(t->value.mem);
@@ -249,15 +315,15 @@ lyd_any_copy_value(struct lyd_node *trg, const union lyd_any_value *value, LYD_A
     case LYD_ANYDATA_XML:
     case LYD_ANYDATA_JSON:
         if (value->str) {
-            t->value.str = lydict_insert(LYD_NODE_CTX(trg), value->str, 0);
+            LY_CHECK_RET(lydict_insert(LYD_CTX(trg), value->str, 0, &t->value.str));
         }
         break;
     case LYD_ANYDATA_LYB:
         if (value->mem) {
-            len = lyd_lyb_data_length(value->mem);
+            int len = lyd_lyb_data_length(value->mem);
             LY_CHECK_RET(len == -1, LY_EINVAL);
             t->value.mem = malloc(len);
-            LY_CHECK_ERR_RET(!t->value.mem, LOGMEM(LYD_NODE_CTX(trg)), LY_EMEM);
+            LY_CHECK_ERR_RET(!t->value.mem, LOGMEM(LYD_CTX(trg)), LY_EMEM);
             memcpy(t->value.mem, value->mem, len);
         }
         break;
@@ -270,7 +336,6 @@ LYB_HASH
 lyb_hash(struct lysc_node *sibling, uint8_t collision_id)
 {
     const struct lys_module *mod;
-    int ext_len;
     uint32_t full_hash;
     LYB_HASH hash;
 
@@ -283,6 +348,8 @@ lyb_hash(struct lysc_node *sibling, uint8_t collision_id)
     full_hash = dict_hash_multi(0, mod->name, strlen(mod->name));
     full_hash = dict_hash_multi(full_hash, sibling->name, strlen(sibling->name));
     if (collision_id) {
+        size_t ext_len;
+
         if (collision_id > strlen(mod->name)) {
             /* fine, we will not hash more bytes, just use more bits from the hash than previously */
             ext_len = strlen(mod->name);
@@ -307,7 +374,7 @@ lyb_hash(struct lysc_node *sibling, uint8_t collision_id)
     return hash;
 }
 
-int
+ly_bool
 lyb_has_schema_model(const struct lysc_node *sibling, const struct lys_module **models)
 {
     LY_ARRAY_COUNT_TYPE u;

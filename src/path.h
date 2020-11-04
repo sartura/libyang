@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include "log.h"
+#include "plugins_types.h"
 #include "tree.h"
 #include "tree_data.h"
 
@@ -47,7 +48,7 @@ struct ly_path {
             uint64_t position;    /**< position value for the position-predicate */
             struct {
                 const struct lysc_node *key;    /**< key node of the predicate, NULL in case of a leaf-list predicate */
-                struct lyd_value value; /**< value representation according to the key's type */
+                struct lyd_value value; /**< value representation according to the key's type, its realtype is allocated */
             };
         };
     } *predicates;            /**< [Sized array](@ref sizedarrays) of the path segment's predicates */
@@ -76,7 +77,9 @@ struct ly_path {
  * @{
  */
 #define LY_PATH_PREFIX_OPTIONAL     0x10    /**< prefixes in the path are optional */
-#define LY_PATH_PREFIX_MANDATORY    0x20    /**< prefixes in the path are mandatory (XML insatnce-identifier) */
+#define LY_PATH_PREFIX_MANDATORY    0x20    /**< prefixes in the path are mandatory (XML instance-identifier) */
+#define LY_PATH_PREFIX_STRICT_INHERIT 0x30  /**< prefixes in the path are mandatory in case they differ from the
+                                                 previous prefixes, otherwise they are prohibited (JSON instance-identifier) */
 /** @} */
 
 /**
@@ -93,7 +96,7 @@ struct ly_path {
  * @brief Parse path into XPath token structure and perform all additional checks.
  *
  * @param[in] ctx libyang context.
- * @param[in] ctx_node Optional context node.
+ * @param[in] ctx_node Optional context node, used for logging.
  * @param[in] str_path Path to parse.
  * @param[in] path_len Length of @p str_path.
  * @param[in] begin Begin option (@ref path_begin_options).
@@ -104,13 +107,13 @@ struct ly_path {
  * @return LY_ERR value.
  */
 LY_ERR ly_path_parse(const struct ly_ctx *ctx, const struct lysc_node *ctx_node, const char *str_path, size_t path_len,
-                     uint8_t begin, uint8_t lref, uint8_t prefix, uint8_t pred, struct lyxp_expr **expr);
+        uint8_t begin, uint8_t lref, uint8_t prefix, uint8_t pred, struct lyxp_expr **expr);
 
 /**
  * @brief Parse predicate into XPath token structure and perform all additional checks.
  *
  * @param[in] ctx libyang context.
- * @param[in] cur_node Optional current (original context) node.
+ * @param[in] cur_node Optional current (original context) node, used for logging.
  * @param[in] str_path Path to parse.
  * @param[in] path_len Length of @p str_path.
  * @param[in] prefix Prefix option (@ref path_prefix_options).
@@ -119,7 +122,7 @@ LY_ERR ly_path_parse(const struct ly_ctx *ctx, const struct lysc_node *ctx_node,
  * @return LY_ERR value.
  */
 LY_ERR ly_path_parse_predicate(const struct ly_ctx *ctx, const struct lysc_node *cur_node, const char *str_path,
-                               size_t path_len, uint8_t prefix, uint8_t pred, struct lyxp_expr **expr);
+        size_t path_len, uint8_t prefix, uint8_t pred, struct lyxp_expr **expr);
 
 /**
  * @defgroup path_oper_options Path operation options.
@@ -143,42 +146,41 @@ LY_ERR ly_path_parse_predicate(const struct ly_ctx *ctx, const struct lysc_node 
  * @brief Compile path into ly_path structure. Any predicates of a leafref are only checked, not compiled.
  *
  * @param[in] ctx libyang context.
- * @param[in] cur_mod Module of the current (original context) node. Used for nodes without prefix for ::LYD_SCHEMA format.
+ * @param[in] cur_mod Current module of the path (where it was "instantiated"). Used for nodes without a prefix
+ * for ::LY_PREF_SCHEMA* format.
  * @param[in] ctx_node Optional context node.
  * @param[in] expr Parsed path.
  * @param[in] lref Lref option (@ref path_lref_options).
  * @param[in] oper Oper option (@ref path_oper_options).
  * @param[in] target Target option (@ref path_target_options).
- * @param[in] resolve_prefix Callback for prefix resolution.
- * @param[in] prefix_data Data for @p resolve_prefix.
  * @param[in] format Format of the path.
+ * @param[in] prefix_data Format-specific data for resolving any prefixes (see ::ly_resolve_prefix).
  * @param[out] path Compiled path.
  * @return LY_ERR value.
  */
 LY_ERR ly_path_compile(const struct ly_ctx *ctx, const struct lys_module *cur_mod, const struct lysc_node *ctx_node,
-                       const struct lyxp_expr *expr, uint8_t lref, uint8_t oper, uint8_t target,
-                       ly_clb_resolve_prefix resolve_prefix, void *prefix_data, LYD_FORMAT format, struct ly_path **path);
+        const struct lyxp_expr *expr, uint8_t lref, uint8_t oper, uint8_t target, LY_PREFIX_FORMAT format,
+        void *prefix_data, struct ly_path **path);
 
 /**
  * @brief Compile predicate into ly_path_predicate structure. Only simple predicates (not leafref) are supported.
  *
  * @param[in] ctx libyang context.
  * @param[in] cur_node Optional current (original context) node.
- * @param[in] cur_mod Module of the current (original context) node. Used for nodes without prefix for ::LYD_SCHEMA format.
+ * @param[in] cur_mod Current module of the path (where it was "instantiated"). Used for nodes without a prefix
+ * for ::LY_PREF_SCHEMA* format.
  * @param[in] ctx_node Context node, node for which the predicate is defined.
  * @param[in] expr Parsed path.
  * @param[in,out] tok_idx Index in @p expr, is adjusted for parsed tokens.
- * @param[in] resolve_prefix Callback for prefix resolution.
- * @param[in] prefix_data Data for @p resolve_prefix.
  * @param[in] format Format of the path.
+ * @param[in] prefix_data Format-specific data for resolving any prefixes (see ::ly_resolve_prefix).
  * @param[out] predicates Compiled predicates.
  * @param[out] pred_type Type of the compiled predicate(s).
  * @return LY_ERR value.
  */
 LY_ERR ly_path_compile_predicate(const struct ly_ctx *ctx, const struct lysc_node *cur_node, const struct lys_module *cur_mod,
-                                 const struct lysc_node *ctx_node, const struct lyxp_expr *expr, uint16_t *tok_idx,
-                                 ly_clb_resolve_prefix resolve_prefix, void *prefix_data, LYD_FORMAT format,
-                                 struct ly_path_predicate **predicates, enum ly_path_pred_type *pred_type);
+        const struct lysc_node *ctx_node, const struct lyxp_expr *expr, uint16_t *tok_idx, LY_PREFIX_FORMAT format,
+        void *prefix_data, struct ly_path_predicate **predicates, enum ly_path_pred_type *pred_type);
 
 /**
  * @brief Resolve at least partially the target defined by ly_path structure. Not supported for leafref!
@@ -193,7 +195,7 @@ LY_ERR ly_path_compile_predicate(const struct ly_ctx *ctx, const struct lysc_nod
  * @return LY_ERR on another error.
  */
 LY_ERR ly_path_eval_partial(const struct ly_path *path, const struct lyd_node *start, LY_ARRAY_COUNT_TYPE *path_idx,
-                            struct lyd_node **match);
+        struct lyd_node **match);
 
 /**
  * @brief Resolve the target defined by ly_path structure. Not supported for leafref!
@@ -222,11 +224,10 @@ LY_ERR ly_path_dup(const struct ly_ctx *ctx, const struct ly_path *path, struct 
  *
  * @param[in] ctx libyang context.
  * @param[in] pred_type Predicate type.
- * @param[in] llist Leaf-list in case of leaf-list predicate.
  * @param[in] predicates Predicates ([sized array](@ref sizedarrays)) to free.
  */
-void ly_path_predicates_free(const struct ly_ctx *ctx, enum ly_path_pred_type pred_type, const struct lysc_node *llist,
-                             struct ly_path_predicate *predicates);
+void ly_path_predicates_free(const struct ly_ctx *ctx, enum ly_path_pred_type pred_type,
+        struct ly_path_predicate *predicates);
 
 /**
  * @brief Free ly_path structure.

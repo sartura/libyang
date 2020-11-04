@@ -19,8 +19,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "config.h"
-
 #include "context.h"
 #include "dict.h"
 #include "hash_table.h"
@@ -35,8 +33,8 @@ struct lys_module;
 #if __STDC_VERSION__ >= 201112 && !defined __STDC_NO_THREADS__
 # define THREAD_LOCAL _Thread_local
 #elif defined __GNUC__ || \
-      defined __SUNPRO_C || \
-      defined __xlC__
+    defined __SUNPRO_C || \
+    defined __xlC__
 # define THREAD_LOCAL __thread
 #else
 # error "Cannot define THREAD_LOCAL"
@@ -55,7 +53,6 @@ struct lys_module;
  */
 #define API __attribute__((visibility("default")))
 
-
 /******************************************************************************
  * Logger
  *****************************************************************************/
@@ -70,15 +67,8 @@ enum LY_VLOG_ELEM {
 };
 
 extern THREAD_LOCAL enum int_log_opts log_opt;
-extern volatile uint8_t ly_log_level;
-extern volatile uint8_t ly_log_opts;
-
-/**
- * @brief Set error-app-tag to the last error record in the context.
- * @param[in] ctx libyang context where the error records are present.
- * @param[in] apptag The error-app-tag value to store.
- */
-void ly_err_last_set_apptag(const struct ly_ctx *ctx, const char *apptag);
+extern volatile LY_LOG_LEVEL ly_ll;
+extern volatile uint32_t ly_log_opts;
 
 /**
  * @brief Print a log message and store it into the context (if provided).
@@ -101,21 +91,21 @@ void ly_log(const struct ly_ctx *ctx, LY_LOG_LEVEL level, LY_ERR no, const char 
  */
 void ly_vlog(const struct ly_ctx *ctx, enum LY_VLOG_ELEM elem_type, const void *elem, LY_VECODE code, const char *format, ...);
 
-#define LOGERR(ctx, errno, str, args...) ly_log(ctx, LY_LLERR, errno, str, ##args)
+#define LOGERR(ctx, errno, str, ...) ly_log(ctx, LY_LLERR, errno, str, ##__VA_ARGS__)
 #define LOGWRN(ctx, str, ...) ly_log(ctx, LY_LLWRN, 0, str, ##__VA_ARGS__)
-#define LOGVRB(str, args...) ly_log(NULL, LY_LLVRB, 0, str, ##args)
+#define LOGVRB(str, ...) ly_log(NULL, LY_LLVRB, 0, str, ##__VA_ARGS__)
 
 #ifdef NDEBUG
-#  define LOGDBG(dbg_group, str, args...)
+#  define LOGDBG(dbg_group, str, ...)
 #else
-   void ly_log_dbg(int group, const char *format, ...);
-#  define LOGDBG(dbg_group, str, args...) ly_log_dbg(dbg_group, str, ##args);
+void ly_log_dbg(uint32_t group, const char *format, ...);
+#  define LOGDBG(dbg_group, str, ...) ly_log_dbg(dbg_group, str, ##__VA_ARGS__);
 #endif
 
 #define LOGMEM(CTX) LOGERR(CTX, LY_EMEM, "Memory allocation failed (%s()).", __func__)
 #define LOGINT(CTX) LOGERR(CTX, LY_EINT, "Internal error (%s:%d).", __FILE__, __LINE__)
 #define LOGARG(CTX, ARG) LOGERR(CTX, LY_EINVAL, "Invalid argument %s (%s()).", #ARG, __func__)
-#define LOGVAL(CTX, ELEM_TYPE, ELEM, CODE, FORMAT...) ly_vlog(CTX, ELEM_TYPE, ELEM, CODE, ##FORMAT)
+#define LOGVAL(CTX, ELEM_TYPE, ELEM, CODE, ...) ly_vlog(CTX, ELEM_TYPE, ELEM, CODE, ##__VA_ARGS__)
 
 #define LOGMEM_RET(CTX) LOGMEM(CTX); return LY_EMEM
 #define LOGINT_RET(CTX) LOGINT(CTX); return LY_EINT
@@ -196,7 +186,8 @@ size_t LY_VCODE_INSTREXP_len(const char *str);
 #define LY_VCODE_XP_EOE         LYVE_XPATH, "Unterminated string delimited with %c (%.15s)."
 #define LY_VCODE_XP_INEXPR      LYVE_XPATH, "Invalid character number %u of expression \'%s\'."
 #define LY_VCODE_XP_EOF         LYVE_XPATH, "Unexpected XPath expression end."
-#define LY_VCODE_XP_INTOK       LYVE_XPATH, "Unexpected XPath token %s (%.15s)."
+#define LY_VCODE_XP_INTOK       LYVE_XPATH, "Unexpected XPath token \"%s\" (\"%.15s\")."
+#define LY_VCODE_XP_INTOK2      LYVE_XPATH, "Unexpected XPath token \"%s\" (\"%.15s\"), expected \"%s\"."
 #define LY_VCODE_XP_INFUNC      LYVE_XPATH, "Unknown XPath function \"%.*s\"."
 #define LY_VCODE_XP_INARGCOUNT  LYVE_XPATH, "Invalid number of arguments (%d) for the XPath function %.*s."
 #define LY_VCODE_XP_INARGTYPE   LYVE_XPATH, "Wrong type of argument #%d (%s) for the XPath function %s."
@@ -205,7 +196,6 @@ size_t LY_VCODE_INSTREXP_len(const char *str);
 #define LY_VCODE_XP_INOP_2      LYVE_XPATH, "Cannot apply XPath operation %s on %s and %s."
 #define LY_VCODE_XP_INMOD       LYVE_XPATH, "Unknown/non-implemented module \"%.*s\"."
 
-#define LY_VCODE_DEV_NODETYPE   LYVE_REFERENCE, "Invalid deviation of %s node - it is not possible to %s \"%s\" property."
 #define LY_VCODE_DEV_NOT_PRESENT LYVE_REFERENCE, "Invalid deviation %s \"%s\" property \"%s\" which is not present."
 
 #define LY_VCODE_NOWHEN         LYVE_DATA, "When condition \"%s\" not satisfied."
@@ -216,7 +206,6 @@ size_t LY_VCODE_INSTREXP_len(const char *str);
 #define LY_VCODE_NOUNIQ         LYVE_DATA, "Unique data leaf(s) \"%s\" not satisfied in \"%s\" and \"%s\"."
 #define LY_VCODE_DUP            LYVE_DATA, "Duplicate instance of \"%s\"."
 #define LY_VCODE_DUPCASE        LYVE_DATA, "Data for both cases \"%s\" and \"%s\" exist."
-#define LY_VCODE_NOIFF          LYVE_DATA, "Data are disabled by \"%s\" schema node if-feature."
 #define LY_VCODE_INNODE         LYVE_DATA, "Invalid %s data node \"%s\" found."
 #define LY_VCODE_NOKEY          LYVE_DATA, "List instance is missing its key \"%s\"."
 
@@ -230,56 +219,55 @@ size_t LY_VCODE_INSTREXP_len(const char *str);
 struct ly_ctx {
     struct dict_table dict;           /**< dictionary to effectively store strings used in the context related structures */
     struct ly_set search_paths;       /**< set of directories where to search for schema's imports/includes */
-    struct ly_set list;               /**< set of YANG schemas */
+    struct ly_set list;               /**< set of loaded YANG schemas */
+    struct ly_set implementing;       /**< set of YANG schemas being atomically implemented (compiled); the first added
+                                           module is always the explcitly implemented module, the other ones are dependencies */
     ly_module_imp_clb imp_clb;        /**< Optional callback for retrieving missing included or imported models in a custom way. */
-    void *imp_clb_data;               /**< Optional private data for imp_clb() */
+    void *imp_clb_data;               /**< Optional private data for ::ly_ctx.imp_clb */
     uint16_t module_set_id;           /**< ID of the current set of schemas */
     uint16_t flags;                   /**< context settings, see @ref contextoptions. */
     pthread_key_t errlist_key;        /**< key for the thread-specific list of errors related to the context */
 };
 
 /**
- * @defgroup contextflags Context flags
- * @ingroup context
- *
- * Internal context flags.
- *
- * Note that the flags 0x00FF are reserved for @ref contextoptions.
- * @{
- */
-
-#define LY_CTX_CHANGED_TREE 0x8000    /**< Deviation changed tree of a module(s) in the context, it is necessary to recompile
-                                           leafref paths, default values and must/when expressions to check that they are still valid */
-
-/** @} contextflags */
-
-/**
  * @brief Try to find submodule in the context. Submodules are present only in the parsed (lysp_) schema trees, if only
  * the compiled versions of the schemas are present, the submodule cannot be returned even if it was used to compile
  * some of the currently present schemas.
  *
- * @param[in] ctx Context where to search
- * @param[in] module Name of the module where the submodule is supposed to belongs-to. If NULL, the module name is not checked.
+ * @param[in] ctx Context where to search in case @p module is NULL.
+ * @param[in] module Submodule parent (belongs-to) module in case @p ctx is NULL.
  * @param[in] submodule Name of the submodule to find.
  * @param[in] revision Optional revision of the submodule to find. If not specified, the latest revision is returned.
  * @return Pointer to the specified submodule if it is present in the context.
  */
-struct lysp_submodule *ly_ctx_get_submodule(const struct ly_ctx *ctx, const char *module, const char *submodule, const char *revision);
+struct lysp_submodule *ly_ctx_get_submodule(const struct ly_ctx *ctx, const struct lys_module *module,
+        const char *submodule, const char *revision);
+
+/**
+ * @brief Get the (only) implemented YANG module specified by its name.
+ *
+ * @param[in] ctx Context where to search.
+ * @param[in] name Name of the YANG module to get.
+ * @param[in] name_len Optional length of the @p name. If zero, NULL-terminated name is expected.
+ * @return The only implemented YANG module revision of the given name in the given context. NULL if there is no
+ * implemented module of the given name.
+ */
+struct lys_module *ly_ctx_get_module_implemented2(const struct ly_ctx *ctx, const char *name, size_t name_len);
 
 /******************************************************************************
  * Parsers
  *****************************************************************************/
 
 /* list of the YANG statements strings */
-extern const char *const ly_stmt_list[];
+extern const char * const ly_stmt_list[];
 #define ly_stmt2str(STMT) ly_stmt_list[STMT]
 
 /* list of the extensions' substatements strings */
-extern const char *const lyext_substmt_list[];
+extern const char * const lyext_substmt_list[];
 #define lyext_substmt2str(STMT) lyext_substmt_list[STMT]
 
 /* list of the deviate modifications strings */
-extern const char *const ly_devmod_list[];
+extern const char * const ly_devmod_list[];
 #define ly_devmod2str(TYPE) ly_devmod_list[TYPE]
 
 /******************************************************************************
@@ -294,8 +282,13 @@ extern const char *const ly_devmod_list[];
  * @param[in] LEN length of the string in WORD to store.
  * @param[in,out] DYNAMIC Set to 1 if STR is dynamically allocated, 0 otherwise. If set to 1, zerocopy version of lydict_insert is used.
  */
-#define INSERT_STRING(CTX, STRING, LEN, DYNAMIC) \
-    (DYNAMIC ? lydict_insert_zc(CTX, (char *)(STRING)) : lydict_insert(CTX, LEN ? (STRING) : "", LEN)); DYNAMIC = 0
+#define INSERT_STRING_RET(CTX, STRING, LEN, DYNAMIC, TARGET) \
+    if (DYNAMIC) { \
+        LY_CHECK_RET(lydict_insert_zc(CTX, (char *)(STRING), &(TARGET))); \
+    } else { \
+        LY_CHECK_RET(lydict_insert(CTX, LEN ? (STRING) : "", LEN, &(TARGET))); \
+    } \
+    DYNAMIC = 0
 
 #define FREE_STRING(CTX, STRING) if (STRING) {lydict_remove(CTX, STRING);}
 
@@ -318,7 +311,7 @@ void *ly_realloc(void *ptr, size_t size);
  * @param[in] len Limit the search to this number of characters in @p s.
  * @return Pointer to first @p c occurence in @p s, NULL if not found in first @p len characters.
  */
-char *ly_strnchr(const char *s, int c, unsigned int len);
+char *ly_strnchr(const char *s, int c, size_t len);
 
 /**
  * @brief Compare NULL-terminated @p refstr with @str_len bytes from @p str.
@@ -332,6 +325,11 @@ char *ly_strnchr(const char *s, int c, unsigned int len);
 int ly_strncmp(const char *refstr, const char *str, size_t str_len);
 
 /**
+ * @brief Wrapper around strlen() to handle NULL strings.
+ */
+#define ly_strlen(STR) (STR ? strlen(STR) : 0)
+
+/**
  * @brief Get UTF8 code point of the next character in the input string.
  *
  * @param[in,out] input Input string to process, updated according to the processed/read data.
@@ -340,6 +338,25 @@ int ly_strncmp(const char *refstr, const char *str, size_t str_len);
  * @return LY_ERR value
  */
 LY_ERR ly_getutf8(const char **input, uint32_t *utf8_char, size_t *bytes_read);
+
+/**
+ * Store UTF-8 character specified as 4byte integer into the dst buffer.
+ *
+ * UTF-8 mapping:
+ * 00000000 -- 0000007F:    0xxxxxxx
+ * 00000080 -- 000007FF:    110xxxxx 10xxxxxx
+ * 00000800 -- 0000FFFF:    1110xxxx 10xxxxxx 10xxxxxx
+ * 00010000 -- 001FFFFF:    11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+ *
+ * Includes checking for valid characters (following RFC 7950, sec 9.4)
+ *
+ * @param[in, out] dst Destination buffer to store the UTF-8 character, must provide enough space (up to 4 bytes) for storing the UTF-8 character.
+ * @param[in] value 32b value of the UTF-8 character to store.
+ * @param[out] bytes_written Number of bytes written into @p dst (size of the written UTF-8 character).
+ * @return LY_SUCCESS on success
+ * @return LY_EINVAL in case of invalid UTF-8 @p value to store.
+ */
+LY_ERR ly_pututf8(char *dst, uint32_t value, size_t *bytes_written);
 
 /**
  * @brief Get number of characters in the @p str, taking multibyte characters into account.
@@ -420,24 +437,8 @@ LY_ERR ly_parse_nodeid(const char **id, const char **prefix, size_t *prefix_len,
  * @return LY_EINVAL in case of reaching @p limit when parsing @p pred.
  */
 LY_ERR ly_parse_instance_predicate(const char **pred, size_t limit, LYD_FORMAT format,
-                                   const char **prefix, size_t *prefix_len, const char **id, size_t *id_len,
-                                   const char **value, size_t *value_len, const char **errmsg);
-
-/**
- * @brief ly_clb_get_prefix implementation for JSON. For its simplicity, this implementation is used
- * internally for various purposes.
- *
- * Implemented in printer_json.c
- */
-const char *json_print_get_prefix(const struct lys_module *mod, void *private);
-
-/**
- * @brief ly_type_resolve_prefix implementation for JSON. For its simplicity, this implementation is used
- * internally for various purposes.
- *
- * Implemented in parser_json.c
- */
-const struct lys_module *lydjson_resolve_prefix(const struct ly_ctx *ctx, const char *prefix, size_t prefix_len, void *parser);
+        const char **prefix, size_t *prefix_len, const char **id, size_t *id_len,
+        const char **value, size_t *value_len, const char **errmsg);
 
 /**
  * @brief mmap(2) wrapper to map input files into memory to unify parsing.
@@ -453,7 +454,7 @@ const struct lys_module *lydjson_resolve_prefix(const struct ly_ctx *ctx, const 
 LY_ERR ly_mmap(struct ly_ctx *ctx, int fd, size_t *length, void **addr);
 
 /**
- * @brief munmap(2) wrapper to free the memory mapped by ly_mmap()
+ * @brief munmap(2) wrapper to free the memory mapped by ::ly_mmap()
  *
  * @param[in] addr Address where the input file is mapped.
  * @param[in] length Allocated size of the address space.
@@ -612,6 +613,19 @@ LY_ERR ly_strcat(char **dest, const char *format, ...);
         --(*((LY_ARRAY_COUNT_TYPE*)(ARRAY) - 1))
 
 /**
+ * @brief Decrement the items counter in a ([sized array](@ref sizedarrays)) and free the whole array
+ * in case it was decremented to 0.
+ *
+ * @param[in] ARRAY Pointer to the array to affect.
+ */
+#define LY_ARRAY_DECREMENT_FREE(ARRAY) \
+        --(*((LY_ARRAY_COUNT_TYPE*)(ARRAY) - 1)); \
+        if (!LY_ARRAY_COUNT(ARRAY)) { \
+            LY_ARRAY_FREE(ARRAY); \
+            (ARRAY) = NULL; \
+        }
+
+/**
  * @brief Free the space allocated for the ([sized array](@ref sizedarrays)).
  *
  * The items inside the array are not freed.
@@ -634,7 +648,7 @@ LY_ERR ly_strcat(char **dest, const char *format, ...);
     } else { \
         do { \
             __typeof__(*(LIST)) iterator; \
-            for (iterator = *(LIST); iterator->LINKER; iterator = iterator->LINKER); \
+            for (iterator = *(LIST); iterator->LINKER; iterator = iterator->LINKER) {} \
             iterator->LINKER = (__typeof__(*(LIST)))NEW_ITEM; \
         } while (0); \
     }

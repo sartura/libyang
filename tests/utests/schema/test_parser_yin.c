@@ -22,14 +22,85 @@
 #include <stdbool.h>
 
 #include "common.h"
+#include "in.h"
 #include "parser_internal.h"
-#include "parser_yin.h"
 #include "tree_schema.h"
 #include "tree_schema_internal.h"
 #include "xml.h"
 #include "xpath.h"
 
+/* copied from parser_yin.c */
+enum yin_argument {
+    YIN_ARG_UNKNOWN = 0,   /**< parsed argument can not be matched with any supported yin argument keyword */
+    YIN_ARG_NAME,          /**< argument name */
+    YIN_ARG_TARGET_NODE,   /**< argument target-node */
+    YIN_ARG_MODULE,        /**< argument module */
+    YIN_ARG_VALUE,         /**< argument value */
+    YIN_ARG_TEXT,          /**< argument text */
+    YIN_ARG_CONDITION,     /**< argument condition */
+    YIN_ARG_URI,           /**< argument uri */
+    YIN_ARG_DATE,          /**< argument data */
+    YIN_ARG_TAG,           /**< argument tag */
+    YIN_ARG_NONE           /**< empty (special value) */
+};
+
+struct yin_subelement {
+    enum ly_stmt type;      /**< type of keyword */
+    void *dest;             /**< meta infromation passed to responsible function (mostly information about where parsed subelement should be stored) */
+    uint16_t flags;         /**< describes constraints of subelement can be set to YIN_SUBELEM_MANDATORY, YIN_SUBELEM_UNIQUE, YIN_SUBELEM_FIRST, YIN_SUBELEM_VER2, and YIN_SUBELEM_DEFAULT_TEXT */
+};
+
+struct import_meta {
+    const char *prefix;             /**< module prefix. */
+    struct lysp_import **imports;   /**< imports to add to. */
+};
+
+struct yin_argument_meta {
+    uint16_t *flags;        /**< Argument flags */
+    const char **argument;  /**< Argument value */
+};
+
+struct tree_node_meta {
+    struct lysp_node *parent;       /**< parent node */
+    struct lysp_node **nodes;    /**< linked list of siblings */
+};
+
+struct include_meta {
+    const char *name;               /**< Module/submodule name. */
+    struct lysp_include **includes; /**< [Sized array](@ref sizedarrays) of parsed includes to add to. */
+};
+
+struct inout_meta {
+    struct lysp_node *parent;          /**< Parent node. */
+    struct lysp_action_inout *inout_p; /**< inout_p Input/output pointer to write to. */
+};
+
+struct minmax_dev_meta {
+    uint32_t *lim;                      /**< min/max value to write to. */
+    uint16_t *flags;                    /**< min/max flags to write to. */
+    struct lysp_ext_instance **exts;    /**< extension instances to add to. */
+};
+
+#define YIN_SUBELEM_MANDATORY   0x01
+#define YIN_SUBELEM_UNIQUE      0x02
+#define YIN_SUBELEM_FIRST       0x04
+#define YIN_SUBELEM_VER2        0x08
+
+#define YIN_SUBELEM_PARSED      0x80
+
 /* prototypes of static functions */
+enum yin_argument yin_match_argument_name(const char *name, size_t len);
+LY_ERR yin_parse_content(struct lys_yin_parser_ctx *ctx, struct yin_subelement *subelem_info, size_t subelem_info_size,
+        enum ly_stmt current_element, const char **text_content, struct lysp_ext_instance **exts);
+LY_ERR yin_validate_value(struct lys_yin_parser_ctx *ctx, enum yang_arg val_type);
+enum ly_stmt yin_match_keyword(struct lys_yin_parser_ctx *ctx, const char *name, size_t name_len,
+        const char *prefix, size_t prefix_len, enum ly_stmt parrent);
+LY_ERR yin_parse_extension_instance(struct lys_yin_parser_ctx *ctx, LYEXT_SUBSTMT subelem, LY_ARRAY_COUNT_TYPE subelem_index,
+        struct lysp_ext_instance **exts);
+LY_ERR yin_parse_element_generic(struct lys_yin_parser_ctx *ctx, enum ly_stmt parent, struct lysp_stmt **element);
+LY_ERR yin_parse_mod(struct lys_yin_parser_ctx *ctx, struct lysp_module *mod);
+LY_ERR yin_parse_submod(struct lys_yin_parser_ctx *ctx, struct lysp_submodule *submod);
+
 void lysp_ext_instance_free(struct ly_ctx *ctx, struct lysp_ext_instance *ext);
 void lysp_ext_free(struct ly_ctx *ctx, struct lysp_ext *ext);
 void lysp_when_free(struct ly_ctx *ctx, struct lysp_when *when);
@@ -48,7 +119,6 @@ void lysp_action_free(struct ly_ctx *ctx, struct lysp_action *action);
 void lysp_augment_free(struct ly_ctx *ctx, struct lysp_augment *augment);
 void lysp_deviate_free(struct ly_ctx *ctx, struct lysp_deviate *d);
 void lysp_deviation_free(struct ly_ctx *ctx, struct lysp_deviation *dev);
-void lysp_submodule_free(struct ly_ctx *ctx, struct lysp_submodule *submod);
 void lysp_import_free(struct ly_ctx *ctx, struct lysp_import *import);
 
 /* wrapping element used for mocking has nothing to do with real module structure */
@@ -57,8 +127,6 @@ void lysp_import_free(struct ly_ctx *ctx, struct lysp_import *import);
 
 struct test_parser_yin_state {
     struct ly_ctx *ctx;
-    struct lys_module *mod;
-    struct lysp_module *lysp_mod;
     struct lys_yin_parser_ctx *yin_ctx;
     struct ly_in *in;
     bool finished_correctly;
@@ -139,18 +207,17 @@ setup_f(void **state)
     ly_set_log_clb(logger, 1);
 #endif
 
-    /* allocate new module */
-    st->mod = calloc(1, sizeof(*st->mod));
-    st->mod->ctx = st->ctx;
-
-    /* allocate new parsed module */
-    st->lysp_mod = calloc(1, sizeof(*st->lysp_mod));
-    st->lysp_mod->mod = calloc(1, sizeof(*st->lysp_mod->mod));
-    st->lysp_mod->mod->ctx = st->ctx;
-
     /* allocate parser context */
     st->yin_ctx = calloc(1, sizeof(*st->yin_ctx));
     st->yin_ctx->format = LYS_IN_YIN;
+
+    /* allocate new parsed module */
+    st->yin_ctx->parsed_mod = calloc(1, sizeof *st->yin_ctx->parsed_mod);
+
+    /* allocate new module */
+    st->yin_ctx->parsed_mod->mod = calloc(1, sizeof *st->yin_ctx->parsed_mod->mod);
+    st->yin_ctx->parsed_mod->mod->ctx = st->ctx;
+    st->yin_ctx->parsed_mod->mod->parsed = st->yin_ctx->parsed_mod;
 
     st->in = NULL;
 
@@ -161,7 +228,6 @@ static int
 teardown_f(void **state)
 {
     struct test_parser_yin_state *st = *(struct test_parser_yin_state **)state;
-    struct lys_module *temp;
 
 #if ENABLE_LOGGER_CHECKING
     /* teardown logger */
@@ -170,12 +236,8 @@ teardown_f(void **state)
     }
 #endif
 
-    temp = st->lysp_mod->mod;
-
     lyxml_ctx_free(st->yin_ctx->xmlctx);
-    lys_module_free(st->mod, NULL);
-    lysp_module_free(st->lysp_mod);
-    lys_module_free(temp, NULL);
+    lys_module_free(st->yin_ctx->parsed_mod->mod, NULL);
     free(st->yin_ctx);
     ly_in_free(st->in, 0);
 
@@ -200,56 +262,14 @@ logbuf_clean(void)
 }
 
 static int
-setup_logger(void **state)
-{
-    (void)state; /* unused */
-#if ENABLE_LOGGER_CHECKING
-    /* setup logger */
-    ly_set_log_clb(logger, 1);
-#endif
-
-    logbuf[0] = '\0';
-
-    return EXIT_SUCCESS;
-}
-
-static int
-teardown_logger(void **state)
-{
-    struct test_parser_yin_state *st = *state;
-
-#if ENABLE_LOGGER_CHECKING
-    /* teardown logger */
-    if (!st->finished_correctly && logbuf[0] != '\0') {
-        fprintf(stderr, "%s\n", logbuf);
-    }
-#endif
-
-    return EXIT_SUCCESS;
-}
-
-static int
 setup_element_test(void **state)
 {
-    setup_logger(state);
-    struct test_parser_yin_state *st = *state;
+    struct test_parser_yin_state *st;
 
-    st->yin_ctx = calloc(1, sizeof(*st->yin_ctx));
-    st->yin_ctx->format = LYS_IN_YIN;
+    setup_f(state);
+    st = *state;
 
-    return EXIT_SUCCESS;
-}
-
-static int
-teardown_element_test(void **state)
-{
-    struct test_parser_yin_state *st = *(struct test_parser_yin_state **)state;
-
-    lyxml_ctx_free(st->yin_ctx->xmlctx);
-    free(st->yin_ctx);
-    ly_in_free(st->in, 0);
-
-    teardown_logger(state);
+    lydict_insert(st->ctx, "module-name", 0, &st->yin_ctx->parsed_mod->mod->name);
 
     return EXIT_SUCCESS;
 }
@@ -604,12 +624,13 @@ test_yin_parse_content(void **state)
                         "</prefix>";
     struct lysp_ext_instance *exts = NULL;
     const char **if_features = NULL;
-    const char *value, *err_msg, *app_tag, *units, *def;
+    const char *value, *err_msg, *app_tag, *units;
+    struct lysp_qname def = {0};
     struct lysp_ext *ext_def = NULL;
     struct lysp_when *when_p = NULL;
     struct lysp_type_enum pos_enum = {}, val_enum = {};
     struct lysp_type req_type = {}, range_type = {}, len_type = {}, patter_type = {}, enum_type = {};
-    uint8_t config = 0;
+    uint16_t config = 0;
 
     ly_in_new_memory(data, &st->in);
     lyxml_ctx_new(st->ctx, st->in, &st->yin_ctx->xmlctx);
@@ -639,7 +660,7 @@ test_yin_parse_content(void **state)
     ret = yin_parse_content(st->yin_ctx, subelems, 17, LY_STMT_PREFIX, NULL, &exts);
     assert_int_equal(ret, LY_SUCCESS);
     /* check parsed values */
-    assert_string_equal(def, "default-value");
+    assert_string_equal(def.str, "default-value");
     assert_string_equal(exts->name, "urn:example:extensions:custom");
     assert_string_equal(exts->argument, "totally amazing extension");
     assert_string_equal(value, "wsefsdf");
@@ -654,14 +675,14 @@ test_yin_parse_content(void **state)
     assert_true(val_enum.flags & LYS_SET_VALUE);
     assert_int_equal(req_type.require_instance, 1);
     assert_true(req_type.flags &= LYS_SET_REQINST);
-    assert_string_equal(range_type.range->arg, "5..10");
+    assert_string_equal(range_type.range->arg.str, "5..10");
     assert_true(range_type.flags & LYS_SET_RANGE);
     assert_string_equal(err_msg, "error-msg");
     assert_string_equal(app_tag, "err-app-tag");
     assert_string_equal(enum_type.enums->name, "yay");
-    assert_string_equal(len_type.length->arg, "baf");
+    assert_string_equal(len_type.length->arg.str, "baf");
     assert_true(len_type.flags & LYS_SET_LENGTH);
-    assert_string_equal(patter_type.patterns->arg, "\x015pattern");
+    assert_string_equal(patter_type.patterns->arg.str, "\x015pattern");
     assert_true(patter_type.flags & LYS_SET_PATTERN);
     /* cleanup */
     lysp_ext_instance_free(st->ctx, exts);
@@ -671,10 +692,10 @@ test_yin_parse_content(void **state)
     FREE_STRING(st->ctx, err_msg);
     FREE_STRING(st->ctx, app_tag);
     FREE_STRING(st->ctx, units);
-    FREE_STRING(st->ctx, patter_type.patterns->arg);
-    FREE_STRING(st->ctx, def);
-    FREE_STRING(st->ctx, range_type.range->arg);
-    FREE_STRING(st->ctx, len_type.length->arg);
+    FREE_STRING(st->ctx, patter_type.patterns->arg.str);
+    FREE_STRING(st->ctx, def.str);
+    FREE_STRING(st->ctx, range_type.range->arg.str);
+    FREE_STRING(st->ctx, len_type.length->arg.str);
     FREE_STRING(st->ctx, enum_type.enums->name);
     FREE_STRING(st->ctx, value);
     LY_ARRAY_FREE(if_features);
@@ -754,7 +775,7 @@ test_validate_value(void **state)
     st->yin_ctx->xmlctx->value = "#invalid";
     st->yin_ctx->xmlctx->value_len = 8;
     assert_int_equal(yin_validate_value(st->yin_ctx, Y_IDENTIF_ARG), LY_EVALID);
-    logbuf_assert("Invalid identifier character '#'. Line number 1.");
+    logbuf_assert("Invalid identifier character '#' (0x0023). Line number 1.");
 
     st->yin_ctx->xmlctx->value = "";
     st->yin_ctx->xmlctx->value_len = 0;
@@ -890,7 +911,7 @@ test_enum_elem(void **state)
            ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &type, NULL, NULL), LY_SUCCESS);
     assert_string_equal(type.enums->name, "enum-name");
-    assert_string_equal(*type.enums->iffeatures, "feature");
+    assert_string_equal(type.enums->iffeatures[0].str, "feature");
     assert_int_equal(type.enums->value, 55);
     assert_true((type.enums->flags & LYS_STATUS_DEPRC) && (type.enums->flags & LYS_SET_VALUE));
     assert_string_equal(type.enums->dsc, "desc...");
@@ -930,7 +951,7 @@ test_bit_elem(void **state)
            ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &type, NULL, NULL), LY_SUCCESS);
     assert_string_equal(type.bits->name, "bit-name");
-    assert_string_equal(*type.bits->iffeatures, "feature");
+    assert_string_equal(type.bits->iffeatures[0].str, "feature");
     assert_int_equal(type.bits->value, 55);
     assert_true((type.bits->flags & LYS_STATUS_DEPRC) && (type.bits->flags & LYS_SET_VALUE));
     assert_string_equal(type.bits->dsc, "desc...");
@@ -1226,15 +1247,13 @@ test_yangversion_elem(void **state)
     struct lysp_ext_instance *exts = NULL;
 
     /* valid values */
-    data = ELEMENT_WRAPPER_START "<yang-version value=\"1.0\" />" ELEMENT_WRAPPER_END;
+    data = ELEMENT_WRAPPER_START "<yang-version value=\"1\" />" ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &version, NULL, NULL), LY_SUCCESS);
     assert_true(version & LYS_VERSION_1_0);
-    assert_int_equal(st->yin_ctx->mod_version, LYS_VERSION_1_0);
 
     data = ELEMENT_WRAPPER_START "<yang-version value=\"1.1\">" EXT_SUBELEM "</yang-version>" ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &version, NULL, &exts), LY_SUCCESS);
     assert_true(version & LYS_VERSION_1_1);
-    assert_int_equal(st->yin_ctx->mod_version, LYS_VERSION_1_1);
     assert_string_equal(exts[0].name, "urn:example:extensions:c-define");
     assert_int_equal(exts[0].insubstmt_index, 0);
     assert_int_equal(exts[0].insubstmt, LYEXT_SUBSTMT_VERSION);
@@ -1243,7 +1262,7 @@ test_yangversion_elem(void **state)
     /* invalid value */
     data = ELEMENT_WRAPPER_START "<yang-version value=\"version\" />" ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &version, NULL, NULL), LY_EVALID);
-    logbuf_assert("Invalid value \"version\" of \"value\" attribute in \"yang-version\" element. Valid values are \"1.0\" and \"1.1\". Line number 1.");
+    logbuf_assert("Invalid value \"version\" of \"value\" attribute in \"yang-version\" element. Valid values are \"1\" and \"1.1\". Line number 1.");
 
     st->finished_correctly = true;
 }
@@ -1376,20 +1395,17 @@ test_belongsto_elem(void **state)
                 "<belongs-to module=\"module-name\"><prefix value=\"pref\"/>"EXT_SUBELEM"</belongs-to>"
            ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &submod, NULL, &exts), LY_SUCCESS);
-    assert_string_equal(submod.belongsto, "module-name");
     assert_string_equal(submod.prefix, "pref");
     assert_string_equal(exts[0].name, "urn:example:extensions:c-define");
     assert_int_equal(exts[0].insubstmt_index, 0);
     assert_int_equal(exts[0].insubstmt, LYEXT_SUBSTMT_BELONGSTO);
     FREE_ARRAY(st->ctx, exts, lysp_ext_instance_free);
     exts = NULL;
-    FREE_STRING(st->ctx, submod.belongsto);
     FREE_STRING(st->ctx, submod.prefix);
 
     data = ELEMENT_WRAPPER_START "<belongs-to module=\"module-name\"></belongs-to>" ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &submod, NULL, NULL), LY_EVALID);
     logbuf_assert("Missing mandatory sub-element \"prefix\" of \"belongs-to\" element. Line number 1.");
-    FREE_STRING(st->ctx, submod.belongsto);
 
     st->finished_correctly = true;
 }
@@ -1429,19 +1445,19 @@ test_default_elem(void **state)
 {
     struct test_parser_yin_state *st = *state;
     const char *data;
-    const char *val = NULL;
+    struct lysp_qname val = {0};
     struct lysp_ext_instance *exts = NULL;
 
     data = ELEMENT_WRAPPER_START "<default value=\"defaul-value\">"EXT_SUBELEM"</default>" ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &val, NULL, &exts), LY_SUCCESS);
-    assert_string_equal(val, "defaul-value");
+    assert_string_equal(val.str, "defaul-value");
     assert_string_equal(exts[0].name, "urn:example:extensions:c-define");
     assert_int_equal(exts[0].insubstmt_index, 0);
     assert_int_equal(exts[0].insubstmt, LYEXT_SUBSTMT_DEFAULT);
     FREE_ARRAY(st->ctx, exts, lysp_ext_instance_free);
     exts = NULL;
-    FREE_STRING(st->ctx, val);
-    val = NULL;
+    FREE_STRING(st->ctx, val.str);
+    val.str = NULL;
 
     data = ELEMENT_WRAPPER_START "<default/>" ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &val, NULL, NULL), LY_EVALID);
@@ -1593,7 +1609,7 @@ test_length_elem(void **state)
                 "</length>"
             ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &type, NULL, NULL), LY_SUCCESS);
-    assert_string_equal(type.length->arg, "length-str");
+    assert_string_equal(type.length->arg.str, "length-str");
     assert_string_equal(type.length->emsg, "err-msg");
     assert_string_equal(type.length->eapptag, "err-app-tag");
     assert_string_equal(type.length->dsc, "desc");
@@ -1611,7 +1627,7 @@ test_length_elem(void **state)
                 "</length>"
             ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &type, NULL, NULL), LY_SUCCESS);
-    assert_string_equal(type.length->arg, "length-str");
+    assert_string_equal(type.length->arg.str, "length-str");
     lysp_type_free(st->ctx, &type);
     assert_true(type.flags & LYS_SET_LENGTH);
     memset(&type, 0, sizeof(type));
@@ -1630,9 +1646,10 @@ test_modifier_elem(void **state)
 {
     struct test_parser_yin_state *st = *state;
     const char *data;
-    const char *pat = lydict_insert(st->ctx, "\006pattern", 8);
+    const char *pat;
     struct lysp_ext_instance *exts = NULL;
 
+    assert_int_equal(LY_SUCCESS, lydict_insert(st->ctx, "\006pattern", 8, &pat));
     data = ELEMENT_WRAPPER_START "<modifier value=\"invert-match\">" EXT_SUBELEM "</modifier>" ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &pat, NULL, &exts), LY_SUCCESS);
     assert_string_equal(pat, "\x015pattern");
@@ -1643,7 +1660,7 @@ test_modifier_elem(void **state)
     exts = NULL;
     FREE_STRING(st->ctx, pat);
 
-    pat = lydict_insert(st->ctx, "\006pattern", 8);
+    assert_int_equal(LY_SUCCESS, lydict_insert(st->ctx, "\006pattern", 8, &pat));
     data = ELEMENT_WRAPPER_START "<modifier value=\"invert\" />" ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &pat, NULL, NULL), LY_EVALID);
     logbuf_assert("Invalid value \"invert\" of \"value\" attribute in \"modifier\" element. Only valid value is \"invert-match\". Line number 1.");
@@ -1697,7 +1714,7 @@ test_pattern_elem(void **state)
            ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &type, NULL, NULL), LY_SUCCESS);
     assert_true(type.flags & LYS_SET_PATTERN);
-    assert_string_equal(type.patterns->arg, "\x015super_pattern");
+    assert_string_equal(type.patterns->arg.str, "\x015super_pattern");
     assert_string_equal(type.patterns->dsc, "\"pattern-desc\"");
     assert_string_equal(type.patterns->eapptag, "err-app-tag-value");
     assert_string_equal(type.patterns->emsg, "err-msg-value");
@@ -1711,7 +1728,7 @@ test_pattern_elem(void **state)
     /* min subelems */
     data = ELEMENT_WRAPPER_START "<pattern value=\"pattern\"> </pattern>" ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &type, NULL, NULL), LY_SUCCESS);
-    assert_string_equal(type.patterns->arg, "\x006pattern");
+    assert_string_equal(type.patterns->arg.str, "\x006pattern");
     lysp_type_free(st->ctx, &type);
     memset(&type, 0, sizeof(type));
 
@@ -1848,7 +1865,7 @@ test_range_elem(void **state)
                 "</range>"
            ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &type, NULL, NULL), LY_SUCCESS);
-    assert_string_equal(type.range->arg, "range-str");
+    assert_string_equal(type.range->arg.str, "range-str");
     assert_string_equal(type.range->dsc, "desc");
     assert_string_equal(type.range->eapptag, "err-app-tag");
     assert_string_equal(type.range->emsg, "err-msg");
@@ -1863,7 +1880,7 @@ test_range_elem(void **state)
     /* min subelems */
     data = ELEMENT_WRAPPER_START "<range value=\"range-str\"/>" ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &type, NULL, NULL), LY_SUCCESS);
-    assert_string_equal(type.range->arg, "range-str");
+    assert_string_equal(type.range->arg.str, "range-str");
     lysp_type_free(st->ctx, &type);
     memset(&type, 0, sizeof(type));
 
@@ -2059,7 +2076,7 @@ test_type_elem(void **state)
                     "<enum name=\"enum\"/>"
                     "<fraction-digits value=\"2\"/>"
                     "<length value=\"length\"/>"
-                    "<path value=\"path\"/>"
+                    "<path value=\"/path\"/>"
                     "<pattern value=\"pattern\"/>"
                     "<range value=\"range\" />"
                     "<require-instance value=\"true\"/>"
@@ -2073,10 +2090,10 @@ test_type_elem(void **state)
     assert_string_equal(type.bits->name,  "bit");
     assert_string_equal(type.enums->name,  "enum");
     assert_int_equal(type.fraction_digits, 2);
-    assert_string_equal(type.length->arg, "length");
-    assert_string_equal(type.path->expr, "path");
-    assert_string_equal(type.patterns->arg, "\006pattern");
-    assert_string_equal(type.range->arg, "range");
+    assert_string_equal(type.length->arg.str, "length");
+    assert_string_equal(type.path->expr, "/path");
+    assert_string_equal(type.patterns->arg.str, "\006pattern");
+    assert_string_equal(type.range->arg.str, "range");
     assert_int_equal(type.require_instance, 1);
     assert_string_equal(type.types->name, "sub-type-name");
     assert_string_equal(type.exts[0].name, "urn:example:extensions:c-define");
@@ -2281,7 +2298,7 @@ test_any_elem(void **state)
     assert_string_equal(parsed->dsc, "desc");
     assert_string_equal(parsed->ref, "ref");
     assert_string_equal(parsed->when->cond, "when-cond");
-    assert_string_equal(*parsed->iffeatures, "feature");
+    assert_string_equal(parsed->iffeatures[0].str, "feature");
     assert_string_equal(parsed->exts[0].name, "urn:example:extensions:c-define");
     assert_int_equal(parsed->exts[0].insubstmt_index, 0);
     assert_int_equal(parsed->exts[0].insubstmt, LYEXT_SUBSTMT_SELF);
@@ -2314,7 +2331,7 @@ test_any_elem(void **state)
     assert_string_equal(parsed->dsc, "desc");
     assert_string_equal(parsed->ref, "ref");
     assert_string_equal(parsed->when->cond, "when-cond");
-    assert_string_equal(*parsed->iffeatures, "feature");
+    assert_string_equal(parsed->iffeatures[0].str, "feature");
     assert_string_equal(parsed->exts[0].name, "urn:example:extensions:c-define");
     assert_int_equal(parsed->exts[0].insubstmt_index, 0);
     assert_int_equal(parsed->exts[0].insubstmt, LYEXT_SUBSTMT_SELF);
@@ -2373,14 +2390,14 @@ test_leaf_elem(void **state)
     assert_string_equal(parsed->dsc, "desc");
     assert_string_equal(parsed->ref, "ref");
     assert_string_equal(parsed->when->cond, "when-cond");
-    assert_string_equal(*parsed->iffeatures, "feature");
+    assert_string_equal(parsed->iffeatures[0].str, "feature");
     assert_string_equal(parsed->exts[0].name, "urn:example:extensions:c-define");
     assert_int_equal(parsed->exts[0].insubstmt_index, 0);
     assert_int_equal(parsed->exts[0].insubstmt, LYEXT_SUBSTMT_SELF);
-    assert_string_equal(parsed->musts->arg, "must-cond");
+    assert_string_equal(parsed->musts->arg.str, "must-cond");
     assert_string_equal(parsed->type.name, "type");
     assert_string_equal(parsed->units, "uni");
-    assert_string_equal(parsed->dflt, "def-val");
+    assert_string_equal(parsed->dflt.str, "def-val");
     lysp_node_free(st->ctx, siblings);
     siblings = NULL;
 
@@ -2425,12 +2442,12 @@ test_leaf_list_elem(void **state)
             ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &node_meta, NULL, NULL), LY_SUCCESS);
     parsed = (struct lysp_node_leaflist *)siblings;
-    assert_string_equal(parsed->dflts[0], "def-val0");
-    assert_string_equal(parsed->dflts[1], "def-val1");
+    assert_string_equal(parsed->dflts[0].str, "def-val0");
+    assert_string_equal(parsed->dflts[1].str, "def-val1");
     assert_string_equal(parsed->dsc, "desc");
-    assert_string_equal(*parsed->iffeatures, "feature");
+    assert_string_equal(parsed->iffeatures[0].str, "feature");
     assert_int_equal(parsed->max, 5);
-    assert_string_equal(parsed->musts->arg, "must-cond");
+    assert_string_equal(parsed->musts->arg.str, "must-cond");
     assert_string_equal(parsed->name, "llist");
     assert_null(parsed->next);
     assert_int_equal(parsed->nodetype, LYS_LEAFLIST);
@@ -2467,9 +2484,9 @@ test_leaf_list_elem(void **state)
     assert_int_equal(test_element_helper(st, data, &node_meta, NULL, NULL), LY_SUCCESS);
     parsed = (struct lysp_node_leaflist *)siblings;
     assert_string_equal(parsed->dsc, "desc");
-    assert_string_equal(*parsed->iffeatures, "feature");
+    assert_string_equal(parsed->iffeatures[0].str, "feature");
     assert_int_equal(parsed->min, 5);
-    assert_string_equal(parsed->musts->arg, "must-cond");
+    assert_string_equal(parsed->musts->arg.str, "must-cond");
     assert_string_equal(parsed->name, "llist");
     assert_null(parsed->next);
     assert_int_equal(parsed->nodetype, LYS_LEAFLIST);
@@ -2506,10 +2523,10 @@ test_leaf_list_elem(void **state)
     assert_int_equal(test_element_helper(st, data, &node_meta, NULL, NULL), LY_SUCCESS);
     parsed = (struct lysp_node_leaflist *)siblings;
     assert_string_equal(parsed->dsc, "desc");
-    assert_string_equal(*parsed->iffeatures, "feature");
+    assert_string_equal(parsed->iffeatures[0].str, "feature");
     assert_int_equal(parsed->min, 5);
     assert_int_equal(parsed->max, 15);
-    assert_string_equal(parsed->musts->arg, "must-cond");
+    assert_string_equal(parsed->musts->arg.str, "must-cond");
     assert_string_equal(parsed->name, "llist");
     assert_null(parsed->next);
     assert_int_equal(parsed->nodetype, LYS_LEAFLIST);
@@ -2651,7 +2668,7 @@ test_typedef_elem(void **state)
                 "</typedef>"
            ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &typdef_meta, NULL, NULL), LY_SUCCESS);
-    assert_string_equal(tpdfs[0].dflt, "def-val");
+    assert_string_equal(tpdfs[0].dflt.str, "def-val");
     assert_string_equal(tpdfs[0].dsc, "desc-text");
     assert_string_equal(tpdfs[0].name, "tpdf-name");
     assert_string_equal(tpdfs[0].ref, "ref-text");
@@ -2703,14 +2720,14 @@ test_refine_elem(void **state)
            ELEMENT_WRAPPER_END;
     assert_int_equal(test_element_helper(st, data, &refines, NULL, NULL), LY_SUCCESS);
     assert_string_equal(refines->nodeid, "target");
-    assert_string_equal(*refines->dflts, "def");
+    assert_string_equal(refines->dflts[0].str, "def");
     assert_string_equal(refines->dsc, "desc");
     assert_true(refines->flags & LYS_CONFIG_W);
     assert_true(refines->flags & LYS_MAND_TRUE);
-    assert_string_equal(*refines->iffeatures, "feature");
+    assert_string_equal(refines->iffeatures[0].str, "feature");
     assert_int_equal(refines->max, 20);
     assert_int_equal(refines->min, 10);
-    assert_string_equal(refines->musts->arg, "cond");
+    assert_string_equal(refines->musts->arg.str, "cond");
     assert_string_equal(refines->presence, "presence");
     assert_string_equal(refines->ref, "ref");
     assert_string_equal(refines->exts[0].name, "urn:example:extensions:c-define");
@@ -2756,7 +2773,7 @@ test_uses_elem(void **state)
     assert_string_equal(parsed->name, "uses-name");
     assert_string_equal(parsed->dsc, "desc");
     assert_true(parsed->flags & LYS_STATUS_OBSLT);
-    assert_string_equal(*parsed->iffeatures, "feature");
+    assert_string_equal(parsed->iffeatures[0].str, "feature");
     assert_null(parsed->next);
     assert_int_equal(parsed->nodetype, LYS_USES);
     assert_null(parsed->parent);
@@ -2831,7 +2848,7 @@ test_include_elem(void **state)
     struct include_meta inc_meta = {"module-name", &includes};
 
     /* max subelems */
-    st->yin_ctx->mod_version = LYS_VERSION_1_1;
+    st->yin_ctx->parsed_mod->version = LYS_VERSION_1_1;
     data = ELEMENT_WRAPPER_START
                 "<include module=\"mod\">"
                     "<description><text>desc</text></description>"
@@ -2859,7 +2876,7 @@ test_include_elem(void **state)
     includes = NULL;
 
     /* invalid combinations */
-    st->yin_ctx->mod_version = LYS_VERSION_1_0;
+    st->yin_ctx->parsed_mod->version = LYS_VERSION_1_0;
     data = ELEMENT_WRAPPER_START
                 "<include module=\"mod\">"
                     "<description><text>desc</text></description>"
@@ -2871,7 +2888,7 @@ test_include_elem(void **state)
     FREE_ARRAY(st->ctx, includes, lysp_include_free);
     includes = NULL;
 
-    st->yin_ctx->mod_version = LYS_VERSION_1_0;
+    st->yin_ctx->parsed_mod->version = LYS_VERSION_1_0;
     data = ELEMENT_WRAPPER_START
                 "<include module=\"mod\">"
                     "<reference><text>ref</text></reference>"
@@ -2951,17 +2968,17 @@ test_list_elem(void **state)
     assert_true(parsed->flags & LYS_ORDBY_USER);
     assert_true(parsed->flags & LYS_STATUS_DEPRC);
     assert_true(parsed->flags & LYS_CONFIG_W);
-    assert_string_equal(*parsed->iffeatures, "iff");
+    assert_string_equal(parsed->iffeatures[0].str, "iff");
     assert_string_equal(parsed->key, "key");
     assert_int_equal(parsed->min, 10);
-    assert_string_equal(parsed->musts->arg, "must-cond");
+    assert_string_equal(parsed->musts->arg.str, "must-cond");
     assert_string_equal(parsed->name, "list-name");
     assert_null(parsed->next);
     assert_int_equal(parsed->nodetype, LYS_LIST);
     assert_null(parsed->parent);
     assert_string_equal(parsed->ref, "ref");
     assert_string_equal(parsed->typedefs->name, "tpdf");
-    assert_string_equal(*parsed->uniques, "utag");
+    assert_string_equal(parsed->uniques->str, "utag");
     assert_string_equal(parsed->when->cond, "when");
     assert_string_equal(parsed->exts[0].name, "urn:example:extensions:c-define");
     assert_int_equal(parsed->exts[0].insubstmt_index, 0);
@@ -2990,7 +3007,7 @@ test_notification_elem(void **state)
     struct tree_node_meta notif_meta = {NULL, (struct lysp_node **)&notifs};
 
     /* max subelems */
-    st->yin_ctx->mod_version = LYS_VERSION_1_1;
+    st->yin_ctx->parsed_mod->version = LYS_VERSION_1_1;
     data = ELEMENT_WRAPPER_START
                 "<notification name=\"notif-name\">"
                     "<anydata name=\"anyd\"/>"
@@ -3033,8 +3050,8 @@ test_notification_elem(void **state)
     assert_int_equal(notifs->data->next->next->next->next->next->next->next->nodetype, LYS_CHOICE);
     assert_string_equal(notifs->data->next->next->next->next->next->next->next->name, "choice");
     assert_null(notifs->data->next->next->next->next->next->next->next->next);
-    assert_string_equal(*notifs->iffeatures, "iff");
-    assert_string_equal(notifs->musts->arg, "cond");
+    assert_string_equal(notifs->iffeatures[0].str, "iff");
+    assert_string_equal(notifs->musts->arg.str, "cond");
     assert_int_equal(notifs->nodetype, LYS_NOTIF);
     assert_null(notifs->parent);
     assert_string_equal(notifs->ref, "ref");
@@ -3132,7 +3149,7 @@ test_container_elem(void **state)
     struct lysp_node_container *parsed = NULL;
 
     /* max subelems */
-    st->yin_ctx->mod_version = LYS_VERSION_1_1;
+    st->yin_ctx->parsed_mod->version = LYS_VERSION_1_1;
     data = ELEMENT_WRAPPER_START
                 "<container name=\"cont-name\">"
                     "<anydata name=\"anyd\"/>"
@@ -3169,8 +3186,8 @@ test_container_elem(void **state)
     assert_string_equal(parsed->dsc, "desc");
     assert_string_equal(parsed->ref, "ref");
     assert_string_equal(parsed->when->cond, "when-cond");
-    assert_string_equal(*parsed->iffeatures, "iff");
-    assert_string_equal(parsed->musts->arg, "cond");
+    assert_string_equal(parsed->iffeatures[0].str, "iff");
+    assert_string_equal(parsed->musts->arg.str, "cond");
     assert_string_equal(parsed->presence, "presence");
     assert_string_equal(parsed->typedefs->name, "tpdf");
     assert_string_equal(parsed->groupings->name, "sub-grp");
@@ -3221,7 +3238,7 @@ test_case_elem(void **state)
     struct lysp_node_case *parsed = NULL;
 
     /* max subelems */
-    st->yin_ctx->mod_version = LYS_VERSION_1_1;
+    st->yin_ctx->parsed_mod->version = LYS_VERSION_1_1;
     data = ELEMENT_WRAPPER_START
                 "<case name=\"case-name\">"
                     "<anydata name=\"anyd\"/>"
@@ -3250,7 +3267,7 @@ test_case_elem(void **state)
     assert_string_equal(parsed->dsc, "desc");
     assert_string_equal(parsed->ref, "ref");
     assert_string_equal(parsed->when->cond, "when-cond");
-    assert_string_equal(*parsed->iffeatures, "iff");
+    assert_string_equal(parsed->iffeatures[0].str, "iff");
     assert_string_equal(parsed->child->name, "anyd");
     assert_int_equal(parsed->child->nodetype, LYS_ANYDATA);
     assert_string_equal(parsed->child->next->name, "anyx");
@@ -3295,7 +3312,7 @@ test_choice_elem(void **state)
     struct lysp_node_choice *parsed = NULL;
 
     /* max subelems */
-    st->yin_ctx->mod_version = LYS_VERSION_1_1;
+    st->yin_ctx->parsed_mod->version = LYS_VERSION_1_1;
     data = ELEMENT_WRAPPER_START
                 "<choice name=\"choice-name\">"
                     "<anydata name=\"anyd\"/>"
@@ -3327,7 +3344,7 @@ test_choice_elem(void **state)
     assert_string_equal(parsed->dsc, "desc");
     assert_string_equal(parsed->ref, "ref");
     assert_string_equal(parsed->when->cond, "when-cond");
-    assert_string_equal(*parsed->iffeatures, "iff");
+    assert_string_equal(parsed->iffeatures[0].str, "iff");
     assert_string_equal(parsed->child->name, "anyd");
     assert_int_equal(parsed->child->nodetype, LYS_ANYDATA);
     assert_string_equal(parsed->child->next->name, "anyx");
@@ -3371,7 +3388,7 @@ test_inout_elem(void **state)
     struct inout_meta inout_meta = {NULL, &inout};
 
     /* max subelements */
-    st->yin_ctx->mod_version = LYS_VERSION_1_1;
+    st->yin_ctx->parsed_mod->version = LYS_VERSION_1_1;
     data = ELEMENT_WRAPPER_START
                 "<input>"
                     "<anydata name=\"anyd\"/>"
@@ -3391,7 +3408,7 @@ test_inout_elem(void **state)
     assert_int_equal(test_element_helper(st, data, &inout_meta, NULL, NULL), LY_SUCCESS);
     assert_null(inout.parent);
     assert_int_equal(inout.nodetype, LYS_INPUT);
-    assert_string_equal(inout.musts->arg, "cond");
+    assert_string_equal(inout.musts->arg.str, "cond");
     assert_string_equal(inout.typedefs->name, "tpdf");
     assert_string_equal(inout.groupings->name, "sub-grp");
     assert_string_equal(inout.data->name, "anyd");
@@ -3418,7 +3435,7 @@ test_inout_elem(void **state)
     memset(&inout, 0, sizeof inout);
 
     /* max subelements */
-    st->yin_ctx->mod_version = LYS_VERSION_1_1;
+    st->yin_ctx->parsed_mod->version = LYS_VERSION_1_1;
     data = ELEMENT_WRAPPER_START
                 "<output>"
                     "<anydata name=\"anyd\"/>"
@@ -3438,7 +3455,7 @@ test_inout_elem(void **state)
     assert_int_equal(test_element_helper(st, data, &inout_meta, NULL, NULL), LY_SUCCESS);
     assert_null(inout.parent);
     assert_int_equal(inout.nodetype, LYS_OUTPUT);
-    assert_string_equal(inout.musts->arg, "cond");
+    assert_string_equal(inout.musts->arg.str, "cond");
     assert_string_equal(inout.typedefs->name, "tpdf");
     assert_string_equal(inout.groupings->name, "sub-grp");
     assert_string_equal(inout.data->name, "anyd");
@@ -3493,7 +3510,7 @@ test_action_elem(void **state)
     struct tree_node_meta act_meta = {NULL, (struct lysp_node **)&actions};
 
     /* max subelems */
-    st->yin_ctx->mod_version = LYS_VERSION_1_1;
+    st->yin_ctx->parsed_mod->version = LYS_VERSION_1_1;
     data = ELEMENT_WRAPPER_START
                 "<action name=\"act\">"
                     "<description><text>desc</text></description>"
@@ -3508,7 +3525,7 @@ test_action_elem(void **state)
                 "</action>"
            ELEMENT_WRAPPER_END;
     /* there must be parent for action */
-    act_meta.parent = NULL + 1;
+    act_meta.parent = (void*)1;
     assert_int_equal(test_element_helper(st, data, &act_meta, NULL, NULL), LY_SUCCESS);
     act_meta.parent = NULL;
     assert_non_null(actions->parent);
@@ -3517,18 +3534,18 @@ test_action_elem(void **state)
     assert_string_equal(actions->name, "act");
     assert_string_equal(actions->dsc, "desc");
     assert_string_equal(actions->ref, "ref");
-    assert_string_equal(*actions->iffeatures, "iff");
+    assert_string_equal(actions->iffeatures[0].str, "iff");
     assert_string_equal(actions->typedefs->name, "tpdf");
     assert_string_equal(actions->groupings->name, "grouping");
     assert_string_equal(actions->input.data->name, "uses-name");
-    assert_string_equal(actions->output.musts->arg, "cond");
+    assert_string_equal(actions->output.musts->arg.str, "cond");
     assert_string_equal(actions->exts[0].name, "urn:example:extensions:c-define");
     assert_int_equal(actions->exts[0].insubstmt_index, 0);
     assert_int_equal(actions->exts[0].insubstmt, LYEXT_SUBSTMT_SELF);
     FREE_ARRAY(st->ctx, actions, lysp_action_free)
     actions = NULL;
 
-    st->yin_ctx->mod_version = LYS_VERSION_1_1;
+    st->yin_ctx->parsed_mod->version = LYS_VERSION_1_1;
     data = ELEMENT_WRAPPER_START
                 "<rpc name=\"act\">"
                     "<description><text>desc</text></description>"
@@ -3549,11 +3566,11 @@ test_action_elem(void **state)
     assert_string_equal(actions->name, "act");
     assert_string_equal(actions->dsc, "desc");
     assert_string_equal(actions->ref, "ref");
-    assert_string_equal(*actions->iffeatures, "iff");
+    assert_string_equal(actions->iffeatures[0].str, "iff");
     assert_string_equal(actions->typedefs->name, "tpdf");
     assert_string_equal(actions->groupings->name, "grouping");
     assert_string_equal(actions->input.data->name, "uses-name");
-    assert_string_equal(actions->output.musts->arg, "cond");
+    assert_string_equal(actions->output.musts->arg.str, "cond");
     assert_string_equal(actions->exts[0].name, "urn:example:extensions:c-define");
     assert_int_equal(actions->exts[0].insubstmt_index, 0);
     assert_int_equal(actions->exts[0].insubstmt, LYEXT_SUBSTMT_SELF);
@@ -3578,7 +3595,7 @@ test_augment_elem(void **state)
     struct lysp_augment *augments = NULL;
     struct tree_node_meta aug_meta = {NULL, (struct lysp_node **)&augments};
 
-    st->yin_ctx->mod_version = LYS_VERSION_1_1;
+    st->yin_ctx->parsed_mod->version = LYS_VERSION_1_1;
     data = ELEMENT_WRAPPER_START
                 "<augment target-node=\"target\">"
                     "<action name=\"action\"/>"
@@ -3608,7 +3625,7 @@ test_augment_elem(void **state)
     assert_string_equal(augments->dsc, "desc");
     assert_string_equal(augments->ref, "ref");
     assert_string_equal(augments->when->cond, "when-cond");
-    assert_string_equal(*augments->iffeatures, "iff");
+    assert_string_equal(augments->iffeatures[0].str, "iff");
     assert_string_equal(augments->child->name, "anyd");
     assert_int_equal(augments->child->nodetype, LYS_ANYDATA);
     assert_string_equal(augments->child->next->name, "anyx");
@@ -3717,9 +3734,9 @@ test_deviate_elem(void **state)
     assert_int_equal(d_add->mod, LYS_DEV_ADD);
     assert_null(d_add->next);
     assert_string_equal(d_add->units, "units");
-    assert_string_equal(d_add->musts->arg, "cond");
-    assert_string_equal(*d_add->uniques, "utag");
-    assert_string_equal(*d_add->dflts, "def");
+    assert_string_equal(d_add->musts->arg.str, "cond");
+    assert_string_equal(d_add->uniques[0].str, "utag");
+    assert_string_equal(d_add->dflts[0].str, "def");
     assert_true(d_add->flags & LYS_MAND_TRUE && d_add->flags & LYS_CONFIG_W);
     assert_int_equal(d_add->min, 5);
     assert_int_equal(d_add->max, 15);
@@ -3748,7 +3765,7 @@ test_deviate_elem(void **state)
     assert_null(d_rpl->next);
     assert_string_equal(d_rpl->type->name, "newtype");
     assert_string_equal(d_rpl->units, "uni");
-    assert_string_equal(d_rpl->dflt, "def");
+    assert_string_equal(d_rpl->dflt.str, "def");
     assert_true(d_rpl->flags & LYS_MAND_TRUE && d_rpl->flags & LYS_CONFIG_W);
     assert_int_equal(d_rpl->min, 5);
     assert_int_equal(d_rpl->max, 15);
@@ -3773,9 +3790,9 @@ test_deviate_elem(void **state)
     assert_int_equal(d_del->mod, LYS_DEV_DELETE);
     assert_null(d_del->next);
     assert_string_equal(d_del->units, "u");
-    assert_string_equal(d_del->musts->arg, "c");
-    assert_string_equal(*d_del->uniques, "tag");
-    assert_string_equal(*d_del->dflts, "default");
+    assert_string_equal(d_del->musts->arg.str, "c");
+    assert_string_equal(d_del->uniques[0].str, "tag");
+    assert_string_equal(d_del->dflts[0].str, "default");
     assert_string_equal(deviates->exts[0].name, "urn:example:extensions:c-define");
     assert_int_equal(deviates->exts[0].insubstmt_index, 0);
     assert_int_equal(deviates->exts[0].insubstmt, LYEXT_SUBSTMT_SELF);
@@ -3864,19 +3881,28 @@ test_deviation_elem(void **state)
     st->finished_correctly = true;
 }
 
+static struct lysp_module *
+mod_renew(struct lys_yin_parser_ctx *ctx)
+{
+    struct ly_ctx *ly_ctx = ctx->parsed_mod->mod->ctx;
+
+    lys_module_free(ctx->parsed_mod->mod, NULL);
+    ctx->parsed_mod = calloc(1, sizeof *ctx->parsed_mod);
+    ctx->parsed_mod->mod = calloc(1, sizeof *ctx->parsed_mod->mod);
+    ctx->parsed_mod->mod->parsed = ctx->parsed_mod;
+    ctx->parsed_mod->mod->ctx = ly_ctx;
+
+    return ctx->parsed_mod;
+}
+
 static void
 test_module_elem(void **state)
 {
     struct test_parser_yin_state *st = *state;
     const char *data;
-    struct lys_module *lys_mod = NULL;
-    struct lysp_module *lysp_mod = NULL;
+    struct lysp_module *lysp_mod = mod_renew(st->yin_ctx);
 
     /* max subelems */
-    lys_mod = calloc(1, sizeof *lys_mod);
-    lysp_mod = calloc(1, sizeof *lysp_mod);
-    lys_mod->ctx = st->ctx;
-    lysp_mod->mod = lys_mod;
     data = "<module xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\" name=\"mod\">\n"
                 "<yang-version value=\"1.1\"/>\n"
                 "<namespace uri=\"ns\"/>\n"
@@ -3920,7 +3946,7 @@ test_module_elem(void **state)
     assert_string_equal(lysp_mod->mod->contact, "contact");
     assert_string_equal(lysp_mod->mod->dsc, "desc");
     assert_string_equal(lysp_mod->mod->ref, "ref");
-    assert_int_equal(lysp_mod->mod->version, LYS_VERSION_1_1);
+    assert_int_equal(lysp_mod->version, LYS_VERSION_1_1);
     assert_string_equal(lysp_mod->imports->name, "a-mod");
     assert_string_equal(lysp_mod->includes->name, "b-mod");
     assert_string_equal(lysp_mod->extensions->name, "ext");
@@ -3952,16 +3978,11 @@ test_module_elem(void **state)
     assert_string_equal(lysp_mod->exts[0].name, "urn:example:extensions:c-define");
     assert_int_equal(lysp_mod->exts[0].insubstmt_index, 0);
     assert_int_equal(lysp_mod->exts[0].insubstmt, LYEXT_SUBSTMT_SELF);
-    lysp_module_free(lysp_mod);
-    lys_module_free(lys_mod, NULL);
 
     /* min subelems */
     ly_in_free(st->in, 0);
     lyxml_ctx_free(st->yin_ctx->xmlctx);
-    lys_mod = calloc(1, sizeof *lys_mod);
-    lysp_mod = calloc(1, sizeof *lysp_mod);
-    lys_mod->ctx = st->ctx;
-    lysp_mod->mod = lys_mod;
+    lysp_mod = mod_renew(st->yin_ctx);
     data = "<module xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\" name=\"mod\">"
                 "<namespace uri=\"ns\"/>"
                 "<prefix value=\"pref\"/>"
@@ -3971,16 +3992,11 @@ test_module_elem(void **state)
     assert_int_equal(lyxml_ctx_new(st->ctx, st->in, &st->yin_ctx->xmlctx), LY_SUCCESS);
     assert_int_equal(yin_parse_mod(st->yin_ctx, lysp_mod), LY_SUCCESS);
     assert_string_equal(lysp_mod->mod->name, "mod");
-    lysp_module_free(lysp_mod);
-    lys_module_free(lys_mod, NULL);
 
     /* incorrect subelem order */
     ly_in_free(st->in, 0);
     lyxml_ctx_free(st->yin_ctx->xmlctx);
-    lys_mod = calloc(1, sizeof *lys_mod);
-    lysp_mod = calloc(1, sizeof *lysp_mod);
-    lys_mod->ctx = st->ctx;
-    lysp_mod->mod = lys_mod;
+    lysp_mod = mod_renew(st->yin_ctx);
     data = "<module xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\" name=\"mod\">"
                 "<feature name=\"feature\"/>\n"
                 "<namespace uri=\"ns\"/>"
@@ -3991,10 +4007,23 @@ test_module_elem(void **state)
     assert_int_equal(lyxml_ctx_new(st->ctx, st->in, &st->yin_ctx->xmlctx), LY_SUCCESS);
     assert_int_equal(yin_parse_mod(st->yin_ctx, lysp_mod), LY_EVALID);
     logbuf_assert("Invalid order of module\'s sub-elements \"namespace\" can\'t appear after \"feature\". Line number 2.");
-    lysp_module_free(lysp_mod);
-    lys_module_free(lys_mod, NULL);
 
     st->finished_correctly = true;
+}
+
+static struct lysp_submodule *
+submod_renew(struct lys_yin_parser_ctx *ctx, const char *belongs_to)
+{
+    struct ly_ctx *ly_ctx = ctx->parsed_mod->mod->ctx;
+
+    lys_module_free(ctx->parsed_mod->mod, NULL);
+    ctx->parsed_mod = calloc(1, sizeof(struct lysp_submodule));
+    ctx->parsed_mod->mod = calloc(1, sizeof *ctx->parsed_mod->mod);
+    lydict_insert(ly_ctx, belongs_to, 0, &ctx->parsed_mod->mod->name);
+    ctx->parsed_mod->mod->parsed = ctx->parsed_mod;
+    ctx->parsed_mod->mod->ctx = ly_ctx;
+
+    return (struct lysp_submodule *)ctx->parsed_mod;
 }
 
 static void
@@ -4002,13 +4031,12 @@ test_submodule_elem(void **state)
 {
     struct test_parser_yin_state *st = *state;
     const char *data;
-    struct lysp_submodule *lysp_submod = NULL;
+    struct lysp_submodule *lysp_submod = submod_renew(st->yin_ctx, "module-name");
 
     /* max subelements */
-    lysp_submod = calloc(1, sizeof *lysp_submod);
     data = "<submodule xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\" name=\"mod\">\n"
                 "<yang-version value=\"1.1\"/>\n"
-                "<belongs-to module=\"mod-name\"><prefix value=\"pref\"/></belongs-to>"
+                "<belongs-to module=\"module-name\"><prefix value=\"pref\"/></belongs-to>"
                 "<include module=\"b-mod\"/>\n"
                 "<import module=\"a-mod\"><prefix value=\"imp-pref\"/></import>\n"
                 "<organization><text>org</text></organization>\n"
@@ -4037,8 +4065,8 @@ test_submodule_elem(void **state)
            "</submodule>\n";
     assert_int_equal(ly_in_new_memory(data, &st->in), LY_SUCCESS);
     assert_int_equal(lyxml_ctx_new(st->ctx, st->in, &st->yin_ctx->xmlctx), LY_SUCCESS);
-    assert_int_equal(yin_parse_submod(st->yin_ctx, lysp_submod), LY_SUCCESS);
 
+    assert_int_equal(yin_parse_submod(st->yin_ctx, lysp_submod), LY_SUCCESS);
     assert_string_equal(lysp_submod->name, "mod");
     assert_string_equal(lysp_submod->revs, "2019-02-02");
     assert_string_equal(lysp_submod->prefix, "pref");
@@ -4080,38 +4108,33 @@ test_submodule_elem(void **state)
     assert_int_equal(lysp_submod->exts[0].insubstmt_index, 0);
     assert_int_equal(lysp_submod->exts[0].insubstmt, LYEXT_SUBSTMT_SELF);
 
-    lysp_submodule_free(st->ctx, lysp_submod);
-
     /* min subelemnts */
     ly_in_free(st->in, 0);
     lyxml_ctx_free(st->yin_ctx->xmlctx);
-    lysp_submod = calloc(1, sizeof *lysp_submod);
+    lysp_submod = submod_renew(st->yin_ctx, "module-name");
     data = "<submodule xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\" name=\"submod\">"
-                "<yang-version value=\"1.0\"/>"
-                "<belongs-to module=\"mod-name\"><prefix value=\"pref\"/></belongs-to>"
+                "<yang-version value=\"1\"/>"
+                "<belongs-to module=\"module-name\"><prefix value=\"pref\"/></belongs-to>"
            "</submodule>";
     assert_int_equal(ly_in_new_memory(data, &st->in), LY_SUCCESS);
     assert_int_equal(lyxml_ctx_new(st->ctx, st->in, &st->yin_ctx->xmlctx), LY_SUCCESS);
     assert_int_equal(yin_parse_submod(st->yin_ctx, lysp_submod), LY_SUCCESS);
     assert_string_equal(lysp_submod->prefix, "pref");
-    assert_string_equal(lysp_submod->belongsto, "mod-name");
     assert_int_equal(lysp_submod->version, LYS_VERSION_1_0);
-    lysp_submodule_free(st->ctx, lysp_submod);
 
     /* incorrect subelem order */
     ly_in_free(st->in, 0);
     lyxml_ctx_free(st->yin_ctx->xmlctx);
-    lysp_submod = calloc(1, sizeof *lysp_submod);
+    lysp_submod = submod_renew(st->yin_ctx, "module-name");
     data = "<submodule xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\" name=\"submod\">"
-                "<yang-version value=\"1.0\"/>"
+                "<yang-version value=\"1\"/>"
                 "<reference><text>ref</text></reference>\n"
-                "<belongs-to module=\"mod-name\"><prefix value=\"pref\"/></belongs-to>"
+                "<belongs-to module=\"module-name\"><prefix value=\"pref\"/></belongs-to>"
            "</submodule>";
     assert_int_equal(ly_in_new_memory(data, &st->in), LY_SUCCESS);
     assert_int_equal(lyxml_ctx_new(st->ctx, st->in, &st->yin_ctx->xmlctx), LY_SUCCESS);
     assert_int_equal(yin_parse_submod(st->yin_ctx, lysp_submod), LY_EVALID);
     logbuf_assert("Invalid order of submodule's sub-elements \"belongs-to\" can't appear after \"reference\". Line number 2.");
-    lysp_submodule_free(st->ctx, lysp_submod);
 
     st->finished_correctly = true;
 }
@@ -4165,7 +4188,7 @@ test_yin_parse_module(void **state)
              "xmlns:foo=\"urn:example:foo\""
              "xmlns:myext=\"urn:example:extensions\">\n"
 
-                "<yang-version value=\"1.0\"/>\n"
+                "<yang-version value=\"1\"/>\n"
 
                 "<namespace uri=\"urn:example:foo\"/>\n"
                 "<prefix value=\"foo\"/>\n"
@@ -4199,7 +4222,7 @@ test_yin_parse_module(void **state)
     mod = calloc(1, sizeof *mod);
     mod->ctx = st->ctx;
     data =  "<module name=\"example-foo\" xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\">\n"
-                "<yang-version value=\"1.0\"/>\n"
+                "<yang-version value=\"1\"/>\n"
                 "<namespace uri=\"urn:example:foo\"/>\n"
                 "<prefix value=\"foo\"/>\n"
             "</module>\n";
@@ -4226,7 +4249,7 @@ test_yin_parse_module(void **state)
     mod = calloc(1, sizeof *mod);
     mod->ctx = st->ctx;
     data =  "<module name=\"example-foo\" xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\">\n"
-                "<yang-version value=\"1.0\"/>\n"
+                "<yang-version value=\"1\"/>\n"
                 "<namespace uri=\"urn:example:foo\"/>\n"
                 "<prefix value=\"foo\"/>\n"
             "</module>"
@@ -4250,14 +4273,15 @@ test_yin_parse_submodule(void **state)
     const char *data;
     struct lys_yin_parser_ctx *yin_ctx = NULL;
     struct lysp_submodule *submod = NULL;
-    struct lys_parser_ctx main_ctx = {};
     struct ly_in *in;
+
+    lydict_insert(st->ctx, "a", 0, &st->yin_ctx->parsed_mod->mod->name);
 
     data = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             "<submodule name=\"asub\""
               "xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\""
               "xmlns:a=\"urn:a\">"
-                "<yang-version value=\"1.0\"/>\n"
+                "<yang-version value=\"1\"/>\n"
                 "<belongs-to module=\"a\">"
                     "<prefix value=\"a_pref\"/>"
                 "</belongs-to>"
@@ -4278,8 +4302,8 @@ test_yin_parse_submodule(void **state)
                 "</augment>"
             "</submodule>";
     assert_int_equal(ly_in_new_memory(data, &in), LY_SUCCESS);
-    assert_int_equal(yin_parse_submodule(&yin_ctx, st->ctx, &main_ctx, in, &submod), LY_SUCCESS);
-    lysp_submodule_free(st->ctx, submod);
+    assert_int_equal(yin_parse_submodule(&yin_ctx, st->ctx, (struct lys_parser_ctx *)st->yin_ctx, in, &submod), LY_SUCCESS);
+    lysp_module_free((struct lysp_module *)submod);
     yin_parser_ctx_free(yin_ctx);
     ly_in_free(in, 0);
     yin_ctx = NULL;
@@ -4287,14 +4311,14 @@ test_yin_parse_submodule(void **state)
 
     data = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             "<submodule name=\"asub\" xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\">"
-                "<yang-version value=\"1.0\"/>\n"
+                "<yang-version value=\"1\"/>\n"
                 "<belongs-to module=\"a\">"
                     "<prefix value=\"a_pref\"/>"
                 "</belongs-to>"
             "</submodule>";
     assert_int_equal(ly_in_new_memory(data, &in), LY_SUCCESS);
-    assert_int_equal(yin_parse_submodule(&yin_ctx, st->ctx, &main_ctx, in, &submod), LY_SUCCESS);
-    lysp_submodule_free(st->ctx, submod);
+    assert_int_equal(yin_parse_submodule(&yin_ctx, st->ctx, (struct lys_parser_ctx *)st->yin_ctx, in, &submod), LY_SUCCESS);
+    lysp_module_free((struct lysp_module *)submod);
     yin_parser_ctx_free(yin_ctx);
     ly_in_free(in, 0);
     yin_ctx = NULL;
@@ -4304,9 +4328,9 @@ test_yin_parse_submodule(void **state)
             "<module name=\"inval\" xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\">"
             "</module>";
     assert_int_equal(ly_in_new_memory(data, &in), LY_SUCCESS);
-    assert_int_equal(yin_parse_submodule(&yin_ctx, st->ctx, &main_ctx, in, &submod), LY_EINVAL);
+    assert_int_equal(yin_parse_submodule(&yin_ctx, st->ctx, (struct lys_parser_ctx *)st->yin_ctx, in, &submod), LY_EINVAL);
     logbuf_assert("Input data contains module in situation when a submodule is expected.");
-    lysp_submodule_free(st->ctx, submod);
+    lysp_module_free((struct lysp_module *)submod);
     yin_parser_ctx_free(yin_ctx);
     ly_in_free(in, 0);
     yin_ctx = NULL;
@@ -4314,21 +4338,21 @@ test_yin_parse_submodule(void **state)
 
     data = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             "<submodule name=\"asub\" xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\">"
-                "<yang-version value=\"1.0\"/>\n"
+                "<yang-version value=\"1\"/>\n"
                 "<belongs-to module=\"a\">"
                     "<prefix value=\"a_pref\"/>"
                 "</belongs-to>"
             "</submodule>"
             "<submodule name=\"asub\" xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\">"
-                "<yang-version value=\"1.0\"/>\n"
+                "<yang-version value=\"1\"/>\n"
                 "<belongs-to module=\"a\">"
                     "<prefix value=\"a_pref\"/>"
                 "</belongs-to>"
             "</submodule>";
     assert_int_equal(ly_in_new_memory(data, &in), LY_SUCCESS);
-    assert_int_equal(yin_parse_submodule(&yin_ctx, st->ctx, &main_ctx, in, &submod), LY_EVALID);
+    assert_int_equal(yin_parse_submodule(&yin_ctx, st->ctx, (struct lys_parser_ctx *)st->yin_ctx, in, &submod), LY_EVALID);
     logbuf_assert("Trailing garbage \"<submodule name...\" after submodule, expected end-of-input. Line number 2.");
-    lysp_submodule_free(st->ctx, submod);
+    lysp_module_free((struct lysp_module *)submod);
     yin_parser_ctx_free(yin_ctx);
     ly_in_free(in, 0);
     yin_ctx = NULL;
@@ -4349,67 +4373,67 @@ main(void)
         cmocka_unit_test_setup_teardown(test_validate_value, setup_f, teardown_f),
 
         cmocka_unit_test(test_yin_match_argument_name),
-        cmocka_unit_test_setup_teardown(test_enum_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_bit_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_meta_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_import_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_status_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_ext_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_yin_element_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_yangversion_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_mandatory_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_argument_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_base_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_belongsto_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_config_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_default_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_err_app_tag_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_err_msg_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_fracdigits_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_iffeature_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_length_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_modifier_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_namespace_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_pattern_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_value_position_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_prefix_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_range_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_reqinstance_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_revision_date_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_unique_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_units_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_when_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_yin_text_value_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_type_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_max_elems_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_min_elems_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_ordby_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_any_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_leaf_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_leaf_list_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_presence_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_key_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_typedef_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_refine_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_uses_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_revision_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_include_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_list_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_notification_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_grouping_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_container_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_case_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_choice_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_inout_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_action_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_augment_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_deviate_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_deviation_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_module_elem, setup_element_test, teardown_element_test),
-        cmocka_unit_test_setup_teardown(test_submodule_elem, setup_element_test, teardown_element_test),
+        cmocka_unit_test_setup_teardown(test_enum_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_bit_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_meta_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_import_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_status_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_ext_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_yin_element_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_yangversion_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_mandatory_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_argument_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_base_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_belongsto_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_config_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_default_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_err_app_tag_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_err_msg_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_fracdigits_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_iffeature_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_length_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_modifier_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_namespace_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_pattern_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_value_position_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_prefix_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_range_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_reqinstance_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_revision_date_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_unique_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_units_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_when_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_yin_text_value_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_type_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_max_elems_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_min_elems_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_ordby_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_any_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_leaf_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_leaf_list_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_presence_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_key_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_typedef_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_refine_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_uses_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_revision_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_include_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_list_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_notification_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_grouping_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_container_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_case_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_choice_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_inout_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_action_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_augment_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_deviate_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_deviation_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_module_elem, setup_element_test, teardown_f),
+        cmocka_unit_test_setup_teardown(test_submodule_elem, setup_element_test, teardown_f),
 
-        cmocka_unit_test_setup_teardown(test_yin_parse_module, setup_logger, teardown_logger),
-        cmocka_unit_test_setup_teardown(test_yin_parse_submodule, setup_logger, teardown_logger),
+        cmocka_unit_test_setup_teardown(test_yin_parse_module, setup_f, teardown_f),
+        cmocka_unit_test_setup_teardown(test_yin_parse_submodule, setup_f, teardown_f),
     };
 
     return cmocka_run_group_tests(tests, setup_ly_ctx, destroy_ly_ctx);

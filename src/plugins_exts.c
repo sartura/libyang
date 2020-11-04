@@ -37,9 +37,7 @@ struct lyext_plugins_list lyext_plugins_internal[6] = {
 struct lyext_plugin *
 lyext_get_plugin(struct lysc_ext *ext)
 {
-    unsigned int u;
-
-    for (u = 0; lyext_plugins_internal[u].module; ++u) {
+    for (uint8_t u = 0; lyext_plugins_internal[u].module; ++u) {
         if (!strcmp(ext->name, lyext_plugins_internal[u].name) &&
                 !strcmp(ext->module->name, lyext_plugins_internal[u].module) &&
                 (!lyext_plugins_internal[u].revision || !strcmp(ext->module->revision, lyext_plugins_internal[u].revision))) {
@@ -54,7 +52,7 @@ lyext_get_plugin(struct lysc_ext *ext)
 API const char *
 lyext_parent2str(LYEXT_PARENT type)
 {
-    switch(type) {
+    switch (type) {
     case LYEXT_PAR_MODULE:
         return "module";
     case LYEXT_PAR_NODE:
@@ -69,8 +67,6 @@ lyext_parent2str(LYEXT_PARENT type)
         return "bit";
     case LYEXT_PAR_TYPE_ENUM:
         return "enum";
-    case LYEXT_PAR_FEATURE:
-        return "feature";
     case LYEXT_PAR_MUST:
         return "must";
     case LYEXT_PAR_PATTERN:
@@ -87,23 +83,23 @@ lyext_parent2str(LYEXT_PARENT type)
         return "extension instance";
     case LYEXT_PAR_IMPORT:
         return "import";
-/* YANG allows extension instances inside the following statements,
- * but they do not have any meaning in current libyang
-    case LYEXT_PAR_TPDF:
-        return "typedef";
-    case LYEXT_PAR_EXTINST:
-        return "extension";
-    case LYEXT_PAR_REFINE:
-        return "refine";
-    case LYEXT_PAR_DEVIATION:
-        return "deviation";
-    case LYEXT_PAR_DEVIATE:
-        return "deviate";
-    case LYEXT_PAR_INCLUDE:
-        return "include";
-    case LYEXT_PAR_REVISION:
-        return "revision";
- */
+    /* YANG allows extension instances inside the following statements,
+     * but they do not have any meaning in current libyang
+        case LYEXT_PAR_TPDF:
+            return "typedef";
+        case LYEXT_PAR_EXTINST:
+            return "extension";
+        case LYEXT_PAR_REFINE:
+            return "refine";
+        case LYEXT_PAR_DEVIATION:
+            return "deviation";
+        case LYEXT_PAR_DEVIATE:
+            return "deviate";
+        case LYEXT_PAR_INCLUDE:
+            return "include";
+        case LYEXT_PAR_REVISION:
+            return "revision";
+     */
     default:
         return "unknown";
     }

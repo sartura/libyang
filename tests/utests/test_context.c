@@ -22,9 +22,10 @@
 
 #include "common.h"
 #include "context.h"
-#include "parser.h"
+#include "in.h"
 #include "tests/config.h"
 #include "tree_schema_internal.h"
+#include "schema_compile.h"
 
 #define BUFSIZE 1024
 char logbuf[BUFSIZE] = {0};
@@ -92,8 +93,8 @@ test_searchdirs(void **state)
     logbuf_assert("Invalid argument ctx (ly_ctx_set_searchdir()).");
     assert_null(ly_ctx_get_searchdirs(NULL));
     logbuf_assert("Invalid argument ctx (ly_ctx_get_searchdirs()).");
-    assert_int_equal(LY_EINVAL, ly_ctx_unset_searchdirs(NULL, NULL));
-    logbuf_assert("Invalid argument ctx (ly_ctx_unset_searchdirs()).");
+    assert_int_equal(LY_EINVAL, ly_ctx_unset_searchdir(NULL, NULL));
+    logbuf_assert("Invalid argument ctx (ly_ctx_unset_searchdir()).");
 
     /* readable and executable, but not a directory */
     assert_int_equal(LY_EINVAL, ly_ctx_set_searchdir(ctx, TESTS_BIN"/utest_context"));
@@ -141,24 +142,24 @@ test_searchdirs(void **state)
 
     /* removing searchpaths */
     /* nonexisting */
-    assert_int_equal(LY_EINVAL, ly_ctx_unset_searchdirs(ctx, "/nonexistingfile"));
-    logbuf_assert("Invalid argument value (ly_ctx_unset_searchdirs()).");
+    assert_int_equal(LY_EINVAL, ly_ctx_unset_searchdir(ctx, "/nonexistingfile"));
+    logbuf_assert("Invalid argument value (ly_ctx_unset_searchdir()).");
     /* first */
-    assert_int_equal(LY_SUCCESS, ly_ctx_unset_searchdirs(ctx, TESTS_BIN"/utests"));
+    assert_int_equal(LY_SUCCESS, ly_ctx_unset_searchdir(ctx, TESTS_BIN"/utests"));
     assert_string_not_equal(TESTS_BIN"/utests", list[0]);
     assert_int_equal(7, ctx->search_paths.count);
     /* middle */
-    assert_int_equal(LY_SUCCESS, ly_ctx_unset_searchdirs(ctx, TESTS_SRC));
+    assert_int_equal(LY_SUCCESS, ly_ctx_unset_searchdir(ctx, TESTS_SRC));
     assert_int_equal(6, ctx->search_paths.count);
     /* last */
-    assert_int_equal(LY_SUCCESS, ly_ctx_unset_searchdirs(ctx, "/home"));
+    assert_int_equal(LY_SUCCESS, ly_ctx_unset_searchdir(ctx, "/home"));
     assert_int_equal(5, ctx->search_paths.count);
     /* all */
-    assert_int_equal(LY_SUCCESS, ly_ctx_unset_searchdirs(ctx, NULL));
+    assert_int_equal(LY_SUCCESS, ly_ctx_unset_searchdir(ctx, NULL));
     assert_int_equal(0, ctx->search_paths.count);
 
     /* again - no change */
-    assert_int_equal(LY_SUCCESS, ly_ctx_unset_searchdirs(ctx, NULL));
+    assert_int_equal(LY_SUCCESS, ly_ctx_unset_searchdir(ctx, NULL));
 
     /* cleanup */
     ly_ctx_destroy(ctx, NULL);
@@ -183,7 +184,7 @@ test_options(void **state)
 
     struct ly_ctx *ctx;
 
-    assert_int_equal(LY_SUCCESS, ly_ctx_new(NULL, 0xffffffff, &ctx));
+    assert_int_equal(LY_SUCCESS, ly_ctx_new(NULL, 0xffff, &ctx));
 
     /* invalid arguments */
     assert_int_equal(0, ly_ctx_get_options(NULL));
@@ -195,17 +196,22 @@ test_options(void **state)
     logbuf_assert("Invalid argument ctx (ly_ctx_unset_options()).");
 
     /* option not allowed to be changed */
-    assert_int_equal(LY_EINVAL, ly_ctx_set_options(ctx, LY_CTX_NOYANGLIBRARY));
+    assert_int_equal(LY_EINVAL, ly_ctx_set_options(ctx, LY_CTX_NO_YANGLIBRARY));
     logbuf_assert("Invalid argument option (ly_ctx_set_options()).");
-    assert_int_equal(LY_EINVAL, ly_ctx_set_options(ctx, LY_CTX_NOYANGLIBRARY));
+    assert_int_equal(LY_EINVAL, ly_ctx_set_options(ctx, LY_CTX_NO_YANGLIBRARY));
     logbuf_assert("Invalid argument option (ly_ctx_set_options()).");
 
 
     /* unset */
-    /* LY_CTX_ALLIMPLEMENTED */
-    assert_int_not_equal(0, ctx->flags & LY_CTX_ALLIMPLEMENTED);
-    assert_int_equal(LY_SUCCESS, ly_ctx_unset_options(ctx, LY_CTX_ALLIMPLEMENTED));
-    assert_int_equal(0, ctx->flags & LY_CTX_ALLIMPLEMENTED);
+    /* LY_CTX_ALL_IMPLEMENTED */
+    assert_int_not_equal(0, ctx->flags & LY_CTX_ALL_IMPLEMENTED);
+    assert_int_equal(LY_SUCCESS, ly_ctx_unset_options(ctx, LY_CTX_ALL_IMPLEMENTED));
+    assert_int_equal(0, ctx->flags & LY_CTX_ALL_IMPLEMENTED);
+
+    /* LY_CTX_REF_IMPLEMENTED */
+    assert_int_not_equal(0, ctx->flags & LY_CTX_REF_IMPLEMENTED);
+    assert_int_equal(LY_SUCCESS, ly_ctx_unset_options(ctx, LY_CTX_REF_IMPLEMENTED));
+    assert_int_equal(0, ctx->flags & LY_CTX_REF_IMPLEMENTED);
 
     /* LY_CTX_DISABLE_SEARCHDIRS */
     assert_int_not_equal(0, ctx->flags & LY_CTX_DISABLE_SEARCHDIRS);
@@ -222,17 +228,16 @@ test_options(void **state)
     assert_int_equal(LY_SUCCESS, ly_ctx_unset_options(ctx, LY_CTX_PREFER_SEARCHDIRS));
     assert_int_equal(0, ctx->flags & LY_CTX_PREFER_SEARCHDIRS);
 
-    /* LY_CTX_TRUSTED */
-    assert_int_not_equal(0, ctx->flags & LY_CTX_TRUSTED);
-    assert_int_equal(LY_SUCCESS, ly_ctx_unset_options(ctx, LY_CTX_TRUSTED));
-    assert_int_equal(0, ctx->flags & LY_CTX_TRUSTED);
-
     assert_int_equal(ctx->flags, ly_ctx_get_options(ctx));
 
     /* set back */
-    /* LY_CTX_ALLIMPLEMENTED */
-    assert_int_equal(LY_SUCCESS, ly_ctx_set_options(ctx, LY_CTX_ALLIMPLEMENTED));
-    assert_int_not_equal(0, ctx->flags & LY_CTX_ALLIMPLEMENTED);
+    /* LY_CTX_ALL_IMPLEMENTED */
+    assert_int_equal(LY_SUCCESS, ly_ctx_set_options(ctx, LY_CTX_ALL_IMPLEMENTED));
+    assert_int_not_equal(0, ctx->flags & LY_CTX_ALL_IMPLEMENTED);
+
+    /* LY_CTX_REF_IMPLEMENTED */
+    assert_int_equal(LY_SUCCESS, ly_ctx_set_options(ctx, LY_CTX_REF_IMPLEMENTED));
+    assert_int_not_equal(0, ctx->flags & LY_CTX_REF_IMPLEMENTED);
 
     /* LY_CTX_DISABLE_SEARCHDIRS */
     assert_int_equal(LY_SUCCESS, ly_ctx_set_options(ctx, LY_CTX_DISABLE_SEARCHDIRS));
@@ -245,10 +250,6 @@ test_options(void **state)
     /* LY_CTX_PREFER_SEARCHDIRS */
     assert_int_equal(LY_SUCCESS, ly_ctx_set_options(ctx, LY_CTX_PREFER_SEARCHDIRS));
     assert_int_not_equal(0, ctx->flags & LY_CTX_PREFER_SEARCHDIRS);
-
-    /* LY_CTX_TRUSTED */
-    assert_int_equal(LY_SUCCESS, ly_ctx_set_options(ctx, LY_CTX_TRUSTED));
-    assert_int_not_equal(0, ctx->flags & LY_CTX_TRUSTED);
 
     assert_int_equal(ctx->flags, ly_ctx_get_options(ctx));
 
@@ -285,7 +286,7 @@ test_models(void **state)
     assert_int_equal(ctx->module_set_id, ly_ctx_get_module_set_id(ctx));
 
     assert_int_equal(LY_SUCCESS, ly_in_new_memory("module x {namespace urn:x;prefix x;}", &in));
-    assert_int_equal(LY_EINVAL, lys_parse_mem_module(ctx, in, 4, 1, NULL, NULL, &mod1));
+    assert_int_equal(LY_EINVAL, lys_create_module(ctx, in, 4, 1, NULL, NULL, NULL, &mod1));
     ly_in_free(in, 0);
     logbuf_assert("Invalid schema input format.");
 
@@ -303,22 +304,22 @@ test_models(void **state)
     /* name collision of module and submodule */
     ly_ctx_set_module_imp_clb(ctx, test_imp_clb, "submodule y {belongs-to a {prefix a;} revision 2018-10-30;}");
     assert_int_equal(LY_SUCCESS, ly_in_new_memory("module y {namespace urn:y;prefix y;include y;}", &in));
-    assert_int_equal(LY_EVALID, lys_parse_mem_module(ctx, in, LYS_IN_YANG, 1, NULL, NULL, &mod1));
+    assert_int_equal(LY_EVALID, lys_create_module(ctx, in, LYS_IN_YANG, 1, NULL, NULL, NULL, &mod1));
     ly_in_free(in, 0);
     logbuf_assert("Name collision between module and submodule of name \"y\". Line number 1.");
 
     assert_int_equal(LY_SUCCESS, ly_in_new_memory("module a {namespace urn:a;prefix a;include y;revision 2018-10-30; }", &in));
-    assert_int_equal(LY_SUCCESS, lys_parse_mem_module(ctx, in, LYS_IN_YANG, 1, NULL, NULL, &mod1));
+    assert_int_equal(LY_SUCCESS, lys_create_module(ctx, in, LYS_IN_YANG, 1, NULL, NULL, NULL, &mod1));
     ly_in_free(in, 0);
     assert_int_equal(LY_SUCCESS, ly_in_new_memory("module y {namespace urn:y;prefix y;}", &in));
-    assert_int_equal(LY_EVALID, lys_parse_mem_module(ctx, in, LYS_IN_YANG, 1, NULL, NULL, &mod1));
+    assert_int_equal(LY_EVALID, lys_create_module(ctx, in, LYS_IN_YANG, 1, NULL, NULL, NULL, &mod1));
     ly_in_free(in, 0);
     logbuf_assert("Name collision between module and submodule of name \"y\". Line number 1.");
 
     store = 1;
     ly_ctx_set_module_imp_clb(ctx, test_imp_clb, "submodule y {belongs-to b {prefix b;}}");
     assert_int_equal(LY_SUCCESS, ly_in_new_memory("module b {namespace urn:b;prefix b;include y;}", &in));
-    assert_int_equal(LY_EVALID, lys_parse_mem_module(ctx, in, LYS_IN_YANG, 1, NULL, NULL, &mod1));
+    assert_int_equal(LY_EVALID, lys_create_module(ctx, in, LYS_IN_YANG, 1, NULL, NULL, NULL, &mod1));
     ly_in_free(in, 0);
     logbuf_assert("Name collision between submodules of name \"y\". Line number 1.");
     store = -1;
@@ -327,32 +328,36 @@ test_models(void **state)
     ly_ctx_reset_latests(ctx);
     ly_ctx_set_module_imp_clb(ctx, test_imp_clb, "submodule y {belongs-to a {prefix a;} revision 2018-10-31;}");
     assert_int_equal(LY_SUCCESS, ly_in_new_memory("module a {namespace urn:a;prefix a;include y; revision 2018-10-31;}", &in));
-    assert_int_equal(LY_SUCCESS, lys_parse_mem_module(ctx, in, LYS_IN_YANG, 0, NULL, NULL, &mod2));
+    assert_int_equal(LY_SUCCESS, lys_create_module(ctx, in, LYS_IN_YANG, 0, NULL, NULL, NULL, &mod2));
     ly_in_free(in, 0);
     assert_string_equal("2018-10-31", mod2->parsed->includes[0].submodule->revs[0].date);
 
     /* reloading module in case only the compiled module resists in the context */
     assert_int_equal(LY_SUCCESS, ly_in_new_memory("module w {namespace urn:w;prefix w;revision 2018-10-24;}", &in));
-    assert_int_equal(LY_SUCCESS, lys_parse_mem_module(ctx, in, LYS_IN_YANG, 1, NULL, NULL, &mod1));
+    assert_int_equal(LY_SUCCESS, lys_create_module(ctx, in, LYS_IN_YANG, 0, NULL, NULL, NULL, &mod1));
     ly_in_free(in, 0);
-    assert_int_equal(LY_SUCCESS, lys_compile(&mod1, LYSC_OPT_FREE_SP));
+    mod1->implemented = 1;
+    assert_int_equal(LY_SUCCESS, lys_compile(mod1, 0));
     assert_non_null(mod1->compiled);
-    assert_null(mod1->parsed);
+    assert_non_null(mod1->parsed);
+
+#if 0
+    /* TODO in case we are able to remove the parsed schema, here we will test how it will handle missing import parsed schema */
 
     assert_int_equal(LY_SUCCESS, ly_in_new_memory("module z {namespace urn:z;prefix z;import w {prefix w;revision-date 2018-10-24;}}", &in));
-    assert_int_equal(LY_SUCCESS, lys_parse_mem_module(ctx, in, LYS_IN_YANG, 1, NULL, NULL, &mod2));
-    ly_in_free(in, 0);
     /* mod1->parsed is necessary to compile mod2 because of possible groupings, typedefs, ... */
     ly_ctx_set_module_imp_clb(ctx, NULL, NULL);
-    assert_int_equal(LY_ENOTFOUND, lys_compile(&mod2, 0));
-    logbuf_assert("Unable to reload \"w\" module to import it into \"z\", source data not found.");
+    assert_int_equal(LY_ENOTFOUND, lys_create_module(ctx, in, LYS_IN_YANG, 1, NULL, NULL, &mod2));
+    /*logbuf_assert("Unable to reload \"w\" module to import it into \"z\", source data not found.");*/
+    logbuf_assert("Recompilation of module \"w\" failed.");
     assert_null(mod2);
+    ly_in_free(in, 0);
+#endif
 
     assert_int_equal(LY_SUCCESS, ly_in_new_memory("module z {namespace urn:z;prefix z;import w {prefix w;revision-date 2018-10-24;}}", &in));
-    assert_int_equal(LY_SUCCESS, lys_parse_mem_module(ctx, in, LYS_IN_YANG, 1, NULL, NULL, &mod2));
-    ly_in_free(in, 0);
     ly_ctx_set_module_imp_clb(ctx, test_imp_clb, "module w {namespace urn:w;prefix w;revision 2018-10-24;}");
-    assert_int_equal(LY_SUCCESS, lys_compile(&mod2, 0));
+    assert_int_equal(LY_SUCCESS, lys_create_module(ctx, in, LYS_IN_YANG, 1, NULL, NULL, NULL, &mod2));
+    ly_in_free(in, 0);
     assert_non_null(mod2);
     assert_non_null(mod1->parsed);
     assert_string_equal("w", mod1->name);
@@ -380,7 +385,7 @@ test_imports(void **state)
     assert_int_equal(1, mod1->implemented);
     assert_int_equal(LY_SUCCESS, lys_parse_mem(ctx, "module b {namespace urn:b;prefix b;import a {prefix a;}}",
                                                LYS_IN_YANG, &mod2));
-    import = mod2->compiled->imports[0].module;
+    import = mod2->parsed->imports[0].module;
     assert_int_equal(2, import->latest_revision);
     assert_int_equal(0, mod1->latest_revision);
     assert_ptr_not_equal(mod1, import);
@@ -399,7 +404,7 @@ test_imports(void **state)
     assert_int_equal(1, mod1->implemented);
     assert_int_equal(LY_SUCCESS, lys_parse_mem(ctx, "module b {namespace urn:b;prefix b;import a {prefix a;}}",
                                                LYS_IN_YANG, &mod2));
-    import = mod2->compiled->imports[0].module;
+    import = mod2->parsed->imports[0].module;
     assert_ptr_equal(mod1, import);
     assert_int_equal(2, import->latest_revision);
     assert_int_equal(1, import->implemented);
@@ -456,16 +461,16 @@ test_get_models(void **state)
     assert_non_null(ly_ctx_get_module_ns(ctx, "urn:ietf:params:xml:ns:yang:ietf-datastores", "2018-02-14"));
 
     /* select module by revision */
-    assert_int_equal(LY_SUCCESS, lys_parse_mem_module(ctx, in1, LYS_IN_YANG, 1, NULL, NULL, &mod));
+    assert_int_equal(LY_SUCCESS, lys_create_module(ctx, in1, LYS_IN_YANG, 1, NULL, NULL, NULL, &mod));
     /* invalid attempts - implementing module of the same name and inserting the same module */
-    assert_int_equal(LY_EDENIED, lys_parse_mem_module(ctx, in2, LYS_IN_YANG, 1, NULL, NULL, NULL));
+    assert_int_equal(LY_EDENIED, lys_create_module(ctx, in2, LYS_IN_YANG, 1, NULL, NULL, NULL, NULL));
     logbuf_assert("Module \"a\" is already implemented in the context.");
     ly_in_reset(in1);
-    assert_int_equal(LY_EEXIST, lys_parse_mem_module(ctx, in1, LYS_IN_YANG, 0, NULL, NULL, NULL));
+    assert_int_equal(LY_EEXIST, lys_create_module(ctx, in1, LYS_IN_YANG, 0, NULL, NULL, NULL, NULL));
     logbuf_assert("Module \"a\" of revision \"2018-10-23\" is already present in the context.");
     /* insert the second module only as imported, not implemented */
     ly_in_reset(in2);
-    assert_int_equal(LY_SUCCESS, lys_parse_mem_module(ctx, in2, LYS_IN_YANG, 0, NULL, NULL, &mod2));
+    assert_int_equal(LY_SUCCESS, lys_create_module(ctx, in2, LYS_IN_YANG, 0, NULL, NULL, NULL, &mod2));
     assert_non_null(mod2);
     assert_ptr_not_equal(mod, mod2);
     mod = ly_ctx_get_module_latest(ctx, "a");
@@ -473,14 +478,14 @@ test_get_models(void **state)
     mod2 = ly_ctx_get_module_latest_ns(ctx, mod->ns);
     assert_ptr_equal(mod, mod2);
     /* work with module with no revision */
-    assert_int_equal(LY_SUCCESS, lys_parse_mem_module(ctx, in0, LYS_IN_YANG, 0, NULL, NULL, &mod));
+    assert_int_equal(LY_SUCCESS, lys_create_module(ctx, in0, LYS_IN_YANG, 0, NULL, NULL, NULL, &mod));
     assert_ptr_equal(mod, ly_ctx_get_module(ctx, "a", NULL));
     assert_ptr_not_equal(mod, ly_ctx_get_module_latest(ctx, "a"));
 
     str1 = "submodule b {belongs-to a {prefix a;}}";
     ly_in_free(in1, 0);
     assert_int_equal(LY_SUCCESS, ly_in_new_memory(str1, &in1));
-    assert_int_equal(LY_EINVAL, lys_parse_mem_module(ctx, in1, LYS_IN_YANG, 1, NULL, NULL, &mod));
+    assert_int_equal(LY_EINVAL, lys_create_module(ctx, in1, LYS_IN_YANG, 1, NULL, NULL, NULL, &mod));
     logbuf_assert("Input data contains submodule which cannot be parsed directly without its main module.");
 
     while ((mod = (struct lys_module *)ly_ctx_get_module_iter(ctx, &index))) {

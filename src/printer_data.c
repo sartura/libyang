@@ -19,12 +19,14 @@
 
 #include "common.h"
 #include "log.h"
-#include "printer.h"
+#include "out.h"
+#include "out_internal.h"
 #include "printer_internal.h"
 #include "tree_data.h"
+#include "tree_schema.h"
 
 static LY_ERR
-lyd_print_(struct ly_out *out, const struct lyd_node *root, LYD_FORMAT format, int options)
+lyd_print_(struct ly_out *out, const struct lyd_node *root, LYD_FORMAT format, uint32_t options)
 {
     LY_ERR ret = LY_SUCCESS;
 
@@ -32,17 +34,15 @@ lyd_print_(struct ly_out *out, const struct lyd_node *root, LYD_FORMAT format, i
     case LYD_XML:
         ret = xml_print_data(out, root, options);
         break;
-#if 0
     case LYD_JSON:
         ret = json_print_data(out, root, options);
         break;
-#endif
     case LYD_LYB:
         ret = lyb_print_data(out, root, options);
         break;
-    case LYD_SCHEMA:
-        LOGERR(out->ctx, LY_EINVAL, "Invalid output format.");
-        ret = LY_EINVAL;
+    case LYD_UNKNOWN:
+        LOGINT(root ? LYD_CTX(root) : NULL);
+        ret = LY_EINT;
         break;
     }
 
@@ -50,19 +50,21 @@ lyd_print_(struct ly_out *out, const struct lyd_node *root, LYD_FORMAT format, i
 }
 
 API LY_ERR
-lyd_print_all(struct ly_out *out, const struct lyd_node *root, LYD_FORMAT format, int options)
+lyd_print_all(struct ly_out *out, const struct lyd_node *root, LYD_FORMAT format, uint32_t options)
 {
-    LY_CHECK_ARG_RET(NULL, out, root, !(options & LYD_PRINT_WITHSIBLINGS), LY_EINVAL);
+    LY_CHECK_ARG_RET(NULL, out, !(options & LYD_PRINT_WITHSIBLINGS), LY_EINVAL);
 
     /* reset the number of printed bytes */
     out->func_printed = 0;
 
-    /* get first top-level sibling */
-    while (root->parent) {
-        root = (struct lyd_node *)root->parent;
-    }
-    while (root->prev->next) {
-        root = root->prev;
+    if (root) {
+        /* get first top-level sibling */
+        while (root->parent) {
+            root = (struct lyd_node *)root->parent;
+        }
+        while (root->prev->next) {
+            root = root->prev;
+        }
     }
 
     /* print each top-level sibling */
@@ -72,9 +74,9 @@ lyd_print_all(struct ly_out *out, const struct lyd_node *root, LYD_FORMAT format
 }
 
 API LY_ERR
-lyd_print_tree(struct ly_out *out, const struct lyd_node *root, LYD_FORMAT format, int options)
+lyd_print_tree(struct ly_out *out, const struct lyd_node *root, LYD_FORMAT format, uint32_t options)
 {
-    LY_CHECK_ARG_RET(NULL, out, root, !(options & LYD_PRINT_WITHSIBLINGS), LY_EINVAL);
+    LY_CHECK_ARG_RET(NULL, out, !(options & LYD_PRINT_WITHSIBLINGS), LY_EINVAL);
 
     /* reset the number of printed bytes */
     out->func_printed = 0;
@@ -86,12 +88,12 @@ lyd_print_tree(struct ly_out *out, const struct lyd_node *root, LYD_FORMAT forma
 }
 
 API LY_ERR
-lyd_print_mem(char **strp, const struct lyd_node *root, LYD_FORMAT format, int options)
+lyd_print_mem(char **strp, const struct lyd_node *root, LYD_FORMAT format, uint32_t options)
 {
     LY_ERR ret;
     struct ly_out *out;
 
-    LY_CHECK_ARG_RET(NULL, strp, root, LY_EINVAL);
+    LY_CHECK_ARG_RET(NULL, strp, LY_EINVAL);
 
     /* init */
     *strp = NULL;
@@ -103,12 +105,12 @@ lyd_print_mem(char **strp, const struct lyd_node *root, LYD_FORMAT format, int o
 }
 
 API LY_ERR
-lyd_print_fd(int fd, const struct lyd_node *root, LYD_FORMAT format, int options)
+lyd_print_fd(int fd, const struct lyd_node *root, LYD_FORMAT format, uint32_t options)
 {
     LY_ERR ret;
     struct ly_out *out;
 
-    LY_CHECK_ARG_RET(NULL, fd != -1, root, LY_EINVAL);
+    LY_CHECK_ARG_RET(NULL, fd != -1, LY_EINVAL);
 
     LY_CHECK_RET(ly_out_new_fd(fd, &out));
     ret = lyd_print_(out, root, format, options);
@@ -117,12 +119,12 @@ lyd_print_fd(int fd, const struct lyd_node *root, LYD_FORMAT format, int options
 }
 
 API LY_ERR
-lyd_print_file(FILE *f, const struct lyd_node *root, LYD_FORMAT format, int options)
+lyd_print_file(FILE *f, const struct lyd_node *root, LYD_FORMAT format, uint32_t options)
 {
     LY_ERR ret;
     struct ly_out *out;
 
-    LY_CHECK_ARG_RET(NULL, f, root, LY_EINVAL);
+    LY_CHECK_ARG_RET(NULL, f, LY_EINVAL);
 
     LY_CHECK_RET(ly_out_new_file(f, &out));
     ret = lyd_print_(out, root, format, options);
@@ -131,12 +133,12 @@ lyd_print_file(FILE *f, const struct lyd_node *root, LYD_FORMAT format, int opti
 }
 
 API LY_ERR
-lyd_print_path(const char *path, const struct lyd_node *root, LYD_FORMAT format, int options)
+lyd_print_path(const char *path, const struct lyd_node *root, LYD_FORMAT format, uint32_t options)
 {
     LY_ERR ret;
     struct ly_out *out;
 
-    LY_CHECK_ARG_RET(NULL, path, root, LY_EINVAL);
+    LY_CHECK_ARG_RET(NULL, path, LY_EINVAL);
 
     LY_CHECK_RET(ly_out_new_filepath(path, &out));
     ret = lyd_print_(out, root, format, options);
@@ -145,15 +147,14 @@ lyd_print_path(const char *path, const struct lyd_node *root, LYD_FORMAT format,
 }
 
 API LY_ERR
-lyd_print_clb(ssize_t (*writeclb)(void *arg, const void *buf, size_t count), void *arg,
-              const struct lyd_node *root, LYD_FORMAT format, int options)
+lyd_print_clb(ly_write_clb writeclb, void *user_data, const struct lyd_node *root, LYD_FORMAT format, uint32_t options)
 {
     LY_ERR ret;
     struct ly_out *out;
 
-    LY_CHECK_ARG_RET(NULL, writeclb, root, LY_EINVAL);
+    LY_CHECK_ARG_RET(NULL, writeclb, LY_EINVAL);
 
-    LY_CHECK_RET(ly_out_new_clb(writeclb, arg, &out));
+    LY_CHECK_RET(ly_out_new_clb(writeclb, user_data, &out));
     ret = lyd_print_(out, root, format, options);
     ly_out_free(out, NULL, 0);
     return ret;

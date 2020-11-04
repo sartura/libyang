@@ -1,9 +1,9 @@
 /**
- * @file printer.c
+ * @file in.c
  * @author Radek Krejci <rkrejci@cesnet.cz>
- * @brief Generic libyang printers functions.
+ * @brief libyang input functions.
  *
- * Copyright (c) 2015 - 2019 CESNET, z.s.p.o.
+ * Copyright (c) 2015 - 2020 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -14,7 +14,8 @@
 
 #define _GNU_SOURCE
 
-#include "parser.h"
+#include "in.h"
+#include "in_internal.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -28,7 +29,9 @@
 #include "compat.h"
 #include "dict.h"
 #include "log.h"
+#include "parser_data.h"
 #include "parser_internal.h"
+#include "tree_data_internal.h"
 #include "tree_schema_internal.h"
 
 API LY_IN_TYPE
@@ -81,7 +84,7 @@ ly_in_fd(struct ly_in *in, int fd)
             return -1;
         }
 
-        ly_munmap((char*)in->start, in->length);
+        ly_munmap((char *)in->start, in->length);
 
         in->method.fd = fd;
         in->current = in->start = addr;
@@ -174,7 +177,7 @@ ly_in_reset(struct ly_in *in)
 API LY_ERR
 ly_in_new_filepath(const char *filepath, size_t len, struct ly_in **in)
 {
-	LY_ERR ret;
+    LY_ERR ret;
     char *fp;
     int fd;
 
@@ -188,7 +191,7 @@ ly_in_new_filepath(const char *filepath, size_t len, struct ly_in **in)
 
     fd = open(fp, O_RDONLY);
     LY_CHECK_ERR_RET(fd == -1, LOGERR(NULL, LY_ESYS, "Failed to open file \"%s\" (%s).", fp, strerror(errno)); free(fp),
-                     LY_ESYS);
+            LY_ESYS);
 
     LY_CHECK_ERR_RET(ret = ly_in_new_fd(fd, in), free(fp), ret);
 
@@ -241,6 +244,7 @@ void
 lys_parser_fill_filepath(struct ly_ctx *ctx, struct ly_in *in, const char **filepath)
 {
     char path[PATH_MAX];
+
 #ifndef __APPLE__
     char proc_path[32];
     int len;
@@ -255,22 +259,22 @@ lys_parser_fill_filepath(struct ly_ctx *ctx, struct ly_in *in, const char **file
     switch (in->type) {
     case LY_IN_FILEPATH:
         if (realpath(in->method.fpath.filepath, path) != NULL) {
-            *filepath = lydict_insert(ctx, path, 0);
+            lydict_insert(ctx, path, 0, filepath);
         } else {
-            *filepath = lydict_insert(ctx, in->method.fpath.filepath, 0);
+            lydict_insert(ctx, in->method.fpath.filepath, 0, filepath);
         }
 
         break;
     case LY_IN_FD:
 #ifdef __APPLE__
         if (fcntl(in->method.fd, F_GETPATH, path) != -1) {
-            *filepath = lydict_insert(ctx, path, 0);
+            lydict_insert(ctx, path, 0, filepath);
         }
 #else
         /* get URI if there is /proc */
         sprintf(proc_path, "/proc/self/fd/%d", in->method.fd);
         if ((len = readlink(proc_path, path, PATH_MAX - 1)) > 0) {
-            *filepath = lydict_insert(ctx, path, len);
+            lydict_insert(ctx, path, len, filepath);
         }
 #endif
         break;
@@ -286,7 +290,7 @@ lys_parser_fill_filepath(struct ly_ctx *ctx, struct ly_in *in, const char **file
 }
 
 API void
-ly_in_free(struct ly_in *in, int destroy)
+ly_in_free(struct ly_in *in, ly_bool destroy)
 {
     if (!in) {
         return;
@@ -297,9 +301,9 @@ ly_in_free(struct ly_in *in, int destroy)
 
     if (destroy) {
         if (in->type == LY_IN_MEMORY) {
-            free((char*)in->start);
+            free((char *)in->start);
         } else {
-            ly_munmap((char*)in->start, in->length);
+            ly_munmap((char *)in->start, in->length);
 
             if (in->type == LY_IN_FILE) {
                 fclose(in->method.f);
@@ -312,7 +316,7 @@ ly_in_free(struct ly_in *in, int destroy)
             }
         }
     } else if (in->type != LY_IN_MEMORY) {
-        ly_munmap((char*)in->start, in->length);
+        ly_munmap((char *)in->start, in->length);
 
         if (in->type == LY_IN_FILEPATH) {
             close(in->method.fpath.fd);
@@ -351,5 +355,84 @@ ly_in_skip(struct ly_in *in, size_t count)
     }
 
     in->current += count;
+    return LY_SUCCESS;
+}
+
+void
+lyd_ctx_free(struct lyd_ctx *lydctx)
+{
+    ly_set_erase(&lydctx->unres_node_type, NULL);
+    ly_set_erase(&lydctx->unres_meta_type, NULL);
+    ly_set_erase(&lydctx->when_check, NULL);
+}
+
+LY_ERR
+lyd_parser_check_schema(struct lyd_ctx *lydctx, const struct lysc_node *snode)
+{
+    /* alternatively, we could provide line for the error messages, but it doesn't work for the LYB format */
+
+    if ((lydctx->parse_options & LYD_PARSE_NO_STATE) && (snode->flags & LYS_CONFIG_R)) {
+        LOGVAL(lydctx->data_ctx->ctx, LY_VLOG_LYSC, snode, LY_VCODE_INNODE, "state", snode->name);
+        return LY_EVALID;
+    }
+
+    if (snode->nodetype & (LYS_RPC | LYS_ACTION)) {
+        if (lydctx->int_opts & LYD_INTOPT_RPC) {
+            if (lydctx->op_node) {
+                LOGVAL(lydctx->data_ctx->ctx, LY_VLOG_LYSC, snode, LYVE_DATA, "Unexpected %s element \"%s\", %s \"%s\" already parsed.",
+                        lys_nodetype2str(snode->nodetype), snode->name,
+                        lys_nodetype2str(lydctx->op_node->schema->nodetype), lydctx->op_node->schema->name);
+                return LY_EVALID;
+            }
+        } else {
+            LOGVAL(lydctx->data_ctx->ctx, LY_VLOG_LYSC, snode, LYVE_DATA, "Unexpected %s element \"%s\".",
+                    lys_nodetype2str(snode->nodetype), snode->name);
+            return LY_EVALID;
+        }
+    } else if (snode->nodetype == LYS_NOTIF) {
+        if (lydctx->int_opts & LYD_INTOPT_NOTIF) {
+            if (lydctx->op_node) {
+                LOGVAL(lydctx->data_ctx->ctx, LY_VLOG_LYSC, snode, LYVE_DATA, "Unexpected %s element \"%s\", %s \"%s\" already parsed.",
+                        lys_nodetype2str(snode->nodetype), snode->name,
+                        lys_nodetype2str(lydctx->op_node->schema->nodetype), lydctx->op_node->schema->name);
+                return LY_EVALID;
+            }
+        } else {
+            LOGVAL(lydctx->data_ctx->ctx, LY_VLOG_LYSC, snode, LYVE_DATA, "Unexpected %s element \"%s\".",
+                    lys_nodetype2str(snode->nodetype), snode->name);
+            return LY_EVALID;
+        }
+    }
+
+    return LY_SUCCESS;
+}
+
+LY_ERR
+lyd_parser_create_term(struct lyd_ctx *lydctx, const struct lysc_node *schema, const char *value, size_t value_len,
+        ly_bool *dynamic, LY_PREFIX_FORMAT format, void *prefix_data, uint32_t hints, struct lyd_node **node)
+{
+    ly_bool incomplete;
+
+    LY_CHECK_RET(lyd_create_term(schema, value, value_len, dynamic, format, prefix_data, hints, &incomplete, node));
+
+    if (incomplete && !(lydctx->parse_options & LYD_PARSE_ONLY)) {
+        LY_CHECK_RET(ly_set_add(&lydctx->unres_node_type, *node, 1, NULL));
+    }
+    return LY_SUCCESS;
+}
+
+LY_ERR
+lyd_parser_create_meta(struct lyd_ctx *lydctx, struct lyd_node *parent, struct lyd_meta **meta, const struct lys_module *mod,
+        const char *name, size_t name_len, const char *value, size_t value_len, ly_bool *dynamic, LY_PREFIX_FORMAT format,
+        void *prefix_data, uint32_t hints)
+{
+    ly_bool incomplete;
+
+    LY_CHECK_RET(lyd_create_meta(parent, meta, mod, name, name_len, value, value_len, dynamic, format, prefix_data,
+            hints, &incomplete));
+
+    if (incomplete && !(lydctx->parse_options & LYD_PARSE_ONLY)) {
+        LY_CHECK_RET(ly_set_add(&lydctx->unres_meta_type, *meta, 1, NULL));
+    }
     return LY_SUCCESS;
 }

@@ -18,7 +18,7 @@
 #include <string.h>
 
 #include "common.h"
-#include "config.h"
+#include "compat.h"
 #include "hash_table.h"
 #include "log.h"
 #include "plugins_types.h"
@@ -35,7 +35,7 @@ lyd_hash_keyless_list_dfs(struct lyd_node *child, uint32_t *hash)
         switch (iter->schema->nodetype) {
         case LYS_CONTAINER:
         case LYS_LIST:
-            lyd_hash_keyless_list_dfs(((struct lyd_node_inner*)iter)->child, hash);
+            lyd_hash_keyless_list_dfs(((struct lyd_node_inner *)iter)->child, hash);
             break;
         case LYS_LEAFLIST:
         case LYS_ANYXML:
@@ -62,35 +62,20 @@ lyd_hash(struct lyd_node *node)
     node->hash = dict_hash_multi(node->hash, node->schema->name, strlen(node->schema->name));
 
     if (node->schema->nodetype == LYS_LIST) {
-        struct lyd_node_inner *list = (struct lyd_node_inner*)node;
+        struct lyd_node_inner *list = (struct lyd_node_inner *)node;
         if (!(node->schema->flags & LYS_KEYLESS)) {
             /* list's hash is made of its keys */
-            struct lysc_node *key;
-            for (key = ((struct lysc_node_list*)node->schema)->child, iter = list->child;
-                    key && key->nodetype == LYS_LEAF && (key->flags & LYS_KEY) && iter;
-                    key = key->next, iter = iter->next) {
-                for ( ; iter && iter->schema != key; iter = iter->next);
-                if (!iter) {
-                    break;
-                }
-                int dynamic = 0;
-                const char *value = lyd_value2str((struct lyd_node_term *)iter, &dynamic);
+            for (iter = list->child; iter && (iter->schema->flags & LYS_KEY); iter = iter->next) {
+                const char *value = LYD_CANON_VALUE(iter);
                 node->hash = dict_hash_multi(node->hash, value, strlen(value));
-                if (dynamic) {
-                    free((char *)value);
-                }
             }
         } else {
             /* keyless status list */
             lyd_hash_keyless_list_dfs(list->child, &node->hash);
         }
     } else if (node->schema->nodetype == LYS_LEAFLIST) {
-        int dynamic = 0;
-        const char *value = lyd_value2str((struct lyd_node_term *)node, &dynamic);
+        const char *value = LYD_CANON_VALUE(node);
         node->hash = dict_hash_multi(node->hash, value, strlen(value));
-        if (dynamic) {
-            free((char*)value);
-        }
     }
     /* finish the hash */
     node->hash = dict_hash_multi(node->hash, NULL, 0);
@@ -98,8 +83,13 @@ lyd_hash(struct lyd_node *node)
     return LY_SUCCESS;
 }
 
-static int
-lyd_hash_table_val_equal(void *val1_p, void *val2_p, int mod, void *UNUSED(cb_data))
+/**
+ * @brief Compare callback for values in hash table.
+ *
+ * Implementation of ::values_equal_cb.
+ */
+static ly_bool
+lyd_hash_table_val_equal(void *val1_p, void *val2_p, ly_bool mod, void *UNUSED(cb_data))
 {
     struct lyd_node *val1, *val2;
 
@@ -135,7 +125,7 @@ lyd_hash_table_val_equal(void *val1_p, void *val2_p, int mod, void *UNUSED(cb_da
  * @return LY_ERR value.
  */
 static LY_ERR
-lyd_insert_hash_add(struct hash_table *ht, struct lyd_node *node, int empty_ht)
+lyd_insert_hash_add(struct hash_table *ht, struct lyd_node *node, ly_bool empty_ht)
 {
     uint32_t hash;
 
@@ -143,13 +133,13 @@ lyd_insert_hash_add(struct hash_table *ht, struct lyd_node *node, int empty_ht)
 
     /* add node itself */
     if (lyht_insert(ht, &node, node->hash, NULL)) {
-        LOGINT(LYD_NODE_CTX(node));
+        LOGINT(LYD_CTX(node));
         return LY_EINT;
     }
 
     /* add first instance of a (leaf-)list */
-    if ((node->schema->nodetype & (LYS_LIST | LYS_LEAFLIST))
-            && (!node->prev->next || (node->prev->schema != node->schema))) {
+    if ((node->schema->nodetype & (LYS_LIST | LYS_LEAFLIST)) &&
+            (!node->prev->next || (node->prev->schema != node->schema))) {
         /* get the simple hash */
         hash = dict_hash_multi(0, node->schema->module->name, strlen(node->schema->module->name));
         hash = dict_hash_multi(hash, node->schema->name, strlen(node->schema->name));
@@ -158,14 +148,14 @@ lyd_insert_hash_add(struct hash_table *ht, struct lyd_node *node, int empty_ht)
         /* remove any previous stored instance, only if we did not start with an empty HT */
         if (!empty_ht && node->next && (node->next->schema == node->schema)) {
             if (lyht_remove(ht, &node->next, hash)) {
-                LOGINT(LYD_NODE_CTX(node));
+                LOGINT(LYD_CTX(node));
                 return LY_EINT;
             }
         }
 
         /* insert this instance as the first (leaf-)list instance */
         if (lyht_insert(ht, &node, hash, NULL)) {
-            LOGINT(LYD_NODE_CTX(node));
+            LOGINT(LYD_CTX(node));
             return LY_EINT;
         }
     }
@@ -223,7 +213,7 @@ lyd_unlink_hash(struct lyd_node *node)
 
     /* remove from the parent HT */
     if (lyht_remove(node->parent->children_ht, &node, node->hash)) {
-        LOGINT(LYD_NODE_CTX(node));
+        LOGINT(LYD_CTX(node));
         return;
     }
 
@@ -236,14 +226,14 @@ lyd_unlink_hash(struct lyd_node *node)
 
         /* remove the instance */
         if (lyht_remove(node->parent->children_ht, &node, hash)) {
-            LOGINT(LYD_NODE_CTX(node));
+            LOGINT(LYD_CTX(node));
             return;
         }
 
         /* add the next instance */
         if (node->next && (node->next->schema == node->schema)) {
             if (lyht_insert(node->parent->children_ht, &node->next, hash, NULL)) {
-                LOGINT(LYD_NODE_CTX(node));
+                LOGINT(LYD_CTX(node));
                 return;
             }
         }

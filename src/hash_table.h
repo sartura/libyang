@@ -20,7 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "config.h"
+#include "compat.h"
 #include "log.h"
 
 /**
@@ -28,8 +28,8 @@
  *
  * Usage:
  * - init hash to 0
- * - repeatedly call dict_hash_multi(), provide hash from the last call
- * - call dict_hash_multi() with key_part = NULL to finish the hash
+ * - repeatedly call ::dict_hash_multi(), provide hash from the last call
+ * - call ::dict_hash_multi() with key_part = NULL to finish the hash
  */
 uint32_t dict_hash_multi(uint32_t hash, const char *key_part, size_t len);
 
@@ -45,9 +45,9 @@ uint32_t dict_hash(const char *key, size_t len);
  * @param[in] val2_p Pointer to the second value, the one stored in the hash table.
  * @param[in] mod Whether the operation modifies the hash table (insert or remove) or not (find).
  * @param[in] cb_data User callback data.
- * @return 0 on non-equal, non-zero on equal.
+ * @return false (non-equal) or true (equal).
  */
-typedef int (*values_equal_cb)(void *val1_p, void *val2_p, int mod, void *cb_data);
+typedef ly_bool (*values_equal_cb)(void *val1_p, void *val2_p, ly_bool mod, void *cb_data);
 
 /** when the table is at least this much percent full, it is enlarged (double the size) */
 #define LYHT_ENLARGE_PERCENTAGE 75
@@ -128,7 +128,7 @@ void lydict_clean(struct dict_table *dict);
  * @param[in] resize Whether to resize the table on too few/too many records taken.
  * @return Empty hash table, NULL on error.
  */
-struct hash_table *lyht_new(uint32_t size, uint16_t val_size, values_equal_cb val_equal, void *cb_data, int resize);
+struct hash_table *lyht_new(uint32_t size, uint16_t val_size, values_equal_cb val_equal, void *cb_data, uint16_t resize);
 
 /**
  * @brief Set hash table value equal callback.
@@ -196,12 +196,13 @@ LY_ERR lyht_find_next(struct hash_table *ht, void *val_p, uint32_t hash, void **
  * @param[in] hash Hash of the stored value.
  * @param[out] match_p Pointer to the stored value, optional
  * @return LY_SUCCESS on success,
- * @return LY_EEXIST if the value is already present.
+ * @return LY_EEXIST in case the value is already present.
+ * @return LY_EMEM in case of memory allocation failure.
  */
 LY_ERR lyht_insert(struct hash_table *ht, void *val_p, uint32_t hash, void **match_p);
 
 /**
- * @brief Insert a value into hash table. Same functionality as lyht_insert()
+ * @brief Insert a value into hash table. Same functionality as ::lyht_insert()
  * but allows to specify a temporary val equal callback to be used in case the hash table
  * will be resized after successful insertion.
  *
@@ -212,21 +213,37 @@ LY_ERR lyht_insert(struct hash_table *ht, void *val_p, uint32_t hash, void **mat
  * @param[in] resize_val_equal Val equal callback to use for resizing.
  * @param[out] match_p Pointer to the stored value, optional
  * @return LY_SUCCESS on success,
- * @return LY_EEXIST if the value is already present.
+ * @return LY_EEXIST in case the value is already present.
+ * @return LY_EMEM in case of memory allocation failure.
  */
 LY_ERR lyht_insert_with_resize_cb(struct hash_table *ht, void *val_p, uint32_t hash, values_equal_cb resize_val_equal,
-                                  void **match_p);
+        void **match_p);
 
 /**
  * @brief Remove a value from a hash table.
  *
  * @param[in] ht Hash table to remove from.
- * @param[in] value_p Pointer to value to be removed. Be careful, if the values stored in the hash table
- * are pointers, \p value_p must be a pointer to a pointer.
+ * @param[in] val_p Pointer to value to be removed. Be careful, if the values stored in the hash table
+ * are pointers, \p val_p must be a pointer to a pointer.
  * @param[in] hash Hash of the stored value.
  * @return LY_SUCCESS on success,
  * @return LY_ENOTFOUND if value was not found.
  */
 LY_ERR lyht_remove(struct hash_table *ht, void *val_p, uint32_t hash);
+
+/**
+ * @brief Remove a value from a hash table. Same functionality as ::lyht_remove()
+ * but allows to specify a temporary val equal callback to be used in case the hash table
+ * will be resized after successful removal.
+ *
+ * @param[in] ht Hash table to remove from.
+ * @param[in] val_p Pointer to value to be removed. Be careful, if the values stored in the hash table
+ * are pointers, \p val_p must be a pointer to a pointer.
+ * @param[in] hash Hash of the stored value.
+ * @param[in] resize_val_equal Val equal callback to use for resizing.
+ * @return LY_SUCCESS on success,
+ * @return LY_ENOTFOUND if value was not found.
+ */
+LY_ERR lyht_remove_with_resize_cb(struct hash_table *ht, void *val_p, uint32_t hash, values_equal_cb resize_val_equal);
 
 #endif /* LY_HASH_TABLE_H_ */

@@ -37,7 +37,7 @@ enum lyd_diff_op {
     LYD_DIFF_OP_CREATE,    /**< Subtree created. */
     LYD_DIFF_OP_DELETE,    /**< Subtree deleted. */
     LYD_DIFF_OP_REPLACE,   /**< Node value changed or (leaf-)list instance moved. */
-    LYD_DIFF_OP_NONE,      /**< No change of an existing inner node or default flag change of a term node. */
+    LYD_DIFF_OP_NONE       /**< No change of an existing inner node or default flag change of a term node. */
 };
 
 /**
@@ -54,6 +54,6 @@ enum lyd_diff_op {
  * @return LY_ERR value.
  */
 LY_ERR lyd_diff_add(const struct lyd_node *node, enum lyd_diff_op op, const char *orig_default, const char *orig_value,
-                    const char *key, const char *value, const char *orig_key, struct lyd_node **diff);
+        const char *key, const char *value, const char *orig_key, struct lyd_node **diff);
 
 #endif /* LY_DIFF_H_ */

@@ -64,11 +64,11 @@ cmd_print_help(void)
     printf("\ttree-options:\t--tree-print-groupings\t(print top-level groupings in a separate section)\n");
     printf("\t             \t--tree-print-uses\t(print uses nodes instead the resolved grouping nodes)\n");
     printf("\t             \t--tree-no-leafref-target\t(do not print the target nodes of leafrefs)\n");
-    printf("\t             \t--tree-path <schema-path>\t(print only the specified subtree)\n");
+    printf("\t             \t--tree-path <data-path>\t(print only the specified subtree)\n");
     printf("\t             \t--tree-line-length <line-length>\t(wrap lines if longer than line-length,\n");
     printf("\t             \t\tnot a strict limit, longer lines can often appear)\n");
     printf("\n");
-    printf("\tinfo-path:\t<schema-path> | identity/<identity-name> | feature/<feature-name>\n");
+    printf("\tinfo-path:\t<data-path> | identity/<identity-name> | feature/<feature-name>\n");
     printf("\n");
     printf("\tschema-path:\t( /<module-name>:<node-identifier> )+\n");
 }
@@ -186,9 +186,8 @@ get_schema_format(const char *path)
 int
 cmd_add(const char *arg)
 {
-    int path_len, ret = 1, index = 0;
+    int path_len, ret = 1;
     char *path, *dir, *s, *arg_ptr;
-    const char * const *searchpaths;
     const struct lys_module *model;
     LYS_INFORMAT format = LYS_IN_UNKNOWN;
 
@@ -201,7 +200,7 @@ cmd_add(const char *arg)
 
     for (s = strstr(arg_ptr, "-i"); s ; s = strstr(s + 2, "-i")) {
         if (s[2] == '\0' || s[2] == ' ') {
-            ly_ctx_set_options(ctx, LY_CTX_ALLIMPLEMENTED);
+            ly_ctx_set_options(ctx, LY_CTX_ALL_IMPLEMENTED);
             s[0] = s[1] = ' ';
         }
     }
@@ -217,22 +216,22 @@ cmd_add(const char *arg)
     }
     path = strndup(arg_ptr, path_len);
 
-    searchpaths = ly_ctx_get_searchdirs(ctx);
-    if (searchpaths) {
-        for (index = 0; searchpaths[index]; index++);
-    }
-
     while (path) {
+        int unset_path = 1;
         format = get_schema_format(path);
         if (format == LYS_IN_UNKNOWN) {
             free(path);
             goto cleanup;
         }
 
+        /* add temporarily also the path of the module itself */
         dir = strdup(path);
-        ly_ctx_set_searchdir(ctx, dirname(dir));
+        if (ly_ctx_set_searchdir(ctx, dirname(dir)) == LY_EEXIST) {
+            unset_path = 0;
+        }
+        /* parse the file */
         lys_parse_path(ctx, path, format, &model);
-        ly_ctx_unset_searchdir(ctx, index);
+        ly_ctx_unset_searchdir_last(ctx, unset_path);
         free(path);
         free(dir);
 
@@ -267,7 +266,7 @@ cmd_add(const char *arg)
 
 cleanup:
     free(s);
-    ly_ctx_unset_options(ctx, LY_CTX_ALLIMPLEMENTED);
+    ly_ctx_unset_options(ctx, LY_CTX_ALL_IMPLEMENTED);
 
     return ret;
 }
@@ -288,7 +287,7 @@ cmd_load(const char *arg)
 
     for (s = strstr(arg_ptr, "-i"); s ; s = strstr(s + 2, "-i")) {
         if (s[2] == '\0' || s[2] == ' ') {
-            ly_ctx_set_options(ctx, LY_CTX_ALLIMPLEMENTED);
+            ly_ctx_set_options(ctx, LY_CTX_ALL_IMPLEMENTED);
             s[0] = s[1] = ' ';
         }
     }
@@ -305,7 +304,7 @@ cmd_load(const char *arg)
     name = strndup(arg_ptr, name_len);
 
     while (name) {
-        model = ly_ctx_load_module(ctx, name, NULL);
+        model = ly_ctx_load_module(ctx, name, NULL, NULL);
         free(name);
         if (!model) {
             /* libyang printed the error messages */
@@ -333,7 +332,7 @@ cmd_load(const char *arg)
 
 cleanup:
     free(s);
-    ly_ctx_unset_options(ctx, LY_CTX_ALLIMPLEMENTED);
+    ly_ctx_unset_options(ctx, LY_CTX_ALL_IMPLEMENTED);
 
     return ret;
 }
@@ -435,7 +434,7 @@ cmd_print(const char *arg)
             target_path = optarg;
             break;
         case 's':
-            output_opts |= LYS_OUTPUT_NO_SUBSTMT;
+            output_opts |= LYS_PRINT_NO_SUBSTMT;
             break;
 #if 0
         case 'L':
@@ -504,14 +503,14 @@ cmd_print(const char *arg)
     }
 
     if (target_path) {
-        const struct lysc_node *node = lys_find_node(ctx, NULL, target_path);
+        const struct lysc_node *node = ly_ctx_get_node(ctx, NULL, target_path, 0);
         if (node) {
             ret = lys_print_node(out, node, format, tree_ll, output_opts);
         } else {
             fprintf(stderr, "The requested schema node \"%s\" does not exists.\n", target_path);
         }
     } else {
-        ret = lys_print(out, module, format, tree_ll, output_opts);
+        ret = lys_print_module(out, module, format, tree_ll, output_opts);
     }
 
 cleanup:
@@ -647,7 +646,7 @@ parse_data(char *filepath, int *options, const struct lyd_node *tree, const char
         } else {
 #endif
 
-            lyd_parse_data(ctx, in, 0, opts, 0, &data);
+            lyd_parse_data(ctx, in, 0, opts, LYD_VALIDATE_PRESENT, &data);
 #if 0
         }
     }
@@ -714,19 +713,17 @@ cmd_data(const char *arg)
         }
 
         switch (c) {
-#if 0
         case 'd':
             if (!strcmp(optarg, "all")) {
-                printopt = (printopt & ~LYP_WD_MASK) | LYP_WD_ALL;
+                printopt = (printopt & ~LYD_PRINT_WD_MASK) | LYD_PRINT_WD_ALL;
             } else if (!strcmp(optarg, "all-tagged")) {
-                printopt = (printopt & ~LYP_WD_MASK) | LYP_WD_ALL_TAG;
+                printopt = (printopt & ~LYD_PRINT_WD_MASK) | LYD_PRINT_WD_ALL_TAG;
             } else if (!strcmp(optarg, "trim")) {
-                printopt = (printopt & ~LYP_WD_MASK) | LYP_WD_TRIM;
+                printopt = (printopt & ~LYD_PRINT_WD_MASK) | LYD_PRINT_WD_TRIM;
             } else if (!strcmp(optarg, "implicit-tagged")) {
-                printopt = (printopt & ~LYP_WD_MASK) | LYP_WD_IMPL_TAG;
+                printopt = (printopt & ~LYD_PRINT_WD_MASK) | LYD_PRINT_WD_IMPL_TAG;
             }
             break;
-#endif
         case 'h':
             cmd_data_help();
             ret = 0;
@@ -734,12 +731,10 @@ cmd_data(const char *arg)
         case 'f':
             if (!strcmp(optarg, "xml")) {
                 outformat = LYD_XML;
-#if 0
             } else if (!strcmp(optarg, "json")) {
                 outformat = LYD_JSON;
             } else if (!strcmp(optarg, "lyb")) {
                 outformat = LYD_LYB;
-#endif
             } else {
                 fprintf(stderr, "Unknown output format \"%s\".\n", optarg);
                 goto cleanup;
@@ -771,11 +766,10 @@ cmd_data(const char *arg)
                 }
             }
             break;
-        case 's':
-            options |= LYD_OPT_STRICT;
-            options |= LYD_OPT_OBSOLETE;
-            break;
 #endif
+        case 's':
+            options |= LYD_PARSE_STRICT;
+            break;
         case 't':
             if (!strcmp(optarg, "auto")) {
                 /* no flags */
@@ -822,7 +816,7 @@ cmd_data(const char *arg)
     }
 
     if (outformat) {
-        ret = lyd_print_all(out, data, outformat, LYD_PRINT_FORMAT | printopt);
+        ret = lyd_print_all(out, data, outformat, printopt);
         ret = ret < 0 ? ret * (-1) : 0;
     }
 
@@ -1024,24 +1018,23 @@ cleanup:
 
     return ret;
 }
+#endif
 
 int
 print_list(FILE *out, struct ly_ctx *ctx, LYD_FORMAT outformat)
 {
     struct lyd_node *ylib;
     uint32_t idx = 0, has_modules = 0;
-    uint8_t u;
     const struct lys_module *mod;
 
     if (outformat != LYD_UNKNOWN) {
-        ylib = ly_ctx_info(ctx);
-        if (!ylib) {
+        if (ly_ctx_get_yanglib_data(ctx, &ylib)) {
             fprintf(stderr, "Getting context info (ietf-yang-library data) failed.\n");
             return 1;
         }
 
-        lyd_print_file(out, ylib, outformat, LYP_WITHSIBLINGS | LYP_FORMAT);
-        lyd_free_withsiblings(ylib);
+        lyd_print_file(out, ylib, outformat, LYD_PRINT_WITHSIBLINGS);
+        lyd_free_all(ylib);
         return 0;
     }
 
@@ -1059,17 +1052,18 @@ print_list(FILE *out, struct ly_ctx *ctx, LYD_FORMAT outformat)
 
         /* module print */
         fprintf(out, " %s", mod->name);
-        if (mod->rev_size) {
-            fprintf(out, "@%s", mod->rev[0].date);
+        if (mod->revision) {
+            fprintf(out, "@%s", mod->revision);
         }
 
         /* submodules print */
-        if (mod->inc_size) {
+        if (mod->parsed && mod->parsed->includes) {
+            uint64_t u = 0;
             fprintf(out, " (");
-            for (u = 0; u < mod->inc_size; u++) {
-                fprintf(out, "%s%s", !u ? "" : ",", mod->inc[u].submodule->name);
-                if (mod->inc[u].submodule->rev_size) {
-                    fprintf(out, "@%s", mod->inc[u].submodule->rev[0].date);
+            LY_ARRAY_FOR(mod->parsed->includes, u) {
+                fprintf(out, "%s%s", !u ? "" : ",", mod->parsed->includes[u].name);
+                if (mod->parsed->includes[u].rev[0]) {
+                    fprintf(out, "@%s", mod->parsed->includes[u].rev);
                 }
             }
             fprintf(out, ")");
@@ -1155,7 +1149,7 @@ error:
 
     return print_list(stdout, ctx, outformat);
 }
-#endif
+
 int
 cmd_feature(const char *arg)
 {
@@ -1234,7 +1228,14 @@ cmd_feature(const char *arg)
         ++revision;
     }
 
-    module = ly_ctx_get_module(ctx, model_name, revision);
+    if (!revision) {
+        module = ly_ctx_get_module_implemented(ctx, model_name);
+    } else {
+        module = ly_ctx_get_module(ctx, model_name, revision);
+        if (module && !module->implemented) {
+            module = NULL;
+        }
+    }
 #if 0
     if (!module) {
         /* not a module, try to find it as a submodule */
@@ -1244,48 +1245,44 @@ cmd_feature(const char *arg)
 
     if (module == NULL) {
         if (revision) {
-            fprintf(stderr, "No (sub)module \"%s\" in revision %s found.\n", model_name, revision);
+            fprintf(stderr, "No implemented (sub)module \"%s\" in revision %s found.\n", model_name, revision);
         } else {
-            fprintf(stderr, "No (sub)module \"%s\" found.\n", model_name);
+            fprintf(stderr, "No implemented (sub)module \"%s\" found.\n", model_name);
         }
         goto cleanup;
     }
 
     if (!task) {
         size_t len, max_len = 0;
-        LY_ARRAY_COUNT_TYPE u;
-        struct lysc_feature *features;
+        uint32_t idx = 0;
+        const struct lysp_feature *f = NULL;
 
         printf("%s features:\n", module->name);
 
-        if (module->compiled) {
-            features = module->compiled->features;
-        } else {
-            features = module->dis_features;
-        }
-
         /* get the max len */
-        LY_ARRAY_FOR(features, u) {
-            len = strlen(features[u].name);
+        while ((f = lysp_feature_next(f, module->parsed, &idx))) {
+            len = strlen(f->name);
             if (len > max_len) {
                 max_len = len;
             }
         }
 
-        LY_ARRAY_FOR(features, u) {
-            printf("\t%-*s (%s)\n", (int)max_len, features[u].name, (features[u].flags & LYS_FENABLED) ? "on" : "off");
+        idx = 0;
+        f = NULL;
+        while ((f = lysp_feature_next(f, module->parsed, &idx))) {
+            printf("\t%-*s (%s)\n", (int)max_len, f->name, (f->flags & LYS_FENABLED) ? "on" : "off");
         }
-        if (!u) {
+        if (!max_len) {
             printf("\t(none)\n");
         }
     } else {
         feat_names = strtok(feat_names, ",");
         while (feat_names) {
-            if (((task == 1) && lys_feature_enable(module, feat_names))
+            /*if (((task == 1) && lys_feature_enable(module, feat_names))
                     || ((task == 2) && lys_feature_disable(module, feat_names))) {
                 fprintf(stderr, "Feature \"%s\" not found.\n", feat_names);
                 ret = 1;
-            }
+            }*/
             feat_names = strtok(NULL, ",");
         }
     }
@@ -1321,7 +1318,7 @@ cmd_searchpath(const char *arg)
         cmd_searchpath_help();
         return 0;
     } else if (!strncmp(path, "--clear", 7) && (path[7] == '\0' || path[7] == ' ')) {
-        ly_ctx_unset_searchdirs(ctx, NULL);
+        ly_ctx_unset_searchdir(ctx, NULL);
         return 0;
     }
 
@@ -1400,24 +1397,24 @@ cmd_verb(const char *arg)
 
     verb = arg + 5;
     if (!strcmp(verb, "error") || !strcmp(verb, "0")) {
-        ly_verb(LY_LLERR);
+        ly_log_level(LY_LLERR);
 #ifndef NDEBUG
-        ly_verb_dbg(0);
+        ly_log_dbg_groups(0);
 #endif
     } else if (!strcmp(verb, "warning") || !strcmp(verb, "1")) {
-        ly_verb(LY_LLWRN);
+        ly_log_level(LY_LLWRN);
 #ifndef NDEBUG
-        ly_verb_dbg(0);
+        ly_log_dbg_groups(0);
 #endif
     } else if (!strcmp(verb, "verbose")  || !strcmp(verb, "2")) {
-        ly_verb(LY_LLVRB);
+        ly_log_level(LY_LLVRB);
 #ifndef NDEBUG
-        ly_verb_dbg(0);
+        ly_log_dbg_groups(0);
 #endif
     } else if (!strcmp(verb, "debug")  || !strcmp(verb, "3")) {
-        ly_verb(LY_LLDBG);
+        ly_log_level(LY_LLDBG);
 #ifndef NDEBUG
-        ly_verb_dbg(LY_LDGDICT | LY_LDGYANG | LY_LDGYIN | LY_LDGXPATH | LY_LDGDIFF);
+        ly_log_dbg_groups(LY_LDGDICT | LY_LDGYANG | LY_LDGYIN | LY_LDGXPATH | LY_LDGDIFF);
 #endif
     } else {
         fprintf(stderr, "Unknown verbosity \"%s\"\n", verb);
@@ -1463,7 +1460,7 @@ cmd_debug(const char *arg)
             return 1;
         }
     }
-    ly_verb_dbg(grps);
+    ly_log_dbg_groups(grps);
 
     return 0;
 }
@@ -1531,8 +1528,8 @@ COMMAND commands[] = {
         {"data", cmd_data, cmd_data_help, "Load, validate and optionally print instance data"},
 #if 0
         {"xpath", cmd_xpath, cmd_xpath_help, "Get data nodes satisfying an XPath expression"},
-        {"list", cmd_list, cmd_list_help, "List all the loaded models"},
 #endif
+        {"list", cmd_list, cmd_list_help, "List all the loaded models"},
         {"feature", cmd_feature, cmd_feature_help, "Print/enable/disable all/specific features of models"},
         {"searchpath", cmd_searchpath, cmd_searchpath_help, "Print/set the search path(s) for models"},
         {"clear", cmd_clear, cmd_clear_help, "Clear the context - remove all the loaded models"},

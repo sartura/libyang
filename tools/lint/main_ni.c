@@ -229,11 +229,9 @@ get_fileformat(const char *filename, LYS_INFORMAT *schema, LYD_FORMAT *data)
         } else if (!strcmp(ptr, "xml")) {
             informat_s = 0;
             informat_d = LYD_XML;
-#if 0
         } else if (!strcmp(ptr, "json")) {
             informat_s = 0;
             informat_d = LYD_JSON;
-#endif
         } else {
             fprintf(stderr, "yanglint error: input file in an unknown format \"%s\".\n", ptr);
             return 0;
@@ -266,8 +264,8 @@ main_ni(int argc, char* argv[])
     struct option options[] = {
 #if 0
         {"auto",             no_argument,       NULL, 'a'},
-        {"default",          required_argument, NULL, 'd'},
 #endif
+        {"default",          required_argument, NULL, 'd'},
         {"format",           required_argument, NULL, 'f'},
         {"features",         required_argument, NULL, 'F'},
 #if 0
@@ -319,13 +317,14 @@ main_ni(int argc, char* argv[])
     char **feat = NULL, *ptr, *featlist, *dir;
     struct stat st;
     uint32_t u;
-    int options_ctx = LY_CTX_NOYANGLIBRARY, list = 0, outoptions_s = 0, outline_length_s = 0;
+    int options_ctx = LY_CTX_NO_YANGLIBRARY, list = 0, outoptions_s = 0, outline_length_s = 0;
     int autodetection = 0, options_parser = 0, merge = 0;
     const char *oper_file = NULL;
+    int options_dflt = 0;
 #if 0
+    ly_bool envelope = 0;
     const char *envelope_s = NULL;
     char *ylpath = NULL;
-    int options_dflt = 0, envelope = 0;
     struct lyxml_elem *iter, *elem;
     struct *subroot, *next, *node;
 #endif
@@ -339,36 +338,36 @@ main_ni(int argc, char* argv[])
     } *data = NULL, *data_item, *data_prev = NULL;
     struct ly_set *mods = NULL;
     void *p;
-    int index = 0;
 
     opterr = 0;
 #ifndef NDEBUG
-    while ((opt = getopt_long(argc, argv, "acd:f:F:gunP:L:hHiDlmo:p:r:O:st:vVG:y:", options, &opt_index)) != -1)
+    while ((opt = getopt_long(argc, argv, "acd:f:F:gunP:L:hHiDlmo:p:O:st:vVG:y:", options, &opt_index)) != -1)
 #else
-    while ((opt = getopt_long(argc, argv, "acd:f:F:gunP:L:hHiDlmo:p:r:O:st:vVy:", options, &opt_index)) != -1)
+    while ((opt = getopt_long(argc, argv, "acd:f:F:gunP:L:hHiDlmo:p:O:st:vVy:", options, &opt_index)) != -1)
 #endif
     {
         switch (opt) {
 #if 0
+        }
         case 'a':
             envelope = 1;
             break;
+#endif
         case 'd':
             if (!strcmp(optarg, "all")) {
-                options_dflt = (options_dflt & ~LYP_WD_MASK) | LYP_WD_ALL;
+                options_dflt = (options_dflt & ~LYD_PRINT_WD_MASK) | LYD_PRINT_WD_ALL;
             } else if (!strcmp(optarg, "all-tagged")) {
-                options_dflt = (options_dflt & ~LYP_WD_MASK) | LYP_WD_ALL_TAG;
+                options_dflt = (options_dflt & ~LYD_PRINT_WD_MASK) | LYD_PRINT_WD_ALL_TAG;
             } else if (!strcmp(optarg, "trim")) {
-                options_dflt = (options_dflt & ~LYP_WD_MASK) | LYP_WD_TRIM;
+                options_dflt = (options_dflt & ~LYD_PRINT_WD_MASK) | LYD_PRINT_WD_TRIM;
             } else if (!strcmp(optarg, "implicit-tagged")) {
-                options_dflt = (options_dflt & ~LYP_WD_MASK) | LYP_WD_IMPL_TAG;
+                options_dflt = (options_dflt & ~LYD_PRINT_WD_MASK) | LYD_PRINT_WD_IMPL_TAG;
             } else {
                 fprintf(stderr, "yanglint error: unknown default mode %s\n", optarg);
                 help(1);
                 goto cleanup;
             }
             break;
-#endif
         case 'f':
             if (!strcasecmp(optarg, "yang")) {
                 outformat_s = LYS_OUT_YANG;
@@ -391,11 +390,9 @@ main_ni(int argc, char* argv[])
             } else if (!strcasecmp(optarg, "xml")) {
                 outformat_s = 0;
                 outformat_d = LYD_XML;
-#if 0
             } else if (!strcasecmp(optarg, "json")) {
                 outformat_s = 0;
                 outformat_d = LYD_JSON;
-#endif
             } else {
                 fprintf(stderr, "yanglint error: unknown output format %s\n", optarg);
                 help(1);
@@ -453,7 +450,7 @@ main_ni(int argc, char* argv[])
             goto cleanup;
 #endif
         case 'i':
-            options_ctx |= LY_CTX_ALLIMPLEMENTED;
+            options_ctx |= LY_CTX_ALL_IMPLEMENTED;
             break;
         case 'D':
             if (options_ctx & LY_CTX_DISABLE_SEARCHDIRS) {
@@ -497,12 +494,17 @@ main_ni(int argc, char* argv[])
                 goto cleanup;
             }
             if (!searchpaths) {
-                searchpaths = ly_set_new();
+                if (ly_set_new(&searchpaths)) {
+                    fprintf(stderr, "yanglint error: Preparing storage for searchpaths failed.\n");
+                    goto cleanup;
+                }
             }
-            ly_set_add(searchpaths, optarg, 0);
+            if (ly_set_add(searchpaths, optarg, 0, NULL)) {
+                fprintf(stderr, "yanglint error: Storing searchpath failed.\n");
+                goto cleanup;
+            }
             break;
 #if 0
-        case 'r':
         case 'O':
             if (oper_file || (options_parser & LYD_OPT_NOEXTDEPS)) {
                 fprintf(stderr, "yanglint error: The operational datastore (-O) cannot be set multiple times.\n");
@@ -576,7 +578,7 @@ main_ni(int argc, char* argv[])
                     ++ptr;
                 }
             }
-            ly_verb_dbg(u);
+            ly_log_dbg_groups(u);
             break;
 #endif
 #if 0
@@ -640,11 +642,11 @@ main_ni(int argc, char* argv[])
         }
 #endif
     }
-#if 0
     if (!outformat_d && options_dflt) {
         /* we have options for printing default nodes, but data output not specified */
         fprintf(stderr, "yanglint warning: default mode is ignored when not printing data.\n");
     }
+#if 0
     if (outformat_s && (options_parser || autodetection)) {
         /* we have options for printing data tree, but output is schema */
         fprintf(stderr, "yanglint warning: data parser options are ignored when printing schema.\n");
@@ -681,13 +683,15 @@ main_ni(int argc, char* argv[])
         for (u = 0; u < searchpaths->count; u++) {
             ly_ctx_set_searchdir(ctx, (const char*)searchpaths->objs[u]);
         }
-        index = u + 1;
     }
 
     /* derefered setting of verbosity in libyang after context initiation */
-    ly_verb(verbose);
+    ly_log_level(verbose);
 
-    mods = ly_set_new();
+    if (ly_set_new(&mods)) {
+        fprintf(stderr, "yanglint error: Preparing storage for the parsed modules failed.\n");
+        goto cleanup;
+    }
 
 
     /* divide input files */
@@ -699,18 +703,27 @@ main_ni(int argc, char* argv[])
 
         if (informat_s) {
             /* load/validate schema */
+            int unset_path = 1;
+
             if (verbose >= 2) {
                 fprintf(stdout, "Validating %s schema file.\n", argv[optind + i]);
             }
+
+            /* add temporarily also the path of the module itself */
             dir = strdup(argv[optind + i]);
-            ly_ctx_set_searchdir(ctx, ptr = dirname(dir));
+            if (ly_ctx_set_searchdir(ctx, ptr = dirname(dir)) == LY_EEXIST) {
+                unset_path = 0;
+            }
             lys_parse_path(ctx, argv[optind + i], informat_s, &mod);
-            ly_ctx_unset_searchdir(ctx, index);
+            ly_ctx_unset_searchdir_last(ctx, unset_path);
             free(dir);
             if (!mod) {
                 goto cleanup;
             }
-            ly_set_add(mods, (void *)mod, 0);
+            if (ly_set_add(mods, (void *)mod, 0, NULL)) {
+                fprintf(stderr, "yanglint error: Storing parsed module for further processing failed.\n");
+                goto cleanup;
+            }
         } else {
             if (autodetection && informat_d != LYD_XML) {
                 /* data file content autodetection is possible only for XML input */
@@ -741,6 +754,10 @@ main_ni(int argc, char* argv[])
     /* enable specified features, if not specified, all the module's features are enabled */
     u = 4; /* skip internal libyang modules */
     while ((mod = ly_ctx_get_module_iter(ctx, &u))) {
+        if (!mod->implemented) {
+            continue;
+        }
+
         for (i = 0; i < featsize; i++) {
             if (!strcmp(feat[i], mod->name)) {
                 /* parse features spec */
@@ -750,9 +767,9 @@ main_ni(int argc, char* argv[])
                     if (verbose >= 2) {
                         fprintf(stdout, "Enabling feature %s in module %s.\n", ptr, mod->name);
                     }
-                    if (lys_feature_enable(mod, ptr)) {
+                    /*if (lys_feature_enable(mod, ptr)) {
                         fprintf(stderr, "Feature %s not defined in module %s.\n", ptr, mod->name);
-                    }
+                    }*/
                 }
                 free(featlist);
                 break;
@@ -762,14 +779,16 @@ main_ni(int argc, char* argv[])
             if (verbose >= 2) {
                 fprintf(stdout, "Enabling all features in module %s.\n", mod->name);
             }
-            lys_feature_enable(mod, "*");
+            //lys_feature_enable(mod, "*");
         }
     }
-
+    if (!out && (outformat_s || data)) {
+        ly_out_new_file(stdout, &out);
+    }
     /* convert (print) to FORMAT */
     if (outformat_s) {
         if (outtarget_s) {
-            const struct lysc_node *node = lys_find_node(ctx, NULL, outtarget_s);
+            const struct lysc_node *node = ly_ctx_get_node(ctx, NULL, outtarget_s, 0);
             if (node) {
                 lys_print_node(out, node, outformat_s, outline_length_s, outoptions_s);
             } else {
@@ -780,7 +799,7 @@ main_ni(int argc, char* argv[])
                 if (u) {
                     ly_print(out, "\n");
                 }
-                lys_print(out, (struct lys_module *)mods->objs[u], outformat_s, outline_length_s, outoptions_s);
+                lys_print_module(out, (struct lys_module *)mods->objs[u], outformat_s, outline_length_s, outoptions_s);
             }
         }
     } else if (data) {
@@ -971,7 +990,7 @@ parse_reply:
                     fprintf(stderr, "yanglint error: input data file \"%s\".\n", data_item->filename);
                     goto cleanup;
                 }
-                if (lyd_parse_data(ctx, in, 0, options_parser, 0, &data_item->tree)) {
+                if (lyd_parse_data(ctx, in, 0, options_parser, LYD_VALIDATE_PRESENT, &data_item->tree)) {
                     fprintf(stderr, "yanglint error: Failed to parse input data file \"%s\".\n", data_item->filename);
                     ly_in_free(in, 0);
                     goto cleanup;
@@ -1067,7 +1086,7 @@ parse_reply:
                     }
                 }
 #endif
-                lyd_print_all(out, data_item->tree, outformat_d, LYD_PRINT_FORMAT /* TODO defaults | options_dflt */);
+                lyd_print_all(out, data_item->tree, outformat_d, options_dflt);
 #if 0
                 if (envelope_s) {
                     if (data_item->type == LYD_OPT_RPC && data_item->tree->schema->nodetype != LYS_RPC) {
